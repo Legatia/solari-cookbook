@@ -185,6 +185,40 @@ function services(
       readyForProposal: false,
       evaluations: [],
     }),
+    approveDisclosure: vi.fn().mockResolvedValue({
+      id: "3dad893f-9d0c-4782-8da8-82e84339fcb4",
+      observationIds: ["3295a3c0-a857-4be3-9a03-bd31d3995045"],
+    }),
+    createIntroduction: vi.fn().mockResolvedValue({
+      id: "84145b35-3fae-4910-af85-ce9e49f7a606",
+      status: "waiting",
+    }),
+    respondToIntroduction: vi.fn().mockResolvedValue({
+      id: "84145b35-3fae-4910-af85-ce9e49f7a606",
+      status: "waiting",
+      myDecision: "accepted",
+      preview: [{ id: "other-observation", claim: "Builds communities." }],
+      otherParticipant: null,
+      meeting: null,
+      privacy: {
+        otherDecisionRevealed: false,
+        identityRevealed: false,
+        rawRationaleRevealed: false,
+      },
+    }),
+    getIntroduction: vi.fn().mockResolvedValue({
+      id: "84145b35-3fae-4910-af85-ce9e49f7a606",
+      status: "waiting",
+      myDecision: null,
+      preview: [{ id: "other-observation", claim: "Builds communities." }],
+      otherParticipant: null,
+      meeting: null,
+      privacy: {
+        otherDecisionRevealed: false,
+        identityRevealed: false,
+        rawRationaleRevealed: false,
+      },
+    }),
     startRun: vi.fn().mockResolvedValue(agentRun),
     checkpointRun: vi.fn().mockResolvedValue({
       ...agentRun,
@@ -285,6 +319,12 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_prepare_candidate_pair" }),
           expect.objectContaining({ name: "sylla_evaluate_my_direction" }),
           expect.objectContaining({ name: "sylla_get_candidate_pair" }),
+          expect.objectContaining({ name: "sylla_approve_my_disclosure" }),
+          expect.objectContaining({
+            name: "sylla_create_introduction_proposal",
+          }),
+          expect.objectContaining({ name: "sylla_respond_to_introduction" }),
+          expect.objectContaining({ name: "sylla_get_introduction" }),
           expect.objectContaining({ name: "sylla_checkpoint_agent_run" }),
           expect.objectContaining({ name: "sylla_yield_agent_run" }),
           expect.objectContaining({ name: "sylla_attempt_agent_fallback" }),
@@ -764,6 +804,127 @@ describe("Sylla MCP server", () => {
       state.participantId,
       candidatePairId,
     );
+  });
+
+  it("keeps disclosure and acceptance bilateral, private, and host-controlled", async () => {
+    const candidatePairId = "b59cf50a-1c23-49a7-875d-538b29978494";
+    const introductionProposalId = "84145b35-3fae-4910-af85-ce9e49f7a606";
+    const observationIds = ["3295a3c0-a857-4be3-9a03-bd31d3995045"];
+    const approveDisclosure = vi.fn().mockResolvedValue({
+      id: "3dad893f-9d0c-4782-8da8-82e84339fcb4",
+      observationIds,
+    });
+    const createIntroduction = vi.fn().mockResolvedValue({
+      id: introductionProposalId,
+      status: "waiting",
+    });
+    const privateView = {
+      id: introductionProposalId,
+      status: "waiting",
+      myDecision: "accepted",
+      preview: [{ id: "preview-1", claim: "Builds communities." }],
+      otherParticipant: null,
+      meeting: null,
+      privacy: {
+        otherDecisionRevealed: false,
+        identityRevealed: false,
+        rawRationaleRevealed: false,
+      },
+    };
+    const respondToIntroduction = vi.fn().mockResolvedValue(privateView);
+    const getIntroduction = vi.fn().mockResolvedValue(privateView);
+    const handler = createTestHandler(
+      services({
+        approveDisclosure,
+        createIntroduction,
+        respondToIntroduction,
+        getIntroduction,
+      }),
+    );
+
+    const approved = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 47,
+      method: "tools/call",
+      params: {
+        name: "sylla_approve_my_disclosure",
+        arguments: { candidatePairId, observationIds, runId, leaseToken },
+      },
+    });
+    expect(approved.body).toMatchObject({
+      result: {
+        structuredContent: {
+          gate: { identityRevealed: false, humanHostRequired: true },
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 48,
+      method: "tools/call",
+      params: {
+        name: "sylla_create_introduction_proposal",
+        arguments: { candidatePairId, runId, leaseToken },
+      },
+    });
+    const responded = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 49,
+      method: "tools/call",
+      params: {
+        name: "sylla_respond_to_introduction",
+        arguments: {
+          introductionProposalId,
+          decision: "accepted",
+          block: false,
+          runId,
+          leaseToken,
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 50,
+      method: "tools/call",
+      params: {
+        name: "sylla_get_introduction",
+        arguments: { introductionProposalId },
+      },
+    });
+
+    expect(approveDisclosure).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      candidatePairId,
+      authorization: { clientId, runId, leaseToken },
+      observationIds,
+    });
+    expect(createIntroduction).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      candidatePairId,
+      authorization: { clientId, runId, leaseToken },
+    });
+    expect(respondToIntroduction).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      introductionProposalId,
+      authorization: { clientId, runId, leaseToken },
+      decision: "accepted",
+      block: false,
+    });
+    expect(getIntroduction).toHaveBeenCalledWith(
+      state.participantId,
+      introductionProposalId,
+    );
+    expect(responded.body).toMatchObject({
+      result: {
+        structuredContent: {
+          introduction: {
+            otherParticipant: null,
+            meeting: null,
+            privacy: { identityRevealed: false },
+          },
+        },
+      },
+    });
   });
 
   it("opens the persistent home without returning a provider capability", async () => {

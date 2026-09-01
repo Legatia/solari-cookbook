@@ -31,6 +31,8 @@ export type AcquiredRuntimeLease = RuntimeLeaseAuthorization & {
   expiresAt: string;
 };
 
+export type RuntimeLeaseOwnerKind = "host" | "web" | "internal";
+
 export class RuntimeLeaseConflictError extends Error {
   constructor(readonly availableAt: string) {
     super(`The agent is already active in another run until ${availableAt}.`);
@@ -57,6 +59,7 @@ export async function acquireRuntimeLease(input: {
   purpose: string;
   durationSeconds?: number;
   allowTakeover?: boolean;
+  ownerKind?: RuntimeLeaseOwnerKind;
 }): Promise<AcquiredRuntimeLease> {
   const database = getDatabase();
   const identity = await ensurePortableIdentity(input.participantId);
@@ -72,6 +75,7 @@ export async function acquireRuntimeLease(input: {
       participantId: input.participantId,
       ownerClientId: input.clientId,
       ownerRunId: input.runId,
+      ownerKind: input.ownerKind ?? "host",
       leaseTokenHash: hashLeaseToken(leaseToken),
       purpose: input.purpose,
       acquiredAt: now,
@@ -85,6 +89,7 @@ export async function acquireRuntimeLease(input: {
         participantId: input.participantId,
         ownerClientId: input.clientId,
         ownerRunId: input.runId,
+        ownerKind: input.ownerKind ?? "host",
         leaseTokenHash: hashLeaseToken(leaseToken),
         purpose: input.purpose,
         acquiredAt: now,
@@ -153,6 +158,19 @@ export async function requireRuntimeLease(
     );
   }
 
+  return lease;
+}
+
+export async function requireHumanHostLease(
+  participantId: string,
+  authorization: RuntimeLeaseAuthorization,
+) {
+  const lease = await requireRuntimeLease(participantId, authorization);
+  if (lease.ownerKind !== "host") {
+    throw new RuntimeLeaseAuthorizationError(
+      "This action requires an active human-controlled host lease.",
+    );
+  }
   return lease;
 }
 
@@ -231,6 +249,7 @@ export async function withEphemeralRuntimeLease<T>(
     runId: randomUUID(),
     purpose,
     allowTakeover: options.allowTakeover,
+    ownerKind: "web",
   });
 
   try {

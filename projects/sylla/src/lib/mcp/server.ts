@@ -17,6 +17,12 @@ import {
 } from "@/lib/sylla/browser-research";
 import { updatePortableAgent } from "@/lib/sylla/identity";
 import {
+  approveDisclosureEnvelope,
+  createIntroductionProposal,
+  getIntroductionProposalForParticipant,
+  respondToIntroductionProposal,
+} from "@/lib/sylla/introductions";
+import {
   acquireRuntimeLease,
   heartbeatRuntimeLease,
   releaseRuntimeLease,
@@ -114,6 +120,28 @@ export type SyllaMcpServices = {
     participantId: string,
     candidatePairId: string,
   ) => ReturnType<typeof getCandidatePairForParticipant>;
+  approveDisclosure: (input: {
+    participantId: string;
+    candidatePairId: string;
+    authorization: RuntimeLeaseAuthorization;
+    observationIds: string[];
+  }) => Promise<{ id: string; observationIds: string[] }>;
+  createIntroduction: (input: {
+    participantId: string;
+    candidatePairId: string;
+    authorization: RuntimeLeaseAuthorization;
+  }) => Promise<{ id: string; status: string }>;
+  respondToIntroduction: (input: {
+    participantId: string;
+    introductionProposalId: string;
+    authorization: RuntimeLeaseAuthorization;
+    decision: "accepted" | "declined";
+    block?: boolean;
+  }) => ReturnType<typeof respondToIntroductionProposal>;
+  getIntroduction: (
+    participantId: string,
+    introductionProposalId: string,
+  ) => ReturnType<typeof getIntroductionProposalForParticipant>;
   startRun: (input: {
     participantId: string;
     authorization: RuntimeLeaseAuthorization;
@@ -200,6 +228,16 @@ const defaultServices: SyllaMcpServices = {
     };
   },
   getCandidatePair: getCandidatePairForParticipant,
+  async approveDisclosure(input) {
+    const envelope = await approveDisclosureEnvelope(input);
+    return { id: envelope.id, observationIds: envelope.observationIds };
+  },
+  async createIntroduction(input) {
+    const proposal = await createIntroductionProposal(input);
+    return { id: proposal.id, status: proposal.status };
+  },
+  respondToIntroduction: respondToIntroductionProposal,
+  getIntroduction: getIntroductionProposalForParticipant,
   startRun: startAgentRun,
   checkpointRun: checkpointAgentRun,
   yieldRun: yieldAgentRunToBackground,
@@ -772,6 +810,125 @@ export function createSyllaMcpServer(
     async ({ candidatePairId }) =>
       result({
         pair: await services.getCandidatePair(participantId, candidatePairId),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_approve_my_disclosure",
+    {
+      title: "Approve what my introduction may disclose",
+      description:
+        "Human-controlled gate: approve one to five of the caller's confirmed shareable observations for this recommended pair. An internal fallback lease cannot call this tool. Approval does not reveal either participant's identity or create a meeting.",
+      inputSchema: z.object({
+        candidatePairId: z.uuid(),
+        observationIds: z.array(z.uuid()).min(1).max(5),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ candidatePairId, observationIds, runId, leaseToken }) =>
+      result({
+        disclosure: await services.approveDisclosure({
+          participantId,
+          candidatePairId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          observationIds,
+        }),
+        gate: {
+          identityRevealed: false,
+          meetingCreated: false,
+          humanHostRequired: true,
+        },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_create_introduction_proposal",
+    {
+      title: "Prepare a private introduction proposal",
+      description:
+        "After both participants separately approve their disclosure envelopes, prepare a non-identifying proposal using their overlapping availability and the event's public meeting area. This does not reveal identity or the meeting details until both accept.",
+      inputSchema: z.object({
+        candidatePairId: z.uuid(),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ candidatePairId, runId, leaseToken }) =>
+      result({
+        proposal: await services.createIntroduction({
+          participantId,
+          candidatePairId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+        }),
+        gate: { identityRevealed: false, mutualAcceptanceRequired: true },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_respond_to_introduction",
+    {
+      title: "Privately answer an introduction proposal",
+      description:
+        "Human-controlled gate: privately accept or decline a proposal. Declining may also block future matching with this person. The other person's decision is never exposed; identity and meeting details appear only after both independently accept. Internal fallback cannot answer.",
+      inputSchema: z.object({
+        introductionProposalId: z.uuid(),
+        decision: z.enum(["accepted", "declined"]),
+        block: z.boolean().default(false),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ introductionProposalId, decision, block, runId, leaseToken }) =>
+      result({
+        introduction: await services.respondToIntroduction({
+          participantId,
+          introductionProposalId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          decision,
+          block,
+        }),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_get_introduction",
+    {
+      title: "Read my private introduction state",
+      description:
+        "Read the caller's privacy-filtered proposal. Before mutual acceptance it contains only the other person's approved preview, never their identity, response, meeting details, private observations, or evaluation rationale.",
+      inputSchema: z.object({ introductionProposalId: z.uuid() }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ introductionProposalId }) =>
+      result({
+        introduction: await services.getIntroduction(
+          participantId,
+          introductionProposalId,
+        ),
       }),
   );
 

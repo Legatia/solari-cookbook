@@ -592,6 +592,7 @@ async function processFallbackRun(input: {
       runId: workerRunId,
       purpose: "Bounded internal fallback",
       durationSeconds: 90,
+      ownerKind: "internal",
     });
   } catch (error) {
     if (error instanceof RuntimeLeaseConflictError) {

@@ -477,6 +477,7 @@ async function processBrowserFallback(input: {
     runId: `browser-fallback:${input.agentRunId}:${randomUUID()}`,
     purpose: "Finish approved Solari Browser sources",
     durationSeconds: 300,
+    ownerKind: "internal",
   });
   try {
     const claim = await claimAgentRunForFallback({

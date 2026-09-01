@@ -121,6 +121,16 @@ export const directionalEvaluationStatus = pgEnum(
   ["running", "completed", "failed"],
 );
 
+export const introductionProposalStatus = pgEnum(
+  "introduction_proposal_status",
+  ["waiting", "matched", "declined", "expired", "canceled", "completed"],
+);
+
+export const introductionDecision = pgEnum("introduction_decision", [
+  "accepted",
+  "declined",
+]);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -487,6 +497,7 @@ export const runtimeLeases = pgTable(
       .references(() => participants.id, { onDelete: "cascade" }),
     ownerClientId: text("owner_client_id").notNull(),
     ownerRunId: text("owner_run_id").notNull(),
+    ownerKind: text("owner_kind").default("host").notNull(),
     leaseTokenHash: text("lease_token_hash").notNull(),
     purpose: text("purpose").notNull(),
     acquiredAt: timestamp("acquired_at", { withTimezone: true })
@@ -821,6 +832,87 @@ export const directionalEvaluations = pgTable(
     ),
     uniqueIndex("directional_evaluations_idempotency_unique").on(
       table.idempotencyKey,
+    ),
+  ],
+);
+
+export const disclosureEnvelopes = pgTable(
+  "disclosure_envelopes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    candidatePairId: uuid("candidate_pair_id")
+      .notNull()
+      .references(() => candidatePairs.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    observationIds: jsonb("observation_ids").$type<string[]>().notNull(),
+    policyVersion: text("policy_version").notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("disclosure_envelopes_pair_idx").on(table.candidatePairId),
+    index("disclosure_envelopes_participant_idx").on(table.participantId),
+    uniqueIndex("disclosure_envelopes_pair_participant_unique").on(
+      table.candidatePairId,
+      table.participantId,
+    ),
+  ],
+);
+
+export const introductionProposals = pgTable(
+  "introduction_proposals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    candidatePairId: uuid("candidate_pair_id")
+      .notNull()
+      .references(() => candidatePairs.id, { onDelete: "cascade" }),
+    status: introductionProposalStatus("status").default("waiting").notNull(),
+    meetingArea: text("meeting_area").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    matchedAt: timestamp("matched_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("introduction_proposals_pair_unique").on(table.candidatePairId),
+    index("introduction_proposals_status_idx").on(table.status),
+  ],
+);
+
+export const introductionResponses = pgTable(
+  "introduction_responses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    introductionProposalId: uuid("introduction_proposal_id")
+      .notNull()
+      .references(() => introductionProposals.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    decision: introductionDecision("decision").notNull(),
+    blockRequested: boolean("block_requested").default(false).notNull(),
+    respondedAt: timestamp("responded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("introduction_responses_proposal_idx").on(
+      table.introductionProposalId,
+    ),
+    uniqueIndex("introduction_responses_proposal_participant_unique").on(
+      table.introductionProposalId,
+      table.participantId,
     ),
   ],
 );

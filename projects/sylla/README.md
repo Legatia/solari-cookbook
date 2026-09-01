@@ -64,6 +64,8 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Canonical candidate-pair reservations plus two independently persisted directional evaluations
 - Privacy-preserving MCP pair tools that never return the other participant's identity, private context, rationale, or decline decision
 - Billable Solari Sandbox evaluation with idempotent per-direction records, authorized-evidence citation validation, and a bilateral recommendation gate that still cannot disclose or introduce anyone
+- Human-host-only disclosure envelopes containing one to five explicitly approved shareable observations; web and internal fallback leases are structurally refused at this gate
+- Privacy-filtered introduction proposals that expose neither identity nor meeting details until both participants independently accept, and turn every decline into the same non-identifying closed state
 - A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
 - A reconstructible Desktop workbench generated only from approved memories and source artifacts
@@ -150,7 +152,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, explicit disclosure approval, non-identifying proposal creation, private introduction response/status, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. Disclosure and acceptance additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
@@ -173,6 +175,8 @@ Run `pnpm verify:browser` to exercise the durable Browser contract against Neon 
 Run `pnpm verify:participation` to exercise single-use invitation redemption, policy-versioned consent, availability persistence, runtime-lease release, host-connection revocation, privacy-safe audit events, withdrawal, and cleanup against Neon.
 
 Run `pnpm verify:matching` to exercise block and availability filtering, pair-conflict prevention, private/shareable evidence separation, two idempotent directional evaluations, usage settlement, the bilateral gate, and synthetic cleanup. Prefix it with `SYLLA_VERIFY_LIVE_SANDBOX=true` to run both directions in real Solari Sandbox VMs.
+
+Run `pnpm verify:introduction` to exercise the complete bilateral disclosure and acceptance gate against Neon: internal-fallback refusal, private-observation refusal, two explicit shareable envelopes, anonymous preview, first-acceptance privacy, mutual identity/meeting reveal, audit records, and synthetic cleanup.
 
 Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
 
@@ -212,6 +216,7 @@ pnpm verify:handoff
 pnpm verify:browser
 pnpm verify:participation
 pnpm verify:matching
+pnpm verify:introduction
 ```
 
 ## Product documents

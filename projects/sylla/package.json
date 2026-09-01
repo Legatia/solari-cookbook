@@ -18,6 +18,7 @@
     "verify:browser": "tsx scripts/verify-browser-handoff.ts",
     "verify:participation": "tsx scripts/verify-participation.ts",
     "verify:matching": "tsx scripts/verify-matching.ts",
+    "verify:introduction": "tsx scripts/verify-introduction.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },
   "dependencies": {
