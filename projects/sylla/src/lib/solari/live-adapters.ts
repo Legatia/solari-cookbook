@@ -12,6 +12,7 @@ import {
   type BrowserResearchAdapter,
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
+  type WorkspaceManifest,
 } from "./contracts";
 import { assertPublicHttpUrl } from "./url-policy";
 
@@ -40,6 +41,64 @@ process.stdout.write(JSON.stringify(result));
 
 function excerpt(value: string, maxLength = 700) {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function workspaceDocument(manifest: WorkspaceManifest) {
+  const memories = manifest.observations
+    .map(
+      (observation, index) => `
+        <article class="memory">
+          <div class="memory-index">${String(index + 1).padStart(2, "0")}</div>
+          <div>
+            <div class="meta">${escapeHtml(observation.origin.replaceAll("_", " "))} · ${escapeHtml(observation.visibility)}</div>
+            <h2>${escapeHtml(observation.claim)}</h2>
+            ${observation.evidenceExcerpt ? `<p>${escapeHtml(observation.evidenceExcerpt)}</p>` : ""}
+            ${observation.sourceTitle ? `<div class="source">Source · ${escapeHtml(observation.sourceTitle)}</div>` : ""}
+          </div>
+        </article>`,
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>${escapeHtml(manifest.agentName)} · Sylla workspace</title>
+<style>
+  :root { color-scheme: dark; --ink:#ebe9df; --muted:#85877e; --line:#2b302a; --lime:#d9f99d; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:#101310; color:var(--ink); font-family:ui-sans-serif,system-ui,sans-serif; }
+  body:before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.28; background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size:28px 28px; }
+  main { position:relative; max-width:1100px; margin:auto; padding:54px 58px 80px; }
+  .eyebrow { color:var(--lime); font-size:11px; letter-spacing:.22em; text-transform:uppercase; }
+  header { display:grid; grid-template-columns:1fr auto; gap:40px; align-items:end; padding-bottom:34px; border-bottom:1px solid var(--line); }
+  h1 { margin:12px 0 0; font-family:Georgia,serif; font-size:55px; line-height:.98; font-style:italic; font-weight:400; letter-spacing:-.04em; }
+  .stats { display:flex; gap:24px; color:var(--muted); font-size:12px; }
+  .stats b { display:block; margin-bottom:4px; color:var(--ink); font:500 20px Georgia,serif; }
+  .task { margin:30px 0 24px; padding:18px 20px; border-left:2px solid var(--lime); background:#151915; color:#b7b9ae; font-size:14px; line-height:1.6; }
+  .memory { display:grid; grid-template-columns:44px 1fr; gap:16px; padding:24px 4px; border-bottom:1px solid var(--line); }
+  .memory-index { color:#4f544d; font:italic 16px Georgia,serif; }
+  .meta,.source { color:var(--muted); font-size:10px; letter-spacing:.13em; text-transform:uppercase; }
+  h2 { max-width:850px; margin:8px 0 0; font:400 23px/1.25 Georgia,serif; }
+  p { max-width:760px; margin:12px 0 0; color:#92968b; font-size:13px; line-height:1.6; }
+  .source { margin-top:14px; letter-spacing:.06em; text-transform:none; }
+</style>
+</head>
+<body><main>
+  <header><div><div class="eyebrow">${escapeHtml(manifest.agentName)} · private workbench</div><h1>What I understand,<br />with the evidence beside it.</h1></div><div class="stats"><span><b>${manifest.memoryCount}</b>memories</span><span><b>${manifest.artifactCount}</b>sources</span></div></header>
+  <div class="task">${escapeHtml(manifest.currentTask)}</div>
+  <section>${memories}</section>
+</main></body></html>`;
 }
 
 async function waitForDesktopReady(
@@ -149,6 +208,15 @@ export class SolariDesktopWorkspaceAdapter
         `${workspacePath}/workspace.json`,
         JSON.stringify(manifest, null, 2),
       );
+      await desktop.fs.write(
+        `${workspacePath}/workspace.html`,
+        workspaceDocument(manifest),
+      );
+      await desktop.open("chrome", [
+        "--no-first-run",
+        "--disable-default-apps",
+        "--app=file:///home/oai/share/sylla/workspace.html",
+      ]);
 
       return workspaceResultSchema.parse({
         provider: "solari",

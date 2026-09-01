@@ -27,10 +27,21 @@ export const researchResultSchema = z.object({
 
 export const workspaceManifestSchema = z.object({
   participantRef: z.string().min(1),
+  agentName: z.string().min(1),
   eventName: z.string().min(1),
   currentTask: z.string().min(1),
   artifactCount: z.number().int().nonnegative(),
   memoryCount: z.number().int().nonnegative(),
+  observations: z.array(
+    z.object({
+      id: z.string().min(1),
+      claim: z.string().min(1),
+      origin: z.enum(["observed", "inferred", "told_to_me"]),
+      visibility: z.enum(["private", "shareable"]),
+      sourceTitle: z.string().nullable(),
+      evidenceExcerpt: z.string().nullable(),
+    }),
+  ),
 });
 
 export const workspaceResultSchema = z.object({
@@ -66,6 +77,7 @@ export const directionalEvaluationSchema = z.object({
 });
 
 export type ApprovedSource = z.infer<typeof approvedSourceSchema>;
+export type Evidence = z.infer<typeof evidenceSchema>;
 export type ResearchRequest = z.infer<typeof researchRequestSchema>;
 export type ResearchResult = z.infer<typeof researchResultSchema>;
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;

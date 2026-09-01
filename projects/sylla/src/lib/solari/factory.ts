@@ -2,11 +2,6 @@ import { z } from "zod";
 
 import type { SolariAdapters } from "./contracts";
 import {
-  SolariBrowserResearchAdapter,
-  SolariDesktopWorkspaceAdapter,
-  SolariSandboxEvaluationAdapter,
-} from "./live-adapters";
-import {
   MockBrowserResearchAdapter,
   MockDesktopWorkspaceAdapter,
   MockSandboxEvaluationAdapter,
@@ -21,9 +16,9 @@ const environmentSchema = z.object({
   SOLARI_BASE_URL: z.url().default("https://api.getsolari.com"),
 });
 
-export function createSolariAdapters(
+export async function createSolariAdapters(
   values: Record<string, string | undefined> = process.env,
-): SolariAdapters {
+): Promise<SolariAdapters> {
   const environment = environmentSchema.parse(values);
 
   if (environment.INTEGRATION_MODE === "mock") {
@@ -42,6 +37,11 @@ export function createSolariAdapters(
     apiKey: environment.SOLARI_API_KEY,
     baseUrl: environment.SOLARI_BASE_URL,
   };
+  const {
+    SolariBrowserResearchAdapter,
+    SolariDesktopWorkspaceAdapter,
+    SolariSandboxEvaluationAdapter,
+  } = await import("./live-adapters");
 
   return {
     browser: new SolariBrowserResearchAdapter(options),

@@ -37,13 +37,28 @@ The MCP server cannot draw from a user's ChatGPT or other consumer subscription 
 - Neon Postgres with Drizzle schema and migrations
 - Typed mock and live adapters for all three Solari products
 - Deterministic mock mode for local work without billable sessions
-- Participant shell demonstrating concise chat, visible research, and a memory ledger
+- Anonymous, HttpOnly-cookie-isolated first sessions backed by durable Neon state
+- Agent naming, a current personal focus, and one to three participant-approved public sources
+- A working Browser research route that records provider, run reference, extracted evidence, and source status
+- A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
+- Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
+- A reconstructible Desktop workbench generated only from approved memories and source artifacts
+- A view-only live Desktop viewer for Solari streams, with an honest reconstructible preview in mock mode
 - URL policy checks that reject obvious local and private-network sources
-- Unit tests for adapter contracts and source URL policy
+- Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The remote MCP/OAuth layer, host-run leases, and internal-agent failover are the newly adopted target architecture and are not implemented in the current prototype yet. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. A Solari API key is still required to exercise real Browser recordings and a live Desktop stream. The remote MCP/OAuth layer, host-run leases, and internal-agent failover remain target architecture rather than implemented product behavior. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
+
+## First-session flow
+
+1. Name the personal agent and describe one question, transition, or ambition it should understand now.
+2. Approve one to three public URLs. Sylla rejects local, private-network, and unsupported source targets.
+3. Sylla researches those sources through the active Browser adapter and separates `Told to me`, `Observed`, and `Inferred` proposals.
+4. The participant keeps, corrects, changes disclosure, or forgets each proposal. Nothing pending enters the workbench.
+5. The participant can add a concise follow-up reflection, which also waits for explicit memory approval.
+6. Sylla reconstructs the agent's Desktop workbench from approved database state. Rebuilding after a correction or deletion excludes the old material.
 
 ## What the cookbook changed
 

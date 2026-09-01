@@ -85,7 +85,13 @@ export const participants = pgTable(
       .references(() => events.id, { onDelete: "cascade" }),
     inviteTokenHash: text("invite_token_hash").notNull(),
     displayName: text("display_name"),
+    agentName: text("agent_name"),
     intent: text("intent"),
+    researchProvider: text("research_provider"),
+    researchRunReference: text("research_run_reference"),
+    researchCompletedAt: timestamp("research_completed_at", {
+      withTimezone: true,
+    }),
     ageConfirmed: boolean("age_confirmed").default(false).notNull(),
     status: participantStatus("status").default("invited").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -108,6 +114,9 @@ export const approvedSources = pgTable(
       .references(() => participants.id, { onDelete: "cascade" }),
     url: text("url").notNull(),
     label: text("label"),
+    extractedTitle: text("extracted_title"),
+    evidenceExcerpt: text("evidence_excerpt"),
+    researchStatus: text("research_status").default("approved").notNull(),
     approvedAt: timestamp("approved_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -146,6 +155,7 @@ export const agentWorkspaces = pgTable(
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
     solariDesktopSessionId: text("solari_desktop_session_id"),
+    provider: text("provider"),
     status: workspaceStatus("status").default("unprovisioned").notNull(),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })

@@ -4,7 +4,7 @@ import { createSolariAdapters } from "./factory";
 
 describe("mock Solari adapters", () => {
   it("runs the Browser, Desktop, and Sandbox contract in mock mode", async () => {
-    const adapters = createSolariAdapters({
+    const adapters = await createSolariAdapters({
       INTEGRATION_MODE: "mock",
       SOLARI_BASE_URL: "https://api.getsolari.com",
     });
@@ -25,10 +25,12 @@ describe("mock Solari adapters", () => {
 
     const workspace = await adapters.desktop.provision({
       participantRef: "participant-a",
+      agentName: "Mira",
       eventName: "Thursday Assembly",
       currentTask: "Reviewing approved sources",
       artifactCount: 1,
       memoryCount: 0,
+      observations: [],
     });
 
     expect(workspace.status).toBe("ready");
@@ -52,12 +54,12 @@ describe("mock Solari adapters", () => {
     ]);
   });
 
-  it("requires a Solari key in live mode", () => {
-    expect(() =>
+  it("requires a Solari key in live mode", async () => {
+    await expect(
       createSolariAdapters({
         INTEGRATION_MODE: "live",
         SOLARI_BASE_URL: "https://api.getsolari.com",
       }),
-    ).toThrow("SOLARI_API_KEY");
+    ).rejects.toThrow("SOLARI_API_KEY");
   });
 });

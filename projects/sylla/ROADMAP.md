@@ -47,6 +47,20 @@ The competitive principle is:
 
 > Portable agent memory and agent-to-agent matching are now category features. Sylla must prove relationship continuity, earned trust, inspectable evidence, and consequential real-world usefulness—not merely that an agent remembers or that two agents can recommend two people.
 
+## Implementation checkpoint — first attachment loop
+
+The first end-to-end attachment loop now exists in the reference application:
+
+- A participant receives an isolated anonymous session, names their agent, states a current focus, and approves one to three public sources.
+- The Browser adapter produces source evidence and explicitly separated `Told to me`, `Observed`, and `Inferred` memory proposals.
+- Neon persists research provenance, source evidence, agent identity, observation status, visibility, and workspace reconstruction state.
+- The participant can Keep, Correct, change Private/Shareable status, or permanently Forget an observation.
+- A concise follow-up reflection enters the same approval queue instead of becoming implicit memory.
+- The Desktop adapter receives only approved observations and materializes both a machine-readable manifest and a visual private workbench.
+- The browser UI can mount a live view-only Solari Desktop stream; mock mode renders the same approved state as an honest reconstructible preview.
+
+This loop has been exercised end to end in mock mode against the configured development database, including refresh persistence and exclusion of a forgotten observation. Live Solari Browser and Desktop verification remains blocked on a live API key; it must be completed before presenting this checkpoint as Solari runtime evidence.
+
 ## Phase 0 — Lock the experiment
 
 ### Objective
