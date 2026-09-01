@@ -1,6 +1,6 @@
-# Project Serendipity
+# Both
 
-> Temporary internal name; the launch name will be shortened to one or two syllables.
+> Your AI finds someone worth knowing—only when it works both ways.
 
 A portable social capability for the LLM a person already uses, backed by a private workspace, approved memory, and an opt-in introduction network.
 
@@ -45,12 +45,23 @@ The remote MCP/OAuth layer, host-run leases, and internal-agent failover are the
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
+## What the cookbook changed
+
+The cookbook examples are now treated as executable integration guidance, not just starter snippets:
+
+- **Browser:** a session must be released and the TypeScript client must also be closed. Recording is session-scoped, becomes available asynchronously after release, and may contain sensitive DOM state. The current adapter records and retains the session reference; restricted replay retrieval, access control, and expiry remain required before the product can call a run auditable.
+- **Profiles:** attached Browser profiles do not save themselves. Both deliberately avoids persistent profiles in v1 because its approved sources are public; authenticated sources require a later, explicit privacy design.
+- **Sandbox:** commands receive an executable plus an argument array rather than shell syntax. Idle timeouts roll forward on activity, and `kill()`—not `close()`—destroys the VM. The live adapter follows those rules. Public port previews must never expose personal workspaces or private evaluation data.
+- **Desktop:** readiness is asynchronous, so the live adapter polls health before use. Coordinate actions can silently target the wrong window; future MCP computer-use tools must observe a screenshot, act narrowly, then observe again. Closing the local channel does not destroy the remote Desktop, so pause and destroy remain explicit lifecycle operations.
+
+These examples validate the product split: Browser is the agent's audited web research surface, Desktop is its visible graphical workbench, and Sandbox is its disposable computation and policy boundary. They also make clear that Solari supplies execution environments—not consent, authorization, retention, or model reasoning.
+
 ## Local setup
 
 Requirements: Node.js 20+, pnpm 10+, a Postgres database, and optionally a Solari API key.
 
 ```bash
-cd projects/serendipity
+cd projects/both
 pnpm install
 cp .env.example .env.local
 pnpm db:migrate

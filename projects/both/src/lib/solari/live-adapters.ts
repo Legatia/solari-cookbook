@@ -22,7 +22,7 @@ interface LiveAdapterOptions {
 
 const sandboxEvaluatorScript = `
 const fs = require("node:fs");
-const input = JSON.parse(fs.readFileSync("/tmp/serendipity-input.json", "utf8"));
+const input = JSON.parse(fs.readFileSync("/tmp/both-input.json", "utf8"));
 const first = input.participantObservations[0];
 const second = input.candidateObservations[0];
 const result = {
@@ -40,6 +40,23 @@ process.stdout.write(JSON.stringify(result));
 
 function excerpt(value: string, maxLength = 700) {
   return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+async function waitForDesktopReady(
+  desktop: Awaited<ReturnType<DesktopClient["create"]>>,
+  attempts = 30,
+) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const health = await desktop.health();
+
+    if (health.ready) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error("Solari Desktop did not become ready within 30 seconds.");
 }
 
 export class SolariBrowserResearchAdapter implements BrowserResearchAdapter {
@@ -117,20 +134,16 @@ export class SolariDesktopWorkspaceAdapter
       timeoutMs: 15 * 60 * 1000,
       lifecycle: { onTimeout: "pause", autoResume: true },
       metadata: {
-        product: "project-serendipity",
+        product: "both",
         participantRef: manifest.participantRef,
       },
     });
 
     try {
       await desktop.connect();
-      const health = await desktop.health();
+      await waitForDesktopReady(desktop);
 
-      if (!health.ready) {
-        throw new Error("Solari Desktop did not become ready.");
-      }
-
-      const workspacePath = "/home/oai/share/serendipity";
+      const workspacePath = "/home/oai/share/both";
       await desktop.exec("mkdir", { args: ["-p", workspacePath] });
       await desktop.fs.write(
         `${workspacePath}/workspace.json`,
@@ -178,7 +191,7 @@ export class SolariSandboxEvaluationAdapter
       timeoutMs: 5 * 60 * 1000,
       lifecycle: { onTimeout: "kill" },
       metadata: {
-        product: "project-serendipity",
+        product: "both",
         direction: request.direction,
       },
     });
@@ -186,7 +199,7 @@ export class SolariSandboxEvaluationAdapter
     try {
       await sandbox.connect();
       await sandbox.files.write(
-        "/tmp/serendipity-input.json",
+        "/tmp/both-input.json",
         JSON.stringify(request),
       );
       const result = await sandbox.commands.run("node", {

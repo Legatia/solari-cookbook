@@ -14,7 +14,7 @@ cookbook primitives. They live separately from the one-minute examples.
 
 | Project | Stack | Solari products | What it explores |
 | --- | --- | --- | --- |
-| [Serendipity (working title)](projects/serendipity) | Next.js + TypeScript | Browser, Desktop, Sandbox | A portable social agent that connects through MCP and creates consented real-world introductions |
+| [Both](projects/both) | Next.js + TypeScript | Browser, Desktop, Sandbox | A portable social-memory and consent layer that connects through MCP and creates evidence-backed real-world introductions |
 
 ## Examples
 

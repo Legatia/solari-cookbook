@@ -19,7 +19,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Serendipity — your social intelligence layer",
+  title: "Both — introductions that work both ways",
   description:
     "A personal agent that finds the people you may genuinely want to meet.",
 };

@@ -1,6 +1,6 @@
-# Project Serendipity — Project Roadmap
+# Both — Project Roadmap
 
-**Serendipity is a temporary internal name. The launch name should be one or two syllables and easy to invoke inside an LLM conversation.**
+**Both is the public project name. It encodes the product's four-way consent rule: both directional agent evaluations must find value, then both humans must independently opt in. The host LLM is the conversational personality, so Both does not need to behave like another named chatbot or wake word.**
 
 This roadmap is organized around evidence gates rather than feature volume. A phase is complete only when its gate is satisfied. Visual polish cannot substitute for a working vertical slice or a real participant outcome.
 
@@ -42,6 +42,10 @@ This project is the first reference implementation of **social-discovery infrast
 The trust principle is:
 
 > Intimacy must be earned, legible, and reversible.
+
+The competitive principle is:
+
+> Agent-to-agent matching is now a category feature. Both must prove portable trust, evidence, and consent—not merely that two agents can recommend two people.
 
 ## Phase 0 — Lock the experiment
 
@@ -132,6 +136,8 @@ Prove the first Solari-native primitive: auditable exploration of participant-ap
 - Navigate only approved URLs and extract page title, final URL, visible text, and relevant evidence.
 - Treat page content as untrusted data and isolate it from system instructions.
 - Store session identifiers and restricted replay metadata server-side.
+- After releasing a recorded Browser session, poll the asynchronous replay endpoint with a bounded deadline; treat an initial 404 as not-ready rather than proof that recording failed.
+- Put replay retrieval behind participant authorization and a short retention policy because the DOM-level recording may contain more than the extracted evidence cards.
 - Close sessions reliably on success, timeout, cancellation, and exception paths.
 - Add retries, timeouts, per-source status, and participant-friendly error states.
 - Emit a participant-visible research activity stream without exposing hidden reasoning.
@@ -177,6 +183,7 @@ Prove the second Solari-native primitive: a private, visual workbench that makes
 - Create typed mock and live Desktop adapters.
 - Create or resume a participant-specific Solari Desktop on demand.
 - Expose narrow MCP tools for observing selected workspace state, clicking, typing, opening approved artifacts, checkpointing, interrupting, and releasing the run lease.
+- Implement computer use as an observe-act-observe loop: capture a selected screenshot before a coordinate action and verify the resulting screen afterward instead of assuming a click or keystroke landed correctly.
 - Let the active host model direct semantic Desktop work using selected screenshots or compressed state under the participant's host allowance.
 - Add a lease-aware fallback controller that resumes from the latest Desktop checkpoint only when background continuation is authorized.
 - Materialize approved research artifacts, evidence boards, introduction states, and the memory ledger from the application database.
@@ -271,12 +278,12 @@ Measure whether the introduction created value and whether the agent earned enou
 - Ask whether the participants already knew or would otherwise have approached each other.
 - Record whether the meeting happened.
 - Offer Quick reflection, Talk it through privately, and Skip.
-- Explain before the debrief what remains private, which host or internal model processes it, what Serendipity receives, what will not persist without approval, and that the chosen host may retain its own transcript.
+- Explain before the debrief what remains private, which host or internal model processes it, what Both receives, what will not persist without approval, and that the chosen host may retain its own transcript.
 - Keep the debrief conversational: one short, human question at a time rather than a generated essay or interrogation.
 - Ask both whether the meeting was worthwhile and whether they would meet again.
 - Ask what surprised them, how the interaction felt, what worked, and what the agent should understand better.
 - Record contact exchange or a planned second interaction as optional behavioral signals.
-- Process raw debrief content received by Serendipity ephemerally without writing it to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Treat any host-retained transcript as a separately disclosed boundary.
+- Process raw debrief content received by Both ephemerally without writing it to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Treat any host-retained transcript as a separately disclosed boundary.
 - When the debrief occurs in a host LLM, accept only intentionally submitted structured outcomes and proposed memories through MCP rather than silently importing the full conversation.
 - Generate zero to three proposed memories about the participant, not judgments about the other person.
 - Let the participant Keep, Edit, or Forget every proposed memory.
@@ -320,7 +327,7 @@ Make the complete flow safe and reliable enough for real participants.
 
 ### Gate
 
-The team completes an end-to-end rehearsal without manual database repair, persisted Serendipity-side raw debriefs, leaked private context, orphaned Solari resources, duplicate host/fallback work, unbounded internal-model spend, or ambiguous participant states.
+The team completes an end-to-end rehearsal without manual database repair, persisted Both-side raw debriefs, leaked private context, orphaned Solari resources, duplicate host/fallback work, unbounded internal-model spend, or ambiguous participant states.
 
 ## Phase 10 — Live pilot
 
@@ -382,7 +389,7 @@ Turn the working product and pilot into a credible public application.
 
 Tell one complete story:
 
-1. Alice connects the plugin to her existing LLM through Serendipity OAuth and approves sources.
+1. Alice connects the plugin to her existing LLM through Both OAuth and approves sources.
 2. Her host LLM directs the Solari Browser through MCP and uses its own host quota for reasoning.
 3. Alice removes an incorrect inference.
 4. Alice opens the Solari Desktop workspace while the host directs a visible task.
