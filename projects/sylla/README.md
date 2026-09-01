@@ -56,7 +56,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
 - Agent naming, a current personal focus, and one to three participant-approved public sources
-- A working Browser research route that records provider, run reference, extracted evidence, and source status
+- A working Browser research route plus MCP run contract that records provider, run reference, extracted evidence, per-source status, checkpoints, and host-to-background handoff
 - A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
 - A reconstructible Desktop workbench generated only from approved memories and source artifacts
@@ -140,23 +140,25 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
 Only one host run may operate an agent at a time. A host acquires a 30–300 second lease using its authenticated MCP client ID and a conversation-specific run ID, heartbeats while working, and releases when finished. Sylla stores only a SHA-256 hash of the lease capability. A second host is refused until the active lease expires or is released; it can then recover the same canonical agent and persistent workspace. The participant's authenticated web control surface may explicitly take over the lease to pause or withdraw, invalidating the old host capability.
 
-New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Workspace open, resume, and explicit checkpoint reserve estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
+New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Each approved Browser source and each workspace open, resume, or explicit checkpoint reserves estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
 
 ## Durable run handoff
 
 A host can create an idempotent Agent Run under its active lease, persist a narrow participant-visible checkpoint, and explicitly yield the run. Checkpoints contain a concise summary, completed actions, next action, and evidence references—not chain of thought, credentials, arbitrary transcript state, or raw debrief text.
 
-The current fallback proof is deliberately narrow: the only approved fallback task is `prepare_reconnect_summary`, costs one bounded fallback credit, and cannot take consequential action. The worker first acquires the same exclusive runtime lease used by host clients, atomically claims the run and budget, invokes the bounded adapter, atomically writes the checkpoint and audit handoff, and releases the lease. A reconnecting host therefore cannot overlap the model call. Concurrent workers still produce one execution and one handoff.
+The fallback controller supports two explicitly scoped task types. `prepare_reconnect_summary` costs one bounded fallback credit and performs no consequential action. `research_approved_sources` may visit only the one-to-three public URLs stored in the run scope; it checkpoints each completed source, never automatically revisits completed, failed, or ambiguous in-flight sources, and creates reviewable memory proposals rather than approved memories. Both workers first acquire the same exclusive runtime lease used by host clients, atomically claim the run and budget, write one audit handoff, and release the lease. A reconnecting host therefore cannot overlap either the model call or a Browser visit. Concurrent workers still produce one execution and one handoff.
 
-`/api/cron/fallbacks` runs the automatic bounded sweep and rejects every request unless `Authorization: Bearer $CRON_SECRET` matches. `vercel.json` schedules it every minute; deployment therefore needs a Vercel plan that supports that interval, or another trusted scheduler can call the same route. `SYLLA_FALLBACK_SWEEP_LIMIT` defaults to ten and is capped at twenty per invocation.
+`/api/cron/fallbacks` runs both bounded task sweeps and rejects every request unless `Authorization: Bearer $CRON_SECRET` matches. `vercel.json` schedules it every minute; deployment therefore needs a Vercel plan that supports that interval, or another trusted scheduler can call the same route. `SYLLA_FALLBACK_SWEEP_LIMIT` defaults to ten and is capped at twenty per task type per invocation.
 
 Run `pnpm verify:handoff` against a migrated development database to exercise active-host refusal, an eight-worker claim race, model-failure degradation, stale-worker recovery without double charge, returning-host exclusion during a model call, second-host acknowledgment, and cleanup of the synthetic participant. The live OpenAI transport is contract-tested with a stub and is not called unless live mode and credentials are explicitly configured.
+
+Run `pnpm verify:browser` to exercise the durable Browser contract against Neon with a recording test adapter: one source per host call, active-host exclusion, background completion of only the remaining source, settled per-source usage, proposal regeneration, duplicate suppression, reconnect handoff, and synthetic-data cleanup.
 
 ## OAuth MCP authentication
 
@@ -191,6 +193,7 @@ pnpm db:generate
 pnpm db:migrate
 pnpm db:studio
 pnpm verify:handoff
+pnpm verify:browser
 ```
 
 ## Product documents

@@ -73,6 +73,7 @@ const agentRun: AgentRunView = {
   id: "a4a0b4f0-8d08-45e2-a6dc-9a7323caa67d",
   hostRunId: runId,
   purpose: "Preserve work across host loss",
+  taskType: "prepare_reconnect_summary",
   status: "host_orchestrated",
   executionMode: "host_orchestrated",
   backgroundContinuationAllowed: true,
@@ -116,6 +117,30 @@ function services(
       expiresAt: "2026-09-01T10:11:00.000Z",
     }),
     releaseLease: vi.fn().mockResolvedValue(undefined),
+    prepareBrowserResearch: vi.fn().mockResolvedValue({
+      run: { ...agentRun, taskType: "research_approved_sources" },
+      sources: [],
+      completedCount: 0,
+      totalCount: 0,
+      nextSourceId: null,
+      ambiguousSourceIds: [],
+    }),
+    researchNextBrowserSource: vi.fn().mockResolvedValue({
+      run: { ...agentRun, taskType: "research_approved_sources" },
+      sources: [],
+      completedCount: 0,
+      totalCount: 0,
+      nextSourceId: null,
+      ambiguousSourceIds: [],
+    }),
+    getBrowserResearchProgress: vi.fn().mockResolvedValue({
+      run: { ...agentRun, taskType: "research_approved_sources" },
+      sources: [],
+      completedCount: 0,
+      totalCount: 0,
+      nextSourceId: null,
+      ambiguousSourceIds: [],
+    }),
     startRun: vi.fn().mockResolvedValue(agentRun),
     checkpointRun: vi.fn().mockResolvedValue({
       ...agentRun,
@@ -210,6 +235,9 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_heartbeat_agent_lease" }),
           expect.objectContaining({ name: "sylla_release_agent_lease" }),
           expect.objectContaining({ name: "sylla_start_agent_run" }),
+          expect.objectContaining({ name: "sylla_prepare_browser_research" }),
+          expect.objectContaining({ name: "sylla_research_next_source" }),
+          expect.objectContaining({ name: "sylla_get_research_progress" }),
           expect.objectContaining({ name: "sylla_checkpoint_agent_run" }),
           expect.objectContaining({ name: "sylla_yield_agent_run" }),
           expect.objectContaining({ name: "sylla_attempt_agent_fallback" }),
@@ -496,6 +524,111 @@ describe("Sylla MCP server", () => {
       agentRunId: agentRun.id,
       authorization: { clientId, runId, leaseToken },
     });
+  });
+
+  it("exposes one-source-at-a-time durable Browser research", async () => {
+    const browserRun = { ...agentRun, taskType: "research_approved_sources" as const };
+    const progress = {
+      run: browserRun,
+      sources: [
+        {
+          id: "3295a3c0-a857-4be3-9a03-bd31d3995045",
+          url: "https://example.com/about",
+          label: "About",
+          title: null,
+          excerpt: null,
+          status: "approved",
+        },
+      ],
+      completedCount: 0,
+      totalCount: 1,
+      nextSourceId: "3295a3c0-a857-4be3-9a03-bd31d3995045",
+      ambiguousSourceIds: [],
+    };
+    const prepareBrowserResearch = vi.fn().mockResolvedValue(progress);
+    const researchNextBrowserSource = vi.fn().mockResolvedValue({
+      ...progress,
+      run: { ...browserRun, status: "completed" },
+      sources: progress.sources.map((source) => ({
+        ...source,
+        title: "Example",
+        excerpt: "Approved evidence",
+        status: "complete",
+      })),
+      completedCount: 1,
+      nextSourceId: null,
+    });
+    const getBrowserResearchProgress = vi.fn().mockResolvedValue(progress);
+    const handler = createTestHandler(
+      services({
+        prepareBrowserResearch,
+        researchNextBrowserSource,
+        getBrowserResearchProgress,
+      }),
+    );
+
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 41,
+      method: "tools/call",
+      params: {
+        name: "sylla_prepare_browser_research",
+        arguments: {
+          runId,
+          leaseToken,
+          idempotencyKey: "browser-prepare-0001",
+          agentName: "Mira",
+          focus: "Understand what work energizes me",
+          sources: [{ url: "https://example.com/about", label: "About" }],
+          backgroundContinuationAllowed: true,
+          fallbackBudgetCredits: 1,
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 42,
+      method: "tools/call",
+      params: {
+        name: "sylla_research_next_source",
+        arguments: {
+          agentRunId: agentRun.id,
+          runId,
+          leaseToken,
+          idempotencyKey: "browser-source-0001",
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 43,
+      method: "tools/call",
+      params: {
+        name: "sylla_get_research_progress",
+        arguments: { agentRunId: agentRun.id },
+      },
+    });
+
+    expect(prepareBrowserResearch).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      authorization: { clientId, runId, leaseToken },
+      idempotencyKey: "browser-prepare-0001",
+      agentName: "Mira",
+      focus: "Understand what work energizes me",
+      sources: [{ url: "https://example.com/about", label: "About" }],
+      backgroundContinuationAllowed: true,
+      fallbackBudgetCredits: 1,
+    });
+    expect(researchNextBrowserSource).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      agentRunId: agentRun.id,
+      authorization: { clientId, runId, leaseToken },
+      idempotencyKey: "browser-source-0001",
+    });
+    expect(getBrowserResearchProgress).toHaveBeenCalledWith(
+      state.participantId,
+      agentRun.id,
+    );
   });
 
   it("opens the persistent home without returning a provider capability", async () => {

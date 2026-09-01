@@ -14,6 +14,7 @@ const DEFAULT_TRIAL_CREDITS = 500;
 const CHECKOUT_TTL_MS = 30 * 60 * 1_000;
 
 export const OPERATION_CREDITS = {
+  browser_source: 15,
   workspace_open: 100,
   workspace_resume: 25,
   workspace_checkpoint: 5,

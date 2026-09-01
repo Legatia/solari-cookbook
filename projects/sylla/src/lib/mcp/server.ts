@@ -8,6 +8,13 @@ import {
   OPERATION_CREDITS,
   type BillingSummary,
 } from "@/lib/sylla/billing";
+import {
+  getBrowserResearchProgress,
+  prepareBrowserResearch,
+  researchNextBrowserSource,
+  type BrowserResearchProgress,
+  type BrowserResearchSourceInput,
+} from "@/lib/sylla/browser-research";
 import { updatePortableAgent } from "@/lib/sylla/identity";
 import {
   acquireRuntimeLease,
@@ -61,6 +68,26 @@ export type SyllaMcpServices = {
     participantId: string,
     authorization: RuntimeLeaseAuthorization,
   ) => Promise<void>;
+  prepareBrowserResearch: (input: {
+    participantId: string;
+    authorization: RuntimeLeaseAuthorization;
+    idempotencyKey: string;
+    agentName?: string;
+    focus: string;
+    sources: BrowserResearchSourceInput[];
+    backgroundContinuationAllowed: boolean;
+    fallbackBudgetCredits: number;
+  }) => Promise<BrowserResearchProgress>;
+  researchNextBrowserSource: (input: {
+    participantId: string;
+    agentRunId: string;
+    authorization: RuntimeLeaseAuthorization;
+    idempotencyKey: string;
+  }) => Promise<BrowserResearchProgress>;
+  getBrowserResearchProgress: (
+    participantId: string,
+    agentRunId: string,
+  ) => Promise<BrowserResearchProgress>;
   startRun: (input: {
     participantId: string;
     authorization: RuntimeLeaseAuthorization;
@@ -117,6 +144,9 @@ const defaultServices: SyllaMcpServices = {
   acquireLease: acquireRuntimeLease,
   heartbeatLease: heartbeatRuntimeLease,
   releaseLease: releaseRuntimeLease,
+  prepareBrowserResearch,
+  researchNextBrowserSource,
+  getBrowserResearchProgress,
   startRun: startAgentRun,
   checkpointRun: checkpointAgentRun,
   yieldRun: yieldAgentRunToBackground,
@@ -174,6 +204,10 @@ const checkpointSchema = z.object({
   completedActions: z.array(z.string().trim().min(1).max(160)).max(20),
   nextAction: z.string().trim().min(1).max(240).nullable(),
   evidenceRefs: z.array(z.string().trim().min(1).max(240)).max(20),
+});
+const browserSourceSchema = z.object({
+  url: z.url(),
+  label: z.string().trim().min(1).max(120).optional(),
 });
 
 function leaseAuthorization(
@@ -451,6 +485,120 @@ export function createSyllaMcpServer(
           consequentialActionsAllowed: false,
           rawDebriefStored: false,
         },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_prepare_browser_research",
+    {
+      title: "Prepare approved Solari Browser research",
+      description:
+        "Create a durable Browser run from one to three URLs the participant explicitly approved. This resets the current research proposals, stores the exact URL scope, and does not visit a page yet.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+        agentName: z.string().trim().min(1).max(40).optional(),
+        focus: z.string().trim().min(3).max(280),
+        sources: z.array(browserSourceSchema).min(1).max(3),
+        backgroundContinuationAllowed: z.boolean().default(false),
+        fallbackBudgetCredits: z.number().int().min(0).max(3).default(0),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({
+      runId,
+      leaseToken,
+      idempotencyKey,
+      agentName,
+      focus,
+      sources,
+      backgroundContinuationAllowed,
+      fallbackBudgetCredits,
+    }) =>
+      result({
+        progress: await services.prepareBrowserResearch({
+          participantId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          idempotencyKey,
+          agentName,
+          focus,
+          sources,
+          backgroundContinuationAllowed,
+          fallbackBudgetCredits,
+        }),
+        executionPolicy: {
+          visitsPerToolCall: 1,
+          approvedUrlsOnly: true,
+          automaticDuplicateVisits: false,
+          backgroundContinuationBounded: backgroundContinuationAllowed,
+        },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_research_next_source",
+    {
+      title: "Research the next approved source",
+      description:
+        "Visit exactly one unfinished URL from a prepared run with Solari Browser, persist its evidence, update memory proposals, and checkpoint progress. Completed or ambiguous sources are never revisited automatically.",
+      inputSchema: z.object({
+        agentRunId: agentRunIdSchema,
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ agentRunId, runId, leaseToken, idempotencyKey }) => {
+      try {
+        return result({
+          progress: await services.researchNextBrowserSource({
+            participantId,
+            agentRunId,
+            authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+            idempotencyKey,
+          }),
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_get_research_progress",
+    {
+      title: "Read durable Browser research progress",
+      description:
+        "Return the exact approved source scope, completed evidence state, next unfinished source, and any reconnect handoff. This never performs a Browser visit.",
+      inputSchema: z.object({ agentRunId: agentRunIdSchema }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId }) =>
+      result({
+        progress: await services.getBrowserResearchProgress(
+          participantId,
+          agentRunId,
+        ),
       }),
   );
 

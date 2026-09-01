@@ -1,7 +1,5 @@
-import {
-  sweepFallbackRuns,
-  type FallbackSweepResult,
-} from "@/lib/sylla/runs";
+import { sweepBackgroundRuns } from "@/lib/sylla/background";
+import type { FallbackSweepResult } from "@/lib/sylla/runs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -20,7 +18,7 @@ function configuredLimit() {
 }
 
 export function createFallbackCronHandler(
-  sweep: SweepFallbacks = sweepFallbackRuns,
+  sweep: SweepFallbacks = sweepBackgroundRuns,
 ) {
   return async function GET(request: Request) {
     const cronSecret = process.env.CRON_SECRET;

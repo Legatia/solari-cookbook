@@ -24,6 +24,10 @@ import {
 } from "@/lib/sylla/leases";
 
 export const FALLBACK_TASK_TYPE = "prepare_reconnect_summary" as const;
+export const BROWSER_RESEARCH_TASK_TYPE = "research_approved_sources" as const;
+export type AgentRunTaskType =
+  | typeof FALLBACK_TASK_TYPE
+  | typeof BROWSER_RESEARCH_TASK_TYPE;
 export const FALLBACK_TASK_COST = 1;
 const STALE_FALLBACK_MS = 5 * 60 * 1_000;
 
@@ -38,6 +42,7 @@ export type AgentRunView = {
   id: string;
   hostRunId: string;
   purpose: string;
+  taskType: AgentRunTaskType;
   status:
     | "host_orchestrated"
     | "waiting_for_host"
@@ -120,6 +125,7 @@ async function loadOwnedRun(
     id: run.id,
     hostRunId: run.hostRunId,
     purpose: run.purpose,
+    taskType: run.approvedTaskType as AgentRunTaskType,
     status: run.status,
     executionMode: run.executionMode,
     backgroundContinuationAllowed: run.backgroundContinuationAllowed,
@@ -175,6 +181,7 @@ export async function startAgentRun(input: {
   purpose: string;
   backgroundContinuationAllowed: boolean;
   fallbackBudgetCredits: number;
+  taskType?: AgentRunTaskType;
 }): Promise<AgentRunView> {
   const database = getDatabase();
   await requireRuntimeLease(input.participantId, input.authorization);
@@ -182,6 +189,11 @@ export async function startAgentRun(input: {
   const approvedBudget = input.backgroundContinuationAllowed
     ? Math.max(0, Math.round(input.fallbackBudgetCredits))
     : 0;
+  const taskType = input.taskType ?? FALLBACK_TASK_TYPE;
+  const allowedActions =
+    taskType === BROWSER_RESEARCH_TASK_TYPE
+      ? ["research_approved_source"]
+      : ["create_reconnect_summary"];
 
   const [created] = await database
     .insert(agentRuns)
@@ -192,9 +204,9 @@ export async function startAgentRun(input: {
       hostRunId: input.authorization.runId,
       idempotencyKey: input.idempotencyKey,
       purpose: input.purpose,
-      approvedTaskType: FALLBACK_TASK_TYPE,
+      approvedTaskType: taskType,
       approvedScope: {
-        allowedActions: ["create_reconnect_summary"],
+        allowedActions,
         evidenceRefs: [],
       },
       backgroundContinuationAllowed: input.backgroundContinuationAllowed,
@@ -223,6 +235,7 @@ export async function startAgentRun(input: {
     !existing ||
     existing.hostRunId !== input.authorization.runId ||
     existing.purpose !== input.purpose ||
+    existing.approvedTaskType !== taskType ||
     existing.backgroundContinuationAllowed !==
       input.backgroundContinuationAllowed ||
     existing.fallbackBudgetCredits !== approvedBudget
@@ -288,6 +301,74 @@ export async function checkpointAgentRun(input: {
   return loadOwnedRun(input.participantId, input.agentRunId);
 }
 
+export async function setAgentRunEvidenceScope(input: {
+  participantId: string;
+  agentRunId: string;
+  authorization: RuntimeLeaseAuthorization;
+  evidenceRefs: string[];
+}): Promise<AgentRunView> {
+  const database = getDatabase();
+  await requireRuntimeLease(input.participantId, input.authorization);
+  const [run] = await database
+    .update(agentRuns)
+    .set({
+      approvedScope: {
+        allowedActions: ["research_approved_source"],
+        evidenceRefs: input.evidenceRefs,
+      },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(agentRuns.id, input.agentRunId),
+        eq(agentRuns.participantId, input.participantId),
+        eq(agentRuns.hostRunId, input.authorization.runId),
+        eq(agentRuns.lastHostClientId, input.authorization.clientId),
+        eq(agentRuns.approvedTaskType, BROWSER_RESEARCH_TASK_TYPE),
+        eq(agentRuns.status, "host_orchestrated"),
+      ),
+    )
+    .returning({ id: agentRuns.id });
+
+  if (!run) {
+    throw new AgentRunAuthorizationError(
+      "The active host lease does not own this Browser research run.",
+    );
+  }
+
+  return loadOwnedRun(input.participantId, input.agentRunId);
+}
+
+export async function completeHostAgentRun(input: {
+  participantId: string;
+  agentRunId: string;
+  authorization: RuntimeLeaseAuthorization;
+}): Promise<AgentRunView> {
+  const database = getDatabase();
+  await requireRuntimeLease(input.participantId, input.authorization);
+  const [run] = await database
+    .update(agentRuns)
+    .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(agentRuns.id, input.agentRunId),
+        eq(agentRuns.participantId, input.participantId),
+        eq(agentRuns.hostRunId, input.authorization.runId),
+        eq(agentRuns.lastHostClientId, input.authorization.clientId),
+        eq(agentRuns.status, "host_orchestrated"),
+      ),
+    )
+    .returning({ id: agentRuns.id });
+
+  if (!run) {
+    throw new AgentRunAuthorizationError(
+      "The active host lease does not own this runnable agent run.",
+    );
+  }
+
+  return loadOwnedRun(input.participantId, input.agentRunId);
+}
+
 export async function yieldAgentRunToBackground(input: {
   participantId: string;
   agentRunId: string;
@@ -325,23 +406,30 @@ function safeErrorMessage(error: unknown) {
     : "Unknown internal fallback error.";
 }
 
-async function claimFallbackRun(input: {
+export async function claimAgentRunForFallback(input: {
   participantId: string;
   agentRunId: string;
   authorization: RuntimeLeaseAuthorization;
-  adapter: InternalModelAdapter;
+  taskType: AgentRunTaskType;
+  allowedAction: string;
+  provider: string;
+  model: string | null;
+  fallbackCost?: number;
 }) {
   const database = getDatabase();
   const staleBefore = new Date(Date.now() - STALE_FALLBACK_MS);
+  const fallbackCost = Math.max(1, Math.round(input.fallbackCost ?? 1));
+  const requiredScope = JSON.stringify({
+    allowedActions: [input.allowedAction],
+  });
   const claimed = await database.execute<{ recovered: boolean }>(sql`
     with candidate as (
       select id, status
       from agent_runs
       where id = ${input.agentRunId}
         and participant_id = ${input.participantId}
-        and approved_task_type = ${FALLBACK_TASK_TYPE}
-        and approved_scope @>
-          '{"allowedActions":["create_reconnect_summary"]}'::jsonb
+        and approved_task_type = ${input.taskType}
+        and approved_scope @> ${requiredScope}::jsonb
         and background_continuation_allowed = true
         and not exists (
           select 1
@@ -351,7 +439,7 @@ async function claimFallbackRun(input: {
         and (
           (
             status in ('host_orchestrated', 'waiting_for_host')
-            and fallback_credits_used + ${FALLBACK_TASK_COST}
+            and fallback_credits_used + ${fallbackCost}
               <= fallback_budget_credits
           )
           or (
@@ -367,7 +455,7 @@ async function claimFallbackRun(input: {
         fallback_credits_used = case
           when candidate.status = 'fallback_running'
             then run.fallback_credits_used
-          else run.fallback_credits_used + ${FALLBACK_TASK_COST}
+          else run.fallback_credits_used + ${fallbackCost}
         end,
         checkpoint_sequence = case
           when candidate.status = 'fallback_running'
@@ -376,8 +464,8 @@ async function claimFallbackRun(input: {
         end,
         fallback_reason = 'host_lease_unavailable',
         fallback_worker_run_id = ${input.authorization.runId},
-        fallback_provider = ${input.adapter.provider},
-        fallback_model = ${input.adapter.model},
+        fallback_provider = ${input.provider},
+        fallback_model = ${input.model},
         fallback_error = case
           when candidate.status = 'fallback_running'
             then 'Recovered a stale fallback worker after its lease expired.'
@@ -393,7 +481,7 @@ async function claimFallbackRun(input: {
   return claimed.rows[0] ?? null;
 }
 
-async function completeFallbackRun(input: {
+export async function completeAgentRunFallback(input: {
   participantId: string;
   agentRunId: string;
   authorization: RuntimeLeaseAuthorization;
@@ -516,11 +604,14 @@ async function processFallbackRun(input: {
   }
 
   try {
-    const claim = await claimFallbackRun({
+    const claim = await claimAgentRunForFallback({
       participantId: input.participantId,
       agentRunId: input.agentRunId,
       authorization,
-      adapter: input.adapter,
+      taskType: FALLBACK_TASK_TYPE,
+      allowedAction: "create_reconnect_summary",
+      provider: input.adapter.provider,
+      model: input.adapter.model,
     });
     if (!claim) {
       return {
@@ -553,7 +644,7 @@ async function processFallbackRun(input: {
       }
     }
 
-    await completeFallbackRun({
+    await completeAgentRunFallback({
       participantId: input.participantId,
       agentRunId: input.agentRunId,
       authorization,
