@@ -118,6 +118,8 @@ Fallback is continuity, not expanded authority. It may continue approved read-on
 
 When the host reconnects, return a concise handoff containing completed actions, evidence, costs, uncertainties, pending approvals, and the next safe step. Do not expose hidden reasoning from either orchestrator.
 
+The first implemented fallback milestone must stay narrower than the eventual semantic agent: authorize only `prepare_reconnect_summary`, require the host lease to be absent, charge at most one approved fallback credit, preserve the latest explicit checkpoint, take no consequential action, and commit the checkpoint plus reconnect handoff exactly once in one atomic database operation. This mock task proves lease exclusion, budget enforcement, duplicate-work prevention, and cross-host recovery. Do not describe it as full internal-model continuation until an automatic scheduler and bounded model adapter actually exist.
+
 ## Interaction model: conversation in the host, workspace beneath it
 
 Do not make the primary agent experience read like an essay generator. The conversational surface should usually be the participant's existing LLM and should remain brief, warm, and progressive: one recommendation, question, or decision at a time. A participant should be able to act from the concise answer without reading a research report.

@@ -79,6 +79,21 @@ export const checkoutStatus = pgEnum("checkout_status", [
   "canceled",
 ]);
 
+export const agentRunStatus = pgEnum("agent_run_status", [
+  "host_orchestrated",
+  "waiting_for_host",
+  "fallback_running",
+  "completed",
+  "canceled",
+  "failed",
+]);
+
+export const orchestrationMode = pgEnum("orchestration_mode", [
+  "host_orchestrated",
+  "deterministic_background",
+  "internal_fallback",
+]);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -354,6 +369,127 @@ export const runtimeLeases = pgTable(
     uniqueIndex("runtime_leases_agent_unique").on(table.agentId),
     uniqueIndex("runtime_leases_token_unique").on(table.leaseTokenHash),
     index("runtime_leases_participant_idx").on(table.participantId),
+  ],
+);
+
+export const agentRuns = pgTable(
+  "agent_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    hostRunId: text("host_run_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    purpose: text("purpose").notNull(),
+    approvedTaskType: text("approved_task_type").notNull(),
+    approvedScope: jsonb("approved_scope")
+      .$type<{ allowedActions: string[]; evidenceRefs: string[] }>()
+      .notNull(),
+    status: agentRunStatus("status").default("host_orchestrated").notNull(),
+    executionMode: orchestrationMode("execution_mode")
+      .default("host_orchestrated")
+      .notNull(),
+    backgroundContinuationAllowed: boolean("background_continuation_allowed")
+      .default(false)
+      .notNull(),
+    fallbackBudgetCredits: integer("fallback_budget_credits")
+      .default(0)
+      .notNull(),
+    fallbackCreditsUsed: integer("fallback_credits_used").default(0).notNull(),
+    checkpointSequence: integer("checkpoint_sequence").default(0).notNull(),
+    lastHostClientId: text("last_host_client_id").notNull(),
+    fallbackReason: text("fallback_reason"),
+    fallbackClaimedAt: timestamp("fallback_claimed_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("agent_runs_agent_idx").on(table.agentId),
+    index("agent_runs_participant_idx").on(table.participantId),
+    index("agent_runs_status_idx").on(table.status),
+    uniqueIndex("agent_runs_participant_idempotency_unique").on(
+      table.participantId,
+      table.idempotencyKey,
+    ),
+  ],
+);
+
+export const runCheckpoints = pgTable(
+  "run_checkpoints",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentRunId: uuid("agent_run_id")
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: "cascade" }),
+    sequence: integer("sequence").notNull(),
+    kind: text("kind").notNull(),
+    summary: text("summary").notNull(),
+    resumableState: jsonb("resumable_state")
+      .$type<{
+        completedActions: string[];
+        nextAction: string | null;
+        evidenceRefs: string[];
+      }>()
+      .notNull(),
+    createdBy: orchestrationMode("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("run_checkpoints_run_idx").on(table.agentRunId),
+    uniqueIndex("run_checkpoints_run_sequence_unique").on(
+      table.agentRunId,
+      table.sequence,
+    ),
+  ],
+);
+
+export const runHandoffs = pgTable(
+  "run_handoffs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentRunId: uuid("agent_run_id")
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: "cascade" }),
+    checkpointId: uuid("checkpoint_id").references(() => runCheckpoints.id, {
+      onDelete: "set null",
+    }),
+    fromMode: orchestrationMode("from_mode").notNull(),
+    toMode: orchestrationMode("to_mode").notNull(),
+    reason: text("reason").notNull(),
+    summary: text("summary").notNull(),
+    details: jsonb("details")
+      .$type<{
+        completedActions: string[];
+        nextAction: string | null;
+        fallbackCreditsUsed: number;
+        consequentialActionsTaken: boolean;
+      }>()
+      .notNull(),
+    claimedBy: text("claimed_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("run_handoffs_run_unique").on(table.agentRunId),
+    index("run_handoffs_checkpoint_idx").on(table.checkpointId),
   ],
 );
 

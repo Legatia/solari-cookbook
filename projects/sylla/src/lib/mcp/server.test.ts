@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { EntitlementRequiredError } from "@/lib/sylla/billing";
+import type { AgentRunView } from "@/lib/sylla/runs";
 
 import { createSyllaMcpServer, type SyllaMcpServices } from "./server";
 
@@ -68,6 +69,19 @@ const billing = {
   creditsReserved: 0,
   creditsAvailable: 400,
 };
+const agentRun: AgentRunView = {
+  id: "a4a0b4f0-8d08-45e2-a6dc-9a7323caa67d",
+  hostRunId: runId,
+  purpose: "Preserve work across host loss",
+  status: "host_orchestrated",
+  executionMode: "host_orchestrated",
+  backgroundContinuationAllowed: true,
+  fallbackBudgetCredits: 1,
+  fallbackCreditsUsed: 0,
+  fallbackReason: null,
+  latestCheckpoint: null,
+  handoff: null,
+};
 
 function createTestHandler(services: SyllaMcpServices) {
   return createMcpHandler(
@@ -99,6 +113,36 @@ function services(
       expiresAt: "2026-09-01T10:11:00.000Z",
     }),
     releaseLease: vi.fn().mockResolvedValue(undefined),
+    startRun: vi.fn().mockResolvedValue(agentRun),
+    checkpointRun: vi.fn().mockResolvedValue({
+      ...agentRun,
+      latestCheckpoint: {
+        id: "d229274f-5519-4d9a-b533-a1102ac231e8",
+        sequence: 1,
+        kind: "host_checkpoint",
+        summary: "Collected approved evidence.",
+        completedActions: ["Collected approved evidence"],
+        nextAction: "Review the evidence",
+        evidenceRefs: ["source-1"],
+        createdBy: "host_orchestrated",
+        createdAt: "2026-09-01T10:02:00.000Z",
+      },
+    }),
+    yieldRun: vi.fn().mockResolvedValue({
+      ...agentRun,
+      status: "waiting_for_host",
+    }),
+    executeFallback: vi.fn().mockResolvedValue({
+      executed: true,
+      run: {
+        ...agentRun,
+        status: "completed",
+        executionMode: "internal_fallback",
+        fallbackCreditsUsed: 1,
+      },
+    }),
+    getRun: vi.fn().mockResolvedValue(agentRun),
+    acknowledgeHandoff: vi.fn().mockResolvedValue(agentRun),
     openWorkspace: vi.fn().mockResolvedValue(state),
     checkpointWorkspace: vi.fn().mockResolvedValue(state),
     pauseWorkspace: vi.fn().mockResolvedValue(state),
@@ -162,6 +206,14 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_acquire_agent_lease" }),
           expect.objectContaining({ name: "sylla_heartbeat_agent_lease" }),
           expect.objectContaining({ name: "sylla_release_agent_lease" }),
+          expect.objectContaining({ name: "sylla_start_agent_run" }),
+          expect.objectContaining({ name: "sylla_checkpoint_agent_run" }),
+          expect.objectContaining({ name: "sylla_yield_agent_run" }),
+          expect.objectContaining({ name: "sylla_attempt_agent_fallback" }),
+          expect.objectContaining({ name: "sylla_get_agent_run" }),
+          expect.objectContaining({
+            name: "sylla_acknowledge_agent_handoff",
+          }),
           expect.objectContaining({ name: "sylla_open_agent_workspace" }),
           expect.objectContaining({ name: "sylla_checkpoint_agent_workspace" }),
           expect.objectContaining({ name: "sylla_pause_agent_workspace" }),
@@ -300,6 +352,146 @@ describe("Sylla MCP server", () => {
       clientId,
       runId,
       leaseToken,
+    });
+  });
+
+  it("exposes a bounded durable run, fallback, and reconnect handoff lifecycle", async () => {
+    const startRun = vi.fn().mockResolvedValue(agentRun);
+    const checkpointRun = vi.fn().mockResolvedValue(agentRun);
+    const yieldRun = vi.fn().mockResolvedValue({
+      ...agentRun,
+      status: "waiting_for_host",
+    });
+    const executeFallback = vi.fn().mockResolvedValue({
+      executed: true,
+      run: {
+        ...agentRun,
+        status: "completed",
+        executionMode: "internal_fallback",
+        fallbackCreditsUsed: 1,
+      },
+    });
+    const getRun = vi.fn().mockResolvedValue(agentRun);
+    const acknowledgeHandoff = vi.fn().mockResolvedValue(agentRun);
+    const handler = createTestHandler(
+      services({
+        startRun,
+        checkpointRun,
+        yieldRun,
+        executeFallback,
+        getRun,
+        acknowledgeHandoff,
+      }),
+    );
+
+    const startResponse = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 35,
+      method: "tools/call",
+      params: {
+        name: "sylla_start_agent_run",
+        arguments: {
+          runId,
+          leaseToken,
+          idempotencyKey: "durable-run-0001",
+          purpose: agentRun.purpose,
+          backgroundContinuationAllowed: true,
+          fallbackBudgetCredits: 1,
+        },
+      },
+    });
+    expect(startResponse.body).toMatchObject({
+      result: {
+        structuredContent: {
+          fallbackPolicy: {
+            approvedTaskType: "prepare_reconnect_summary",
+            consequentialActionsAllowed: false,
+            rawDebriefStored: false,
+          },
+        },
+      },
+    });
+
+    const checkpoint = {
+      summary: "Collected approved evidence.",
+      completedActions: ["Collected approved evidence"],
+      nextAction: "Review the evidence",
+      evidenceRefs: ["source-1"],
+    };
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 36,
+      method: "tools/call",
+      params: {
+        name: "sylla_checkpoint_agent_run",
+        arguments: { agentRunId: agentRun.id, runId, leaseToken, checkpoint },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 37,
+      method: "tools/call",
+      params: {
+        name: "sylla_yield_agent_run",
+        arguments: { agentRunId: agentRun.id, runId, leaseToken },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 38,
+      method: "tools/call",
+      params: {
+        name: "sylla_attempt_agent_fallback",
+        arguments: { agentRunId: agentRun.id },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 39,
+      method: "tools/call",
+      params: {
+        name: "sylla_get_agent_run",
+        arguments: { agentRunId: agentRun.id },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 40,
+      method: "tools/call",
+      params: {
+        name: "sylla_acknowledge_agent_handoff",
+        arguments: { agentRunId: agentRun.id, runId, leaseToken },
+      },
+    });
+
+    expect(startRun).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      authorization: { clientId, runId, leaseToken },
+      idempotencyKey: "durable-run-0001",
+      purpose: agentRun.purpose,
+      backgroundContinuationAllowed: true,
+      fallbackBudgetCredits: 1,
+    });
+    expect(checkpointRun).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      agentRunId: agentRun.id,
+      authorization: { clientId, runId, leaseToken },
+      checkpoint,
+    });
+    expect(yieldRun).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      agentRunId: agentRun.id,
+      authorization: { clientId, runId, leaseToken },
+    });
+    expect(executeFallback).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      agentRunId: agentRun.id,
+    });
+    expect(getRun).toHaveBeenCalledWith(state.participantId, agentRun.id);
+    expect(acknowledgeHandoff).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      agentRunId: agentRun.id,
+      authorization: { clientId, runId, leaseToken },
     });
   });
 

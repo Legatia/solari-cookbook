@@ -47,9 +47,11 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
 - Per-client host-connection records without storing upstream access tokens
 - Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
+- Durable Agent Run, checkpoint, approved fallback scope, budget, reason, and reconnect-handoff records
+- An atomic mock fallback controller that refuses active leases and completes the approved handoff task exactly once under concurrent workers
 - Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
-- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace inspect/open/checkpoint/pause tools
+- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route that records provider, run reference, extracted evidence, and source status
@@ -61,7 +63,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before browser consent or paid activation can complete; live Desktop/snapshot verification and internal-agent failover also remain. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, exactly-once mock fallback handoff, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before browser consent or paid activation can complete; live Desktop/snapshot verification, an automatic fallback scheduler, and the bounded semantic internal-model adapter also remain. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -134,13 +136,21 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus `sylla_get_plan`, `sylla_acquire_agent_lease`, `sylla_heartbeat_agent_lease`, and `sylla_release_agent_lease`. Billable workspace tools require the active lease token and an idempotency key; none exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
 Only one host run may operate an agent at a time. A host acquires a 30–300 second lease using its authenticated MCP client ID and a conversation-specific run ID, heartbeats while working, and releases when finished. Sylla stores only a SHA-256 hash of the lease capability. A second host is refused until the active lease expires or is released; it can then recover the same canonical agent and persistent workspace. The participant's authenticated web control surface may explicitly take over the lease to pause or withdraw, invalidating the old host capability.
 
 New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Workspace open, resume, and explicit checkpoint reserve estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
+
+## Durable run handoff
+
+A host can create an idempotent Agent Run under its active lease, persist a narrow participant-visible checkpoint, and explicitly yield the run. Checkpoints contain a concise summary, completed actions, next action, and evidence references—not chain of thought, credentials, arbitrary transcript state, or raw debrief text.
+
+The current fallback proof is deliberately narrow: the only approved fallback task is `prepare_reconnect_summary`, costs one bounded fallback credit, and cannot take consequential action. One PostgreSQL statement verifies that no live lease exists, consumes the budget, advances the checkpoint, writes the audit handoff, and completes the task. Concurrent controller calls therefore produce one execution and one handoff. A reconnecting host acquires a fresh lease, reads the durable summary, and acknowledges it without replaying the work.
+
+Run `pnpm verify:handoff` against a migrated development database to exercise the active-lease refusal, an eight-worker claim race, budget use, second-host acknowledgment, and cleanup of the synthetic participant. This proves the controller and persistence contract; it does not yet provide automatic scheduling or semantic internal-model continuation.
 
 ## OAuth MCP authentication
 
@@ -174,6 +184,7 @@ pnpm build
 pnpm db:generate
 pnpm db:migrate
 pnpm db:studio
+pnpm verify:handoff
 ```
 
 ## Product documents

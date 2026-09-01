@@ -16,6 +16,16 @@ import {
   type AcquiredRuntimeLease,
   type RuntimeLeaseAuthorization,
 } from "@/lib/sylla/leases";
+import {
+  acknowledgeAgentRunHandoff,
+  checkpointAgentRun,
+  executeFallbackOnce,
+  getAgentRun,
+  startAgentRun,
+  type AgentRunView,
+  type VisibleRunCheckpoint,
+  yieldAgentRunToBackground,
+} from "@/lib/sylla/runs";
 import { loadSessionState } from "@/lib/sylla/session";
 import {
   checkpointParticipantWorkspace,
@@ -51,6 +61,35 @@ export type SyllaMcpServices = {
     participantId: string,
     authorization: RuntimeLeaseAuthorization,
   ) => Promise<void>;
+  startRun: (input: {
+    participantId: string;
+    authorization: RuntimeLeaseAuthorization;
+    idempotencyKey: string;
+    purpose: string;
+    backgroundContinuationAllowed: boolean;
+    fallbackBudgetCredits: number;
+  }) => Promise<AgentRunView>;
+  checkpointRun: (input: {
+    participantId: string;
+    agentRunId: string;
+    authorization: RuntimeLeaseAuthorization;
+    checkpoint: VisibleRunCheckpoint;
+  }) => Promise<AgentRunView>;
+  yieldRun: (input: {
+    participantId: string;
+    agentRunId: string;
+    authorization: RuntimeLeaseAuthorization;
+  }) => Promise<AgentRunView>;
+  executeFallback: (input: {
+    participantId: string;
+    agentRunId: string;
+  }) => Promise<{ executed: boolean; run: AgentRunView }>;
+  getRun: (participantId: string, agentRunId: string) => Promise<AgentRunView>;
+  acknowledgeHandoff: (input: {
+    participantId: string;
+    agentRunId: string;
+    authorization: RuntimeLeaseAuthorization;
+  }) => Promise<AgentRunView>;
   openWorkspace: (
     participantId: string,
     authorization: RuntimeLeaseAuthorization,
@@ -78,6 +117,12 @@ const defaultServices: SyllaMcpServices = {
   acquireLease: acquireRuntimeLease,
   heartbeatLease: heartbeatRuntimeLease,
   releaseLease: releaseRuntimeLease,
+  startRun: startAgentRun,
+  checkpointRun: checkpointAgentRun,
+  yieldRun: yieldAgentRunToBackground,
+  executeFallback: executeFallbackOnce,
+  getRun: getAgentRun,
+  acknowledgeHandoff: acknowledgeAgentRunHandoff,
   async openWorkspace(participantId, authorization, idempotencyKey) {
     return (
       await openParticipantWorkspace(participantId, {
@@ -123,6 +168,13 @@ function portableAgent(state: SyllaSessionState) {
 const runIdSchema = z.string().trim().min(8).max(120);
 const leaseTokenSchema = z.string().trim().min(32).max(200);
 const idempotencyKeySchema = z.string().trim().min(8).max(160);
+const agentRunIdSchema = z.uuid();
+const checkpointSchema = z.object({
+  summary: z.string().trim().min(1).max(800),
+  completedActions: z.array(z.string().trim().min(1).max(160)).max(20),
+  nextAction: z.string().trim().min(1).max(240).nullable(),
+  evidenceRefs: z.array(z.string().trim().min(1).max(240)).max(20),
+});
 
 function leaseAuthorization(
   clientId: string,
@@ -354,6 +406,177 @@ export function createSyllaMcpServer(
       );
       return result({ released: true });
     },
+  );
+
+  server.registerTool(
+    "sylla_start_agent_run",
+    {
+      title: "Start durable Sylla work",
+      description:
+        "Create an idempotent durable run under the active host lease. The run stores only explicit resumable state, never hidden reasoning or an unreviewed private debrief. Background continuation is optional and limited to creating a reconnect summary in this version.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+        purpose: z.string().trim().min(3).max(240),
+        backgroundContinuationAllowed: z.boolean().default(false),
+        fallbackBudgetCredits: z.number().int().min(0).max(25).default(0),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({
+      runId,
+      leaseToken,
+      idempotencyKey,
+      purpose,
+      backgroundContinuationAllowed,
+      fallbackBudgetCredits,
+    }) =>
+      result({
+        run: await services.startRun({
+          participantId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          idempotencyKey,
+          purpose,
+          backgroundContinuationAllowed,
+          fallbackBudgetCredits,
+        }),
+        fallbackPolicy: {
+          approvedTaskType: "prepare_reconnect_summary",
+          consequentialActionsAllowed: false,
+          rawDebriefStored: false,
+        },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_checkpoint_agent_run",
+    {
+      title: "Checkpoint durable Sylla work",
+      description:
+        "Persist a concise, participant-visible checkpoint for the current run. Include completed actions, the next action, and opaque evidence references; do not send chain of thought, credentials, or raw private debrief text.",
+      inputSchema: z.object({
+        agentRunId: agentRunIdSchema,
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        checkpoint: checkpointSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId, runId, leaseToken, checkpoint }) =>
+      result({
+        run: await services.checkpointRun({
+          participantId,
+          agentRunId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          checkpoint,
+        }),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_yield_agent_run",
+    {
+      title: "Yield Sylla work for safe continuation",
+      description:
+        "Mark the durable run as waiting and release the host lease. If the participant enabled bounded continuation, the Sylla controller may perform only the approved reconnect-summary task after the lease is gone.",
+      inputSchema: z.object({
+        agentRunId: agentRunIdSchema,
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId, runId, leaseToken }) =>
+      result({
+        run: await services.yieldRun({
+          participantId,
+          agentRunId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+        }),
+        leaseReleased: true,
+      }),
+  );
+
+  server.registerTool(
+    "sylla_attempt_agent_fallback",
+    {
+      title: "Attempt bounded Sylla fallback",
+      description:
+        "Ask Sylla's deterministic controller to claim the approved fallback task. It does nothing while a host lease is active, cannot exceed the run budget, cannot take consequential action, and can succeed only once.",
+      inputSchema: z.object({ agentRunId: agentRunIdSchema }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId }) =>
+      result(
+        await services.executeFallback({ participantId, agentRunId }),
+      ),
+  );
+
+  server.registerTool(
+    "sylla_get_agent_run",
+    {
+      title: "Read Sylla run and reconnect handoff",
+      description:
+        "Read the durable status, latest explicit checkpoint, and any auditable fallback handoff for this caller's agent run.",
+      inputSchema: z.object({ agentRunId: agentRunIdSchema }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId }) =>
+      result({ run: await services.getRun(participantId, agentRunId) }),
+  );
+
+  server.registerTool(
+    "sylla_acknowledge_agent_handoff",
+    {
+      title: "Acknowledge a Sylla reconnect handoff",
+      description:
+        "After acquiring a new host lease, acknowledge that the reconnecting host received the durable fallback summary. This never repeats the completed fallback task.",
+      inputSchema: z.object({
+        agentRunId: agentRunIdSchema,
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ agentRunId, runId, leaseToken }) =>
+      result({
+        run: await services.acknowledgeHandoff({
+          participantId,
+          agentRunId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+        }),
+      }),
   );
 
   server.registerTool(
