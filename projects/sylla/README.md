@@ -1,17 +1,17 @@
-# Both
+# Sylla
 
-> Your AI finds someone worth knowing—only when it works both ways.
+> Keep the agent. Change the model.
 
-A portable social capability for the LLM a person already uses, backed by a private workspace, approved memory, and an opt-in introduction network.
+Sylla (pronounced **SILL-uh**) is the portable relationship layer for personal AI. A person names and shapes their own agent; Sylla gives that relationship approved memory, evidence, tools, and continuity across the LLMs they already use.
 
-The first experiment creates one worthwhile introduction between two adults who opted into the same real-world event. Relationships are expected to continue in the communication tools people already use.
+Evidence-backed social discovery is the flagship use case, not the product boundary. The first experiment creates one worthwhile introduction between two adults who opted into the same real-world event. Relationships are expected to continue in the communication tools people already use.
 
 ## Architecture
 
 ```text
-participant's existing LLM
+user-named agent in the participant's existing LLM
    ↕ active reasoning under the participant's host quota
-OAuth-authenticated MCP service ─── Neon Postgres (approved durable state)
+OAuth-authenticated Sylla MCP service ─── Neon Postgres (approved durable state)
    ├─ Solari Browser  → recorded research on approved public URLs
    ├─ Solari Desktop  ↔ visible, interruptible agent workspace
    └─ Solari Sandbox  → directional boundaries and fallback evaluations
@@ -50,7 +50,7 @@ The live Sandbox adapter currently runs a deterministic baseline inside a dispos
 The cookbook examples are now treated as executable integration guidance, not just starter snippets:
 
 - **Browser:** a session must be released and the TypeScript client must also be closed. Recording is session-scoped, becomes available asynchronously after release, and may contain sensitive DOM state. The current adapter records and retains the session reference; restricted replay retrieval, access control, and expiry remain required before the product can call a run auditable.
-- **Profiles:** attached Browser profiles do not save themselves. Both deliberately avoids persistent profiles in v1 because its approved sources are public; authenticated sources require a later, explicit privacy design.
+- **Profiles:** attached Browser profiles do not save themselves. Sylla deliberately avoids persistent profiles in v1 because its approved sources are public; authenticated sources require a later, explicit privacy design.
 - **Sandbox:** commands receive an executable plus an argument array rather than shell syntax. Idle timeouts roll forward on activity, and `kill()`—not `close()`—destroys the VM. The live adapter follows those rules. Public port previews must never expose personal workspaces or private evaluation data.
 - **Desktop:** readiness is asynchronous, so the live adapter polls health before use. Coordinate actions can silently target the wrong window; future MCP computer-use tools must observe a screenshot, act narrowly, then observe again. Closing the local channel does not destroy the remote Desktop, so pause and destroy remain explicit lifecycle operations.
 
@@ -61,7 +61,7 @@ These examples validate the product split: Browser is the agent's audited web re
 Requirements: Node.js 20+, pnpm 10+, a Postgres database, and optionally a Solari API key.
 
 ```bash
-cd projects/both
+cd projects/sylla
 pnpm install
 cp .env.example .env.local
 pnpm db:migrate

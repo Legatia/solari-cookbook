@@ -22,7 +22,7 @@ interface LiveAdapterOptions {
 
 const sandboxEvaluatorScript = `
 const fs = require("node:fs");
-const input = JSON.parse(fs.readFileSync("/tmp/both-input.json", "utf8"));
+const input = JSON.parse(fs.readFileSync("/tmp/sylla-input.json", "utf8"));
 const first = input.participantObservations[0];
 const second = input.candidateObservations[0];
 const result = {
@@ -134,7 +134,7 @@ export class SolariDesktopWorkspaceAdapter
       timeoutMs: 15 * 60 * 1000,
       lifecycle: { onTimeout: "pause", autoResume: true },
       metadata: {
-        product: "both",
+        product: "sylla",
         participantRef: manifest.participantRef,
       },
     });
@@ -143,7 +143,7 @@ export class SolariDesktopWorkspaceAdapter
       await desktop.connect();
       await waitForDesktopReady(desktop);
 
-      const workspacePath = "/home/oai/share/both";
+      const workspacePath = "/home/oai/share/sylla";
       await desktop.exec("mkdir", { args: ["-p", workspacePath] });
       await desktop.fs.write(
         `${workspacePath}/workspace.json`,
@@ -191,7 +191,7 @@ export class SolariSandboxEvaluationAdapter
       timeoutMs: 5 * 60 * 1000,
       lifecycle: { onTimeout: "kill" },
       metadata: {
-        product: "both",
+        product: "sylla",
         direction: request.direction,
       },
     });
@@ -199,7 +199,7 @@ export class SolariSandboxEvaluationAdapter
     try {
       await sandbox.connect();
       await sandbox.files.write(
-        "/tmp/both-input.json",
+        "/tmp/sylla-input.json",
         JSON.stringify(request),
       );
       const result = await sandbox.commands.run("node", {

@@ -1,6 +1,6 @@
-# Both — Project Roadmap
+# Sylla — Project Roadmap
 
-**Both is the public project name. It encodes the product's four-way consent rule: both directional agent evaluations must find value, then both humans must independently opt in. The host LLM is the conversational personality, so Both does not need to behave like another named chatbot or wake word.**
+**Sylla (pronounced SILL-uh) is the public master brand for the portable relationship layer. Sylla is not the agent's name: each user names and shapes their own agent. The agent's approved identity, memory, trust, and working context persist across host LLMs; evidence-backed social discovery is the first flagship use case.**
 
 This roadmap is organized around evidence gates rather than feature volume. A phase is complete only when its gate is satisfied. Visual polish cannot substitute for a working vertical slice or a real participant outcome.
 
@@ -25,13 +25,13 @@ The first interaction signal is:
 
 ## Product boundary
 
-This project is the first reference implementation of **social-discovery infrastructure for personal agents**. It is not a new social destination. The participant's existing LLM is the preferred conversational surface; the web application is the durable trust, privacy, memory, and workspace control plane.
+This project is the first reference implementation of **portable relationship infrastructure for personal agents**. It is not a new chatbot or social destination. The participant's existing LLM is the preferred conversational surface; the web application is the durable identity, trust, privacy, memory, and workspace control plane. The event-introduction pilot is the first narrow proof that an attached personal agent can create a valuable real-world outcome.
 
 - Relationships are expected to move to participants' existing communication tools.
 - The product does not need feeds, DMs, followers, or engagement loops.
 - One OAuth-authenticated remote MCP service exposes provider-neutral tools to major LLM hosts. Begin with a ChatGPT plugin and reuse the same contract for Claude, Grok, and later hosts.
 - The web application exists for workspace access, context review, consent, auditing, introductions, fallback status, private reflection, memory control, export, and deletion. Its conversation is a reference and recovery surface rather than a new habit users must adopt.
-- The first-party agent remains narrowly focused on social discovery rather than becoming a general assistant.
+- The first implementation remains narrowly focused on social discovery rather than attempting every future personal-agent capability at once.
 - Solari Desktop is the agent's private, inspectable cloud workbench; it is not access to the participant's physical computer.
 - The application database is the durable source of truth. Desktop workspaces must be reconstructible, pausable, and deletable.
 - Core operations must use typed service interfaces exposed through MCP in v1.
@@ -45,7 +45,7 @@ The trust principle is:
 
 The competitive principle is:
 
-> Agent-to-agent matching is now a category feature. Both must prove portable trust, evidence, and consent—not merely that two agents can recommend two people.
+> Portable agent memory and agent-to-agent matching are now category features. Sylla must prove relationship continuity, earned trust, inspectable evidence, and consequential real-world usefulness—not merely that an agent remembers or that two agents can recommend two people.
 
 ## Phase 0 — Lock the experiment
 
@@ -278,12 +278,12 @@ Measure whether the introduction created value and whether the agent earned enou
 - Ask whether the participants already knew or would otherwise have approached each other.
 - Record whether the meeting happened.
 - Offer Quick reflection, Talk it through privately, and Skip.
-- Explain before the debrief what remains private, which host or internal model processes it, what Both receives, what will not persist without approval, and that the chosen host may retain its own transcript.
+- Explain before the debrief what remains private, which host or internal model processes it, what Sylla receives, what will not persist without approval, and that the chosen host may retain its own transcript.
 - Keep the debrief conversational: one short, human question at a time rather than a generated essay or interrogation.
 - Ask both whether the meeting was worthwhile and whether they would meet again.
 - Ask what surprised them, how the interaction felt, what worked, and what the agent should understand better.
 - Record contact exchange or a planned second interaction as optional behavioral signals.
-- Process raw debrief content received by Both ephemerally without writing it to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Treat any host-retained transcript as a separately disclosed boundary.
+- Process raw debrief content received by Sylla ephemerally without writing it to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Treat any host-retained transcript as a separately disclosed boundary.
 - When the debrief occurs in a host LLM, accept only intentionally submitted structured outcomes and proposed memories through MCP rather than silently importing the full conversation.
 - Generate zero to three proposed memories about the participant, not judgments about the other person.
 - Let the participant Keep, Edit, or Forget every proposed memory.
@@ -327,7 +327,7 @@ Make the complete flow safe and reliable enough for real participants.
 
 ### Gate
 
-The team completes an end-to-end rehearsal without manual database repair, persisted Both-side raw debriefs, leaked private context, orphaned Solari resources, duplicate host/fallback work, unbounded internal-model spend, or ambiguous participant states.
+The team completes an end-to-end rehearsal without manual database repair, persisted Sylla-side raw debriefs, leaked private context, orphaned Solari resources, duplicate host/fallback work, unbounded internal-model spend, or ambiguous participant states.
 
 ## Phase 10 — Live pilot
 
@@ -389,7 +389,7 @@ Turn the working product and pilot into a credible public application.
 
 Tell one complete story:
 
-1. Alice connects the plugin to her existing LLM through Both OAuth and approves sources.
+1. Alice connects the plugin to her existing LLM through Sylla OAuth and approves sources.
 2. Her host LLM directs the Solari Browser through MCP and uses its own host quota for reasoning.
 3. Alice removes an incorrect inference.
 4. Alice opens the Solari Desktop workspace while the host directs a visible task.
@@ -463,7 +463,7 @@ These decisions do not block development, but they must be resolved before the l
 - Per-run internal-model cost and duration limits
 - Participant support and incident contact
 - Whether contact exchange occurs inside or outside the product
-- The final one- or two-syllable public product name
+- Brand voice, visual identity, and pronunciation guidance for Sylla
 
 ## Stop conditions
 

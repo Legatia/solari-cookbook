@@ -14,7 +14,7 @@ cookbook primitives. They live separately from the one-minute examples.
 
 | Project | Stack | Solari products | What it explores |
 | --- | --- | --- | --- |
-| [Both](projects/both) | Next.js + TypeScript | Browser, Desktop, Sandbox | A portable social-memory and consent layer that connects through MCP and creates evidence-backed real-world introductions |
+| [Sylla](projects/sylla) | Next.js + TypeScript | Browser, Desktop, Sandbox | A portable relationship layer for user-named personal agents, with evidence-backed introductions as its flagship use case |
 
 ## Examples
 

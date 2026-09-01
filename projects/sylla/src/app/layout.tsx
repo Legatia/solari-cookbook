@@ -19,7 +19,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Both — introductions that work both ways",
+  title: "Sylla — keep the agent, change the model",
   description:
     "A personal agent that finds the people you may genuinely want to meet.",
 };

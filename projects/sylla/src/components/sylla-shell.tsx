@@ -360,7 +360,7 @@ function MemoryView() {
   );
 }
 
-export function BothShell() {
+export function SyllaShell() {
   const [view, setView] = useState<View>("conversation");
   const [agentPaused, setAgentPaused] = useState(false);
 
@@ -372,8 +372,8 @@ export function BothShell() {
             <span className="size-1.5 rounded-full bg-lime-200" />
           </span>
           <div>
-            <p className="font-heading text-base italic text-stone-100">Both</p>
-            <p className="text-[8px] uppercase tracking-[0.2em] text-stone-500">Personal agent</p>
+            <p className="font-heading text-base italic text-stone-100">Sylla</p>
+            <p className="text-[8px] uppercase tracking-[0.2em] text-stone-500">Relationship layer</p>
           </div>
         </div>
 
@@ -449,7 +449,7 @@ export function BothShell() {
         <header className="flex h-14 shrink-0 items-center border-b border-white/[0.07] px-4 sm:px-6">
           <div className="flex items-center gap-2 md:hidden">
             <span className="size-2 rounded-full bg-lime-200" />
-            <span className="font-heading italic">Both</span>
+            <span className="font-heading italic">Sylla</span>
           </div>
           <nav className="ml-4 flex items-center gap-0.5 md:hidden" aria-label="Mobile navigation">
             {navigation.map((item) => {

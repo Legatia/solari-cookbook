@@ -1,16 +1,16 @@
-# Both — Canonical Build Prompt
+# Sylla — Canonical Build Prompt
 
-**Both is the public project name. It means that both directional agent evaluations must find value and both humans must independently consent. Users speak naturally to the LLM they already use; the host discovers and invokes Both as a capability, so Both is not another chatbot persona or wake word.**
+**Sylla (pronounced SILL-uh) is the public master brand and the relationship layer for personal AI. Sylla is not the agent's name: each user names and shapes their own agent. Sylla preserves that approved identity, memory, trust, and working context across host LLMs, while evidence-backed social discovery is the first flagship use case.**
 
-You are the lead product engineer for **Both**, a Solari internship challenge submission.
+You are the lead product engineer for **Sylla**, a Solari internship challenge submission.
 
 Build a credible, testable product that uses personal agents to create one valuable introduction between two people who opted into the same real-world event. Each participant's agent should communicate through brief, natural conversation while maintaining a richer, inspectable research and memory workspace underneath. The project must use Solari as a meaningful part of the user experience, produce an end-to-end working demo, and be suitable for a small live pilot.
 
-The long-term category is **social-discovery infrastructure for personal agents**, not a new social application. The primary conversational surface is whichever major LLM the participant already uses, connected to the product through an OAuth-authenticated remote MCP service. Start with a ChatGPT plugin, keep the MCP contract portable to Claude, Grok, and other capable hosts, and avoid maintaining separate product logic for each provider.
+The long-term category is **portable relationship infrastructure for personal agents**, not a new chatbot or social application. The primary conversational surface is whichever major LLM the participant already uses, connected to Sylla through an OAuth-authenticated remote MCP service. Start with a ChatGPT plugin, keep the MCP contract portable to Claude, Gemini, Grok, and other capable hosts, and avoid maintaining separate product logic for each provider.
 
 The web application is the durable trust and control center: identity, approved memory, evidence, consent, auditing, introductions, private workspace access, fallback status, export, and deletion. It may provide a reference conversation for demos and recovery, but it should not require participants to abandon their existing AI habit.
 
-Do not build a generic matchmaking application, social feed, dating application, general-purpose AI companion, or speculative global social network. Build the smallest complete experiment that can answer the product hypotheses below.
+Do not attempt to build every possible personal-agent capability, a generic matchmaking application, social feed, dating application, or speculative global social network. Build the smallest complete social-discovery experiment that proves the broader relationship layer can create a trusted real-world outcome.
 
 ## Product hypothesis
 
@@ -53,9 +53,9 @@ An introduction may immediately move to WhatsApp, Telegram, Instagram, email, or
 The durable system is:
 
 ```text
-participant's chosen LLM
+user-named agent in participant's chosen LLM
         ↕ active reasoning and MCP tool calls
-OAuth-authenticated Both MCP service
+OAuth-authenticated Sylla MCP service
         ↕
 inspectable research, memory, and trust workspace
         ↓
@@ -72,19 +72,19 @@ user-chosen outcome feedback
 
 Expose the core research, memory, discovery, bilateral-evaluation, consent, outcome, and run-control operations through typed server-side interfaces and a remote MCP server. MCP is the primary conversational integration in v1, not a future abstraction. Keep provider-specific packaging thin so the same authenticated service can support multiple LLM hosts.
 
-The first-party agent must be narrowly personal for social discovery. Do not expand it into a general assistant. Its job is to understand which human interactions the participant values, research relevant social opportunities, organize evidence, and improve only from memories the participant explicitly approves.
+The v1 capability must remain narrowly focused on social discovery rather than pretending to implement Sylla's entire long-term platform. Its job is to let the user's chosen agent understand which human interactions the participant values, research relevant social opportunities, organize evidence, and improve only from memories the participant explicitly approves. Keep the underlying identity, memory, provenance, and run contracts reusable for later non-social capabilities.
 
 ## Competitive boundary
 
-Do not position agent-to-agent matchmaking itself as novel. Active products already market personal agents that negotiate introductions, one-person recommendations, deep conversational onboarding, and AI matchmaking. Both must win on a narrower claim:
+Do not position portable agent memory or agent-to-agent matchmaking itself as novel. Active products already market portable AI selves, personal agents that negotiate introductions, one-person recommendations, deep conversational onboarding, and AI matchmaking. Sylla must win on a stronger combined claim:
 
-> The portable, evidence-backed trust and consent layer for introductions made through the AI a person already uses.
+> The portable relationship layer that lets a person keep their chosen agent across models—and trust it with consequential real-world outcomes.
 
-The differentiation to prove is the combination of provider-neutral MCP access, participant-approved and portable memory, source-level provenance, an inspectable Solari workspace, directional disclosure, explicit four-way consent, ephemeral private debriefs, and bounded fallback. Avoid competitor language such as destiny, soulmate, universal compatibility, or an always-on agent that silently profiles the world.
+The social flagship must prove that broader promise through provider-neutral MCP access, participant-approved and portable memory, source-level provenance, an inspectable Solari workspace, directional disclosure, explicit four-way consent, ephemeral private debriefs, and bounded fallback. Avoid competitor language such as destiny, soulmate, universal compatibility, or an always-on agent that silently profiles the world.
 
 ## Host-model orchestration and internal fallback
 
-Use the participant's active host LLM as the default reasoning engine. While a ChatGPT, Claude, Grok, or other supported conversation is actively orchestrating the task, the host model should observe Solari state, reason, and call fine-grained MCP tools. This deliberately uses the participant's existing host-model allowance for semantic reasoning while Both pays for its own storage, network, and Solari execution.
+Use the participant's active host LLM as the default reasoning engine. While a ChatGPT, Claude, Gemini, Grok, or other supported conversation is actively orchestrating the task, the host model should observe Solari state, reason, and call fine-grained MCP tools. This deliberately uses the participant's existing host-model allowance for semantic reasoning while Sylla pays for its own storage, network, and Solari execution.
 
 The MCP service cannot withdraw from a participant's ChatGPT or other consumer subscription after the host run ends. Document the compute boundary honestly:
 
@@ -93,10 +93,10 @@ Host-model reasoning and vision during an active or eligible scheduled run
   → participant's host-plan allowance
 
 Solari Browser, Desktop, and Sandbox runtime
-  → Both's Solari allowance
+  → Sylla's Solari allowance
 
 Internal fallback-model calls
-  → Both's model allowance
+  → Sylla's model allowance
 ```
 
 Support three explicit execution modes behind one typed run contract:
@@ -115,7 +115,7 @@ When the host reconnects, return a concise handoff containing completed actions,
 
 Do not make the primary agent experience read like an essay generator. The conversational surface should usually be the participant's existing LLM and should remain brief, warm, and progressive: one recommendation, question, or decision at a time. A participant should be able to act from the concise answer without reading a research report.
 
-From Both, the host receives only the MCP tool inputs and results necessary for the current action. Both must not silently ingest the participant's entire host chat history. When the host proposes a durable memory, show the exact distilled statement and require explicit approval before saving it.
+From Sylla, the host receives only the MCP tool inputs and results necessary for the current action. Sylla must not silently ingest the participant's entire host chat history. When the host proposes a durable memory, show the exact distilled statement and require explicit approval before saving it.
 
 Place depth in the agent workspace. The workspace may contain:
 
@@ -131,7 +131,7 @@ Use progressive disclosure. For example, the agent may say:
 
 > I found someone at Thursday's event you may appreciate. You both care about urban gardening but approach community differently. Want the short reason, the evidence, or neither?
 
-The user can continue in the host conversation or open the Both workspace to inspect how the agent reached that view. The workspace must expose concise rationale, provenance, run ownership, and fallback activity, never hidden chain-of-thought.
+The user can continue in the host conversation or open the Sylla workspace to inspect how the agent reached that view. The workspace must expose concise rationale, provenance, run ownership, and fallback activity, never hidden chain-of-thought.
 
 The workspace is an instrument of trust, not a surveillance dashboard. Research must be visible, purpose-limited, and based on participant-approved sources and opted-in people. Do not imply that the agent observes the user's physical computer, private applications, or off-platform relationships.
 
@@ -207,7 +207,7 @@ Do not claim that a relationship “would never have happened.” Report what pa
 
 ### 1. Invitation and consent
 
-The participant installs or invokes the Both plugin, completes Both OAuth, and opens a unique event invitation. Explain, in plain language:
+The participant installs or invokes the Sylla plugin, completes Sylla OAuth, and opens a unique event invitation. Explain, in plain language:
 
 - What the agent will inspect.
 - What data will be produced.
@@ -216,7 +216,7 @@ The participant installs or invokes the Both plugin, completes Both OAuth, and o
 - That nothing is disclosed to another participant without approval.
 - How to delete their information.
 - That the visible agent workspace is a Solari-managed cloud computer, not access to their physical device.
-- Which LLM host is currently connected, what information MCP sends to Both, and that the host provider applies its own transcript and retention terms.
+- Which LLM host is currently connected, what information MCP sends to Sylla, and that the host provider applies its own transcript and retention terms.
 - Whether internal fallback is enabled, which tasks it may continue, and the participant's cost and duration limits.
 
 Require confirmation that the participant is at least 18 years old and agrees to the pilot terms.
@@ -355,7 +355,7 @@ After the meeting, invite the participant to debrief. Offer three clear choices:
 
 Before any debrief, state:
 
-> Nothing you send to Both will be shown to the other participant or the organizer. Both will not store the raw reflection, and nothing becomes personal memory unless you approve it. If you debrief in your existing AI chat, that host may retain the conversation under its own terms.
+> Nothing you send to Sylla will be shown to the other participant or the organizer. Sylla will not store the raw reflection, and nothing becomes personal memory unless you approve it. If you debrief in your existing AI chat, that host may retain the conversation under its own terms.
 
 Only make this promise if the implementation enforces it. Disclose which host or fallback model processes the conversation and do not imply end-to-end confidentiality that the system does not provide. The MCP server should receive only the structured outcome fields and proposed memories that the host intentionally submits, not the host's full transcript.
 
@@ -392,7 +392,7 @@ Learn about the participant rather than storing gossip about the other person. I
 
 Never relay one participant's private debrief to the other participant. Never expose it to the organizer. Do not use raw debrief content for candidate retrieval, matching, analytics, model training, or public proof.
 
-Raw debrief content received by Both must not be written to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Process it ephemerally, then discard it after the participant finishes reviewing proposed memories. A transcript retained by the participant's chosen LLM host is outside Both's storage boundary and must be disclosed rather than falsely described as ephemeral. Prefer model-provider configurations that do not retain inputs where available, and document the actual provider behavior honestly.
+Raw debrief content received by Sylla must not be written to the application database, analytics, audit logs, browser recordings, Solari Desktop, or Solari jobs. Process it ephemerally, then discard it after the participant finishes reviewing proposed memories. A transcript retained by the participant's chosen LLM host is outside Sylla's storage boundary and must be disclosed rather than falsely described as ephemeral. Prefer model-provider configurations that do not retain inputs where available, and document the actual provider behavior honestly.
 
 Finish by asking:
 
@@ -487,7 +487,7 @@ Unless the existing repository requires something else, use:
 - Runtime validation for every AI-generated structure
 - Server-only Solari and model-provider credentials
 - Invite-token event access layered on authenticated participant identity
-- A small provider interface around the internal fallback model; the connected host model does not require or reveal its API key to Both
+- A small provider interface around the internal fallback model; the connected host model does not require or reveal its API key to Sylla
 - Run leases, heartbeats, checkpoints, idempotency, and bounded fallback budgets for all long-running tasks
 - Mock Solari and model adapters for deterministic automated tests
 - A live integration mode behind environment variables
@@ -551,7 +551,7 @@ Store identifiers and structured states rather than raw hidden model reasoning. 
 - Treat browsed content as untrusted and defend against prompt injection.
 - Make active research visible and interruptible; do not silently monitor the participant's physical computer or private applications.
 - Disclose which host LLM is active, what MCP transmits, and which provider's retention terms apply to the host conversation.
-- Never claim that Both can spend a participant's consumer LLM quota after the host or eligible scheduled run has ended.
+- Never claim that Sylla can spend a participant's consumer LLM quota after the host or eligible scheduled run has ended.
 - Require explicit opt-in and a bounded budget before an internal agent may continue background work.
 - Prevent host and fallback orchestrators from holding the same active lease or duplicating a side effect.
 - Treat reconnection as a handoff: show what fallback completed, what it cost, and what still requires human approval.
@@ -590,7 +590,7 @@ The organizer must not see participants' private observations, private evaluatio
 
 Prioritize these screens:
 
-1. Plugin discovery, Both OAuth, and connector permissions
+1. Plugin discovery, Sylla OAuth, and connector permissions
 2. Invitation and consent
 3. Intent and availability
 4. Concise conversation in the chosen host
@@ -625,7 +625,7 @@ Do not build:
 - Payments
 - Separate business logic or separate social graphs for every LLM provider
 - An internal LLM that runs by default while an authorized host model is available
-- A general-purpose ChatGPT replacement or emotional-companion product
+- A standalone ChatGPT replacement or pre-named emotional-companion application; Sylla strengthens the user's chosen agent instead
 - Passive monitoring of messages, contacts, calendars, or relationships
 - Unconsented access to or recording of the user's physical computer
 - Claims that the agent knows what happened after a relationship leaves the product
@@ -654,8 +654,8 @@ The project is not complete until the following can be demonstrated end to end:
 13. The resulting rationale cites only approved observations.
 14. Participants receive a public event meeting window and location.
 15. Follow-up captures whether the meeting happened, was worthwhile, and led to a second action.
-16. A participant can choose a private debrief, understand the host transcript boundary, review proposed memories, and reject all Both persistence.
-17. Raw debrief content received by Both is absent from the database, analytics, audit logs, replays, Solari Desktop, and Solari jobs.
+16. A participant can choose a private debrief, understand the host transcript boundary, review proposed memories, and reject all Sylla persistence.
+17. Raw debrief content received by Sylla is absent from the database, analytics, audit logs, replays, Solari Desktop, and Solari jobs.
 18. Only explicitly approved personal memories can influence a later introduction.
 19. The system asks whether the participant wants another introduction and records the request without requiring them to remain in an in-product social channel.
 20. Export, connector revocation, withdrawal, and deletion work across approved context, memory, and workspace artifacts.
