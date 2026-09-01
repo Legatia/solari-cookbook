@@ -7,6 +7,15 @@ Every example in this repo is a complete program you can run in under a minute.
 They are deliberately small: one idea each, no framework, no scaffolding to read
 past. Copy one into your project and change the parts you care about.
 
+## Product builds
+
+Product builds are larger end-to-end applications developed on top of the
+cookbook primitives. They live separately from the one-minute examples.
+
+| Project | Stack | Solari products | What it explores |
+| --- | --- | --- | --- |
+| [Serendipity (working title)](projects/serendipity) | Next.js + TypeScript | Browser, Desktop, Sandbox | A portable social agent that connects through MCP and creates consented real-world introductions |
+
 ## Examples
 
 ### Cloud browser
