@@ -2,7 +2,20 @@ import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
+import {
+  EntitlementRequiredError,
+  getBillingSummary,
+  OPERATION_CREDITS,
+  type BillingSummary,
+} from "@/lib/sylla/billing";
 import { updatePortableAgent } from "@/lib/sylla/identity";
+import {
+  acquireRuntimeLease,
+  heartbeatRuntimeLease,
+  releaseRuntimeLease,
+  type AcquiredRuntimeLease,
+  type RuntimeLeaseAuthorization,
+} from "@/lib/sylla/leases";
 import { loadSessionState } from "@/lib/sylla/session";
 import {
   checkpointParticipantWorkspace,
@@ -21,9 +34,38 @@ export type SyllaMcpServices = {
     input: BootstrapInput,
   ) => Promise<SyllaSessionState>;
   loadState: (participantId: string) => Promise<SyllaSessionState>;
-  openWorkspace: (participantId: string) => Promise<SyllaSessionState>;
-  checkpointWorkspace: (participantId: string) => Promise<SyllaSessionState>;
-  pauseWorkspace: (participantId: string) => Promise<SyllaSessionState>;
+  getBilling: (participantId: string) => Promise<BillingSummary>;
+  acquireLease: (input: {
+    participantId: string;
+    clientId: string;
+    runId: string;
+    purpose: string;
+    durationSeconds?: number;
+  }) => Promise<AcquiredRuntimeLease>;
+  heartbeatLease: (
+    participantId: string,
+    authorization: RuntimeLeaseAuthorization,
+    durationSeconds?: number,
+  ) => Promise<{ leaseId: string; expiresAt: string }>;
+  releaseLease: (
+    participantId: string,
+    authorization: RuntimeLeaseAuthorization,
+  ) => Promise<void>;
+  openWorkspace: (
+    participantId: string,
+    authorization: RuntimeLeaseAuthorization,
+    idempotencyKey: string,
+  ) => Promise<SyllaSessionState>;
+  checkpointWorkspace: (
+    participantId: string,
+    authorization: RuntimeLeaseAuthorization,
+    idempotencyKey: string,
+  ) => Promise<SyllaSessionState>;
+  pauseWorkspace: (
+    participantId: string,
+    authorization: RuntimeLeaseAuthorization,
+    idempotencyKey: string,
+  ) => Promise<SyllaSessionState>;
 };
 
 const defaultServices: SyllaMcpServices = {
@@ -32,11 +74,30 @@ const defaultServices: SyllaMcpServices = {
     return loadSessionState(participantId);
   },
   loadState: loadSessionState,
-  async openWorkspace(participantId) {
-    return (await openParticipantWorkspace(participantId)).state;
+  getBilling: getBillingSummary,
+  acquireLease: acquireRuntimeLease,
+  heartbeatLease: heartbeatRuntimeLease,
+  releaseLease: releaseRuntimeLease,
+  async openWorkspace(participantId, authorization, idempotencyKey) {
+    return (
+      await openParticipantWorkspace(participantId, {
+        authorization,
+        idempotencyKey,
+      })
+    ).state;
   },
-  checkpointWorkspace: checkpointParticipantWorkspace,
-  pauseWorkspace: pauseParticipantWorkspace,
+  checkpointWorkspace(participantId, authorization, idempotencyKey) {
+    return checkpointParticipantWorkspace(participantId, {
+      authorization,
+      idempotencyKey,
+    });
+  },
+  pauseWorkspace(participantId, authorization, idempotencyKey) {
+    return pauseParticipantWorkspace(participantId, {
+      authorization,
+      idempotencyKey,
+    });
+  },
 };
 
 function result<T extends Record<string, unknown>>(value: T) {
@@ -59,10 +120,35 @@ function portableAgent(state: SyllaSessionState) {
   };
 }
 
+const runIdSchema = z.string().trim().min(8).max(120);
+const leaseTokenSchema = z.string().trim().min(32).max(200);
+const idempotencyKeySchema = z.string().trim().min(8).max(160);
+
+function leaseAuthorization(
+  clientId: string,
+  input: { runId: string; leaseToken: string },
+): RuntimeLeaseAuthorization {
+  return { clientId, runId: input.runId, leaseToken: input.leaseToken };
+}
+
+function entitlementContinuation(error: EntitlementRequiredError) {
+  return result({
+    allowed: false,
+    reason: "insufficient_entitlement",
+    plan: error.summary,
+    checkout: {
+      url: error.checkoutUrl,
+      hosted: true,
+      acceptsPaymentDataInMcp: false,
+    },
+  });
+}
+
 export function createSyllaMcpServer(
-  participantId: string,
+  context: { participantId: string; clientId: string },
   services: SyllaMcpServices = defaultServices,
 ) {
+  const { participantId, clientId } = context;
   const server = new McpServer({ name: "sylla", version: "0.1.0" });
 
   server.registerTool(
@@ -157,12 +243,130 @@ export function createSyllaMcpServer(
   );
 
   server.registerTool(
+    "sylla_get_plan",
+    {
+      title: "Check my Sylla plan and work credits",
+      description:
+        "Return the caller's Sylla entitlement, available work credits, and current operation estimates. Work credits cover Sylla-managed runtime; they are separate from the host LLM subscription.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () =>
+      result({
+        plan: await services.getBilling(participantId),
+        operationEstimates: OPERATION_CREDITS,
+        paymentBoundary:
+          "Payment credentials are accepted only by Sylla's hosted checkout, never through MCP.",
+      }),
+  );
+
+  server.registerTool(
+    "sylla_acquire_agent_lease",
+    {
+      title: "Acquire my Sylla agent run",
+      description:
+        "Acquire the exclusive short-lived orchestration lease before operating the agent's Desktop. Use a unique runId for this host conversation. Another run cannot operate the same agent until the lease is released or expires.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        purpose: z.string().trim().min(3).max(160),
+        durationSeconds: z.number().int().min(30).max(300).default(90),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ runId, purpose, durationSeconds }) => {
+      const lease = await services.acquireLease({
+        participantId,
+        clientId,
+        runId,
+        purpose,
+        durationSeconds,
+      });
+      return result({
+        lease: {
+          runId: lease.runId,
+          leaseToken: lease.leaseToken,
+          expiresAt: lease.expiresAt,
+          heartbeatRequired: true,
+        },
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_heartbeat_agent_lease",
+    {
+      title: "Keep my Sylla agent run active",
+      description:
+        "Renew the current run's exclusive lease while the host is actively orchestrating work.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        durationSeconds: z.number().int().min(30).max(300).default(90),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ runId, leaseToken, durationSeconds }) =>
+      result({
+        lease: await services.heartbeatLease(
+          participantId,
+          leaseAuthorization(clientId, { runId, leaseToken }),
+          durationSeconds,
+        ),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_release_agent_lease",
+    {
+      title: "Release my Sylla agent run",
+      description:
+        "Release the current run's exclusive orchestration lease when work stops or transfers. This does not delete the agent or its persistent home.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ runId, leaseToken }) => {
+      await services.releaseLease(
+        participantId,
+        leaseAuthorization(clientId, { runId, leaseToken }),
+      );
+      return result({ released: true });
+    },
+  );
+
+  server.registerTool(
     "sylla_open_agent_workspace",
     {
       title: "Open my Sylla agent home",
       description:
         "Create or resume the caller's persistent private Solari Desktop, attach its durable volume, materialize only approved memories, and checkpoint the result. This may consume Sylla runtime allowance and never returns a stream capability or provider credential.",
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -170,9 +374,22 @@ export function createSyllaMcpServer(
         openWorldHint: true,
       },
     },
-    async () => {
-      const state = await services.openWorkspace(participantId);
+    async ({ runId, leaseToken, idempotencyKey }) => {
+      let state: SyllaSessionState;
+      try {
+        state = await services.openWorkspace(
+          participantId,
+          leaseAuthorization(clientId, { runId, leaseToken }),
+          idempotencyKey,
+        );
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
       return result({
+        allowed: true,
         agent: portableAgent(state),
         workspace: state.workspace
           ? {
@@ -195,7 +412,11 @@ export function createSyllaMcpServer(
       title: "Checkpoint my Sylla agent home",
       description:
         "Create a recovery checkpoint of the caller's open private Desktop without exposing its files or stream capability.",
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -203,9 +424,22 @@ export function createSyllaMcpServer(
         openWorldHint: true,
       },
     },
-    async () => {
-      const state = await services.checkpointWorkspace(participantId);
+    async ({ runId, leaseToken, idempotencyKey }) => {
+      let state: SyllaSessionState;
+      try {
+        state = await services.checkpointWorkspace(
+          participantId,
+          leaseAuthorization(clientId, { runId, leaseToken }),
+          idempotencyKey,
+        );
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
       return result({
+        allowed: true,
         workspaceStatus: state.workspace?.status ?? "unprovisioned",
         checkpointCreated: Boolean(state.workspace?.snapshotId),
       });
@@ -218,7 +452,11 @@ export function createSyllaMcpServer(
       title: "Pause my Sylla agent home",
       description:
         "Checkpoint and pause the caller's Desktop to stop active compute while preserving its durable home for a later host or native Sylla app.",
-      inputSchema: z.object({}),
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -226,9 +464,22 @@ export function createSyllaMcpServer(
         openWorldHint: true,
       },
     },
-    async () => {
-      const state = await services.pauseWorkspace(participantId);
+    async ({ runId, leaseToken, idempotencyKey }) => {
+      let state: SyllaSessionState;
+      try {
+        state = await services.pauseWorkspace(
+          participantId,
+          leaseAuthorization(clientId, { runId, leaseToken }),
+          idempotencyKey,
+        );
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
       return result({
+        allowed: true,
         workspaceStatus: state.workspace?.status ?? "unprovisioned",
         preserved: Boolean(state.workspace?.volumeId),
         hasRecoverySnapshot: Boolean(state.workspace?.snapshotId),

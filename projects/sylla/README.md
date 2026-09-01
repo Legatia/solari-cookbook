@@ -46,6 +46,8 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - OAuth protected-resource discovery plus issuer-, audience-, expiry-, and scope-bound JWT validation
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
 - Per-client host-connection records without storing upstream access tokens
+- Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
+- Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace inspect/open/checkpoint/pause tools
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
@@ -59,7 +61,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical Sylla identity, the MCP contract, OAuth resource-server discovery, JWT verification, and cross-client identity recovery are implemented and exercised against Neon. A real external identity-provider tenant must still be connected before the OAuth flow can be exercised from ChatGPT; billing, live Desktop/snapshot verification, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before browser consent or paid activation can complete; live Desktop/snapshot verification and internal-agent failover also remain. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -132,7 +134,13 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract currently exposes `sylla_bootstrap_agent`, `sylla_get_agent_context`, `sylla_get_agent_workspace`, `sylla_open_agent_workspace`, `sylla_checkpoint_agent_workspace`, and `sylla_pause_agent_workspace`; none exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus `sylla_get_plan`, `sylla_acquire_agent_lease`, `sylla_heartbeat_agent_lease`, and `sylla_release_agent_lease`. Billable workspace tools require the active lease token and an idempotency key; none exposes Solari credentials or stream capabilities.
+
+## Runtime leases and work credits
+
+Only one host run may operate an agent at a time. A host acquires a 30–300 second lease using its authenticated MCP client ID and a conversation-specific run ID, heartbeats while working, and releases when finished. Sylla stores only a SHA-256 hash of the lease capability. A second host is refused until the active lease expires or is released; it can then recover the same canonical agent and persistent workspace. The participant's authenticated web control surface may explicitly take over the lease to pause or withdraw, invalidating the old host capability.
+
+New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Workspace open, resume, and explicit checkpoint reserve estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
 
 ## OAuth MCP authentication
 

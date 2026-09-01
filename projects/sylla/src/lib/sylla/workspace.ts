@@ -3,8 +3,21 @@ import { eq } from "drizzle-orm";
 import { getDatabase } from "@/db";
 import { agentWorkspaces, workspaceArtifacts } from "@/db/schema";
 import { createSolariAdapters } from "@/lib/solari";
-import type { SolariAdapters, WorkspaceManifest } from "@/lib/solari/contracts";
+import type {
+  SolariAdapters,
+  WorkspaceManifest,
+  WorkspaceResult,
+} from "@/lib/solari/contracts";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
+import {
+  releaseBillableOperation,
+  reserveBillableOperation,
+  settleBillableOperation,
+} from "@/lib/sylla/billing";
+import {
+  requireRuntimeLease,
+  type RuntimeLeaseAuthorization,
+} from "@/lib/sylla/leases";
 import { loadSessionState } from "@/lib/sylla/session";
 
 export type OpenWorkspaceResult = {
@@ -13,6 +26,12 @@ export type OpenWorkspaceResult = {
 };
 
 export class WorkspacePrerequisiteError extends Error {}
+
+export type WorkspaceOperationContext = {
+  authorization: RuntimeLeaseAuthorization;
+  idempotencyKey: string;
+  adapters?: SolariAdapters;
+};
 
 function approvedWorkspaceManifest(state: SyllaSessionState): WorkspaceManifest {
   const approved = state.observations.filter(
@@ -45,33 +64,50 @@ function approvedWorkspaceManifest(state: SyllaSessionState): WorkspaceManifest 
 
 export async function openParticipantWorkspace(
   participantId: string,
-  adapters?: SolariAdapters,
+  context: WorkspaceOperationContext,
 ): Promise<OpenWorkspaceResult> {
   const database = getDatabase();
+  await requireRuntimeLease(participantId, context.authorization);
   const stateBefore = await loadSessionState(participantId);
   const manifest = approvedWorkspaceManifest(stateBefore);
-  const solari = adapters ?? (await createSolariAdapters());
-  const previous = stateBefore.workspace;
-  const now = new Date();
-  const [workspace] = previous
-    ? await database
-        .update(agentWorkspaces)
-        .set({ status: "starting", lastActiveAt: now })
-        .where(eq(agentWorkspaces.id, previous.id))
-        .returning()
-    : await database
-        .insert(agentWorkspaces)
-        .values({
-          participantId,
-          agentId: stateBefore.identity.agentId,
-          status: "starting",
-          lastActiveAt: now,
-        })
-        .returning();
+  const operation = stateBefore.workspace?.sessionId
+    ? "workspace_resume"
+    : "workspace_open";
+  const reservation = await reserveBillableOperation({
+    participantId,
+    operation,
+    idempotencyKey: context.idempotencyKey,
+  });
 
+  if (reservation.alreadyProcessed) {
+    return { state: stateBefore, streamCapability: null };
+  }
+
+  const previous = stateBefore.workspace;
   let volumeId = previous?.volumeId ?? null;
+  let workspaceId: string | undefined;
+  let provisioned: WorkspaceResult;
 
   try {
+    const solari = context.adapters ?? (await createSolariAdapters());
+    const now = new Date();
+    const [workspace] = previous
+      ? await database
+          .update(agentWorkspaces)
+          .set({ status: "starting", lastActiveAt: now })
+          .where(eq(agentWorkspaces.id, previous.id))
+          .returning()
+      : await database
+          .insert(agentWorkspaces)
+          .values({
+            participantId,
+            agentId: stateBefore.identity.agentId,
+            status: "starting",
+            lastActiveAt: now,
+          })
+          .returning();
+    workspaceId = workspace.id;
+
     if (!volumeId) {
       volumeId = await solari.desktop.createVolume(participantId);
       await database
@@ -80,7 +116,7 @@ export async function openParticipantWorkspace(
         .where(eq(agentWorkspaces.id, workspace.id));
     }
 
-    const result = await solari.desktop.provision(manifest, {
+    provisioned = await solari.desktop.provision(manifest, {
       volumeId,
       sessionId:
         previous?.status === "destroyed" ? null : previous?.sessionId ?? null,
@@ -89,11 +125,11 @@ export async function openParticipantWorkspace(
     await database
       .update(agentWorkspaces)
       .set({
-        provider: result.provider,
-        solariDesktopSessionId: result.sessionId,
-        solariVolumeId: result.volumeId,
-        solariSnapshotId: result.snapshotId,
-        status: result.status,
+        provider: provisioned.provider,
+        solariDesktopSessionId: provisioned.sessionId,
+        solariVolumeId: provisioned.volumeId,
+        solariSnapshotId: provisioned.snapshotId,
+        status: provisioned.status,
         lastActiveAt: new Date(),
         pausedAt: null,
         destroyedAt: null,
@@ -116,28 +152,34 @@ export async function openParticipantWorkspace(
       ),
     });
 
-    return {
-      state: await loadSessionState(participantId),
-      streamCapability: result.streamCapability ?? null,
-    };
   } catch (error) {
-    await database
-      .update(agentWorkspaces)
-      .set({
-        solariVolumeId: volumeId,
-        status: "failed",
-        lastActiveAt: new Date(),
-      })
-      .where(eq(agentWorkspaces.id, workspace.id));
+    if (workspaceId) {
+      await database
+        .update(agentWorkspaces)
+        .set({
+          solariVolumeId: volumeId,
+          status: "failed",
+          lastActiveAt: new Date(),
+        })
+        .where(eq(agentWorkspaces.id, workspaceId));
+    }
+    await releaseBillableOperation(reservation);
     throw error;
   }
+
+  await settleBillableOperation(reservation, provisioned.sessionId);
+  return {
+    state: await loadSessionState(participantId),
+    streamCapability: provisioned.streamCapability ?? null,
+  };
 }
 
 export async function checkpointParticipantWorkspace(
   participantId: string,
-  adapters?: SolariAdapters,
+  context: WorkspaceOperationContext,
 ) {
   const database = getDatabase();
+  await requireRuntimeLease(participantId, context.authorization);
   const state = await loadSessionState(participantId);
   const workspace = state.workspace;
 
@@ -145,24 +187,41 @@ export async function checkpointParticipantWorkspace(
     throw new Error("Open the agent workspace before checkpointing it.");
   }
 
-  const solari = adapters ?? (await createSolariAdapters());
-  const snapshotId = await solari.desktop.checkpoint(
-    workspace.sessionId,
-    "sylla-user-checkpoint",
-  );
-  await database
-    .update(agentWorkspaces)
-    .set({ solariSnapshotId: snapshotId, lastActiveAt: new Date() })
-    .where(eq(agentWorkspaces.id, workspace.id));
+  const reservation = await reserveBillableOperation({
+    participantId,
+    operation: "workspace_checkpoint",
+    idempotencyKey: context.idempotencyKey,
+  });
+
+  if (reservation.alreadyProcessed) return state;
+
+  let snapshotId: string;
+  try {
+    const solari = context.adapters ?? (await createSolariAdapters());
+    snapshotId = await solari.desktop.checkpoint(
+      workspace.sessionId,
+      "sylla-user-checkpoint",
+    );
+    await database
+      .update(agentWorkspaces)
+      .set({ solariSnapshotId: snapshotId, lastActiveAt: new Date() })
+      .where(eq(agentWorkspaces.id, workspace.id));
+  } catch (error) {
+    await releaseBillableOperation(reservation);
+    throw error;
+  }
+
+  await settleBillableOperation(reservation, snapshotId);
 
   return loadSessionState(participantId);
 }
 
 export async function pauseParticipantWorkspace(
   participantId: string,
-  adapters?: SolariAdapters,
+  context: WorkspaceOperationContext,
 ) {
   const database = getDatabase();
+  await requireRuntimeLease(participantId, context.authorization);
   const state = await loadSessionState(participantId);
   const workspace = state.workspace;
 
@@ -172,7 +231,7 @@ export async function pauseParticipantWorkspace(
 
   if (workspace.status === "paused") return state;
 
-  const solari = adapters ?? (await createSolariAdapters());
+  const solari = context.adapters ?? (await createSolariAdapters());
   const snapshotId = await solari.desktop.checkpoint(
     workspace.sessionId,
     "sylla-before-pause",

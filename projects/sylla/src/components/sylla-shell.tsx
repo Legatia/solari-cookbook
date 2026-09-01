@@ -47,7 +47,17 @@ type ApiResponse = {
   state?: SyllaSessionState;
   error?: string;
   streamCapability?: string | null;
+  checkout?: { url: string; hosted: true };
 };
+
+class SyllaApiError extends Error {
+  constructor(
+    message: string,
+    readonly checkoutUrl?: string,
+  ) {
+    super(message);
+  }
+}
 
 const navigation = [
   { id: "conversation" as const, label: "Conversation", icon: Sparkles },
@@ -73,7 +83,10 @@ async function api(path: string, init?: RequestInit) {
   const payload = (await response.json()) as ApiResponse;
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Sylla could not complete that request.");
+    throw new SyllaApiError(
+      payload.error ?? "Sylla could not complete that request.",
+      payload.checkout?.url,
+    );
   }
 
   return payload;
@@ -878,10 +891,12 @@ function WorkspaceView({
   const [provisioning, setProvisioning] = useState(false);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   async function provision() {
     setProvisioning(true);
     setError(null);
+    setCheckoutUrl(null);
     try {
       const payload = await api("/api/workspace", {
         method: "POST",
@@ -891,6 +906,9 @@ function WorkspaceView({
       onStream(payload.streamCapability ?? null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Workspace failed.");
+      setCheckoutUrl(
+        caught instanceof SyllaApiError ? caught.checkoutUrl ?? null : null,
+      );
     } finally {
       setProvisioning(false);
     }
@@ -955,6 +973,16 @@ function WorkspaceView({
           <div>
             {streamUrl ? <DesktopStream streamUrl={streamUrl} /> : <WorkspaceBoard state={state} />}
             {error && <p className="mt-3 text-xs text-red-300/80">{error}</p>}
+            {checkoutUrl && (
+              <a
+                href={checkoutUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-2 text-xs text-lime-200 underline-offset-4 hover:underline"
+              >
+                Continue to Sylla checkout <ArrowUpRight className="size-3" />
+              </a>
+            )}
             <p className="mt-4 flex items-start gap-2 text-[10px] leading-4 text-stone-600">
               <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
               This workbench is reconstructed from approved database records. It cannot see your physical computer, raw private chats, or forgotten memories.

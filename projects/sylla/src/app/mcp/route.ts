@@ -36,7 +36,11 @@ const handler = createMcpHandler(
       throw new Error("The MCP request is missing its Sylla participant scope.");
     }
 
-    return createSyllaMcpServer(participantId);
+    if (typeof authInfo?.clientId !== "string") {
+      throw new Error("The MCP request is missing its authenticated client ID.");
+    }
+
+    return createSyllaMcpServer({ participantId, clientId: authInfo.clientId });
   },
   {
     onerror: (error) => console.error("Sylla MCP request failed", error),

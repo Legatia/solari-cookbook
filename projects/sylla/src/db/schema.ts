@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -56,6 +57,28 @@ export const memoryStatus = pgEnum("memory_status", [
   "forgotten",
 ]);
 
+export const entitlementStatus = pgEnum("entitlement_status", [
+  "trialing",
+  "active",
+  "inactive",
+  "exhausted",
+  "canceled",
+]);
+
+export const usageStatus = pgEnum("usage_status", [
+  "reserved",
+  "settled",
+  "released",
+  "declined",
+]);
+
+export const checkoutStatus = pgEnum("checkout_status", [
+  "pending",
+  "completed",
+  "expired",
+  "canceled",
+]);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -85,6 +108,106 @@ export const personalAgents = pgTable(
   },
   (table) => [
     uniqueIndex("personal_agents_owner_user_unique").on(table.ownerUserId),
+  ],
+);
+
+export const entitlements = pgTable(
+  "entitlements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    planKey: text("plan_key").default("starter-trial").notNull(),
+    status: entitlementStatus("status").default("trialing").notNull(),
+    creditLimit: integer("credit_limit").default(500).notNull(),
+    creditsUsed: integer("credits_used").default(0).notNull(),
+    creditsReserved: integer("credits_reserved").default(0).notNull(),
+    periodStartedAt: timestamp("period_started_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    periodEndsAt: timestamp("period_ends_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("entitlements_user_unique").on(table.userId)],
+);
+
+export const usageLedger = pgTable(
+  "usage_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    operation: text("operation").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    estimatedCredits: integer("estimated_credits").notNull(),
+    actualCredits: integer("actual_credits"),
+    status: usageStatus("status").default("reserved").notNull(),
+    provider: text("provider").default("solari").notNull(),
+    providerReference: text("provider_reference"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("usage_ledger_user_idx").on(table.userId),
+    index("usage_ledger_agent_idx").on(table.agentId),
+    uniqueIndex("usage_ledger_idempotency_unique").on(table.idempotencyKey),
+  ],
+);
+
+export const checkoutSessions = pgTable(
+  "checkout_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    planKey: text("plan_key").default("starter").notNull(),
+    status: checkoutStatus("status").default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("checkout_sessions_user_idx").on(table.userId),
+    uniqueIndex("checkout_sessions_token_unique").on(table.tokenHash),
+  ],
+);
+
+export const billingEvents = pgTable(
+  "billing_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => syllaUsers.id, {
+      onDelete: "set null",
+    }),
+    provider: text("provider").notNull(),
+    providerEventId: text("provider_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("billing_events_provider_event_unique").on(
+      table.provider,
+      table.providerEventId,
+    ),
   ],
 );
 
@@ -201,6 +324,36 @@ export const participants = pgTable(
       table.agentId,
     ),
     uniqueIndex("participants_invite_token_unique").on(table.inviteTokenHash),
+  ],
+);
+
+export const runtimeLeases = pgTable(
+  "runtime_leases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    ownerClientId: text("owner_client_id").notNull(),
+    ownerRunId: text("owner_run_id").notNull(),
+    leaseTokenHash: text("lease_token_hash").notNull(),
+    purpose: text("purpose").notNull(),
+    acquiredAt: timestamp("acquired_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("runtime_leases_agent_unique").on(table.agentId),
+    uniqueIndex("runtime_leases_token_unique").on(table.leaseTokenHash),
+    index("runtime_leases_participant_idx").on(table.participantId),
   ],
 );
 
