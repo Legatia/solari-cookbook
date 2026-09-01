@@ -406,6 +406,10 @@ export const agentRuns = pgTable(
     checkpointSequence: integer("checkpoint_sequence").default(0).notNull(),
     lastHostClientId: text("last_host_client_id").notNull(),
     fallbackReason: text("fallback_reason"),
+    fallbackWorkerRunId: text("fallback_worker_run_id"),
+    fallbackProvider: text("fallback_provider"),
+    fallbackModel: text("fallback_model"),
+    fallbackError: text("fallback_error"),
     fallbackClaimedAt: timestamp("fallback_claimed_at", {
       withTimezone: true,
     }),
@@ -479,6 +483,11 @@ export const runHandoffs = pgTable(
         nextAction: string | null;
         fallbackCreditsUsed: number;
         consequentialActionsTaken: boolean;
+        modelProvider: string;
+        model: string | null;
+        modelInputTokens: number | null;
+        modelOutputTokens: number | null;
+        deterministicRecoveryUsed: boolean;
       }>()
       .notNull(),
     claimedBy: text("claimed_by").notNull(),

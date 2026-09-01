@@ -79,6 +79,9 @@ const agentRun: AgentRunView = {
   fallbackBudgetCredits: 1,
   fallbackCreditsUsed: 0,
   fallbackReason: null,
+  fallbackProvider: null,
+  fallbackModel: null,
+  fallbackError: null,
   latestCheckpoint: null,
   handoff: null,
 };

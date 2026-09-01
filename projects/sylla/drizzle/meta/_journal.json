@@ -43,6 +43,13 @@
       "when": 1788291046860,
       "tag": "0005_workable_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788293812750,
+      "tag": "0006_romantic_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

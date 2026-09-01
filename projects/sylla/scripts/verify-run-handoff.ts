@@ -7,14 +7,17 @@ import { eq } from "drizzle-orm";
 
 import { getDatabase } from "../src/db";
 import {
+  agentRuns,
   events,
   participants,
   personalAgents,
   syllaUsers,
 } from "../src/db/schema";
+import type { InternalModelAdapter } from "../src/lib/sylla/internal-model";
 import {
   acquireRuntimeLease,
   releaseRuntimeLease,
+  RuntimeLeaseConflictError,
 } from "../src/lib/sylla/leases";
 import {
   acknowledgeAgentRunHandoff,
@@ -22,6 +25,7 @@ import {
   executeFallbackOnce,
   getAgentRun,
   startAgentRun,
+  sweepFallbackRuns,
   yieldAgentRunToBackground,
 } from "../src/lib/sylla/runs";
 
@@ -118,6 +122,7 @@ async function main() {
   assert.equal(completed.latestCheckpoint?.sequence, 2);
   assert.equal(completed.latestCheckpoint?.createdBy, "internal_fallback");
   assert.equal(completed.handoff?.consequentialActionsTaken, false);
+  assert.equal(completed.handoff?.modelProvider, "sylla-deterministic");
   assert.deepEqual(completed.handoff?.completedActions, [
     "Collected approved source",
   ]);
@@ -143,6 +148,185 @@ async function main() {
   assert.ok(acknowledged.handoff?.acknowledgedAt);
   await releaseRuntimeLease(runParticipantId, reconnectLease);
 
+  const failingAdapter: InternalModelAdapter = {
+    provider: "synthetic-model",
+    model: "synthetic-model-v1",
+    async generateReconnectHandoff() {
+      throw new Error("Synthetic model timeout");
+    },
+  };
+  const sweepLease = await acquireRuntimeLease({
+    participantId: runParticipantId,
+    clientId: "synthetic-host-c",
+    runId: `host-c-${syntheticId}`,
+    purpose: "Verify automatic fallback sweep",
+    durationSeconds: 30,
+  });
+  const sweptRun = await startAgentRun({
+    participantId: runParticipantId,
+    authorization: sweepLease,
+    idempotencyKey: `sweep-${syntheticId}`,
+    purpose: "Verify deterministic recovery after model failure",
+    backgroundContinuationAllowed: true,
+    fallbackBudgetCredits: 1,
+  });
+  await checkpointAgentRun({
+    participantId: runParticipantId,
+    agentRunId: sweptRun.id,
+    authorization: sweepLease,
+    checkpoint: {
+      summary: "The host prepared an automatic sweep checkpoint.",
+      completedActions: ["Prepared sweep checkpoint"],
+      nextAction: "Review automatic continuation",
+      evidenceRefs: [],
+    },
+  });
+  await yieldAgentRunToBackground({
+    participantId: runParticipantId,
+    agentRunId: sweptRun.id,
+    authorization: sweepLease,
+  });
+  const sweep = await sweepFallbackRuns({
+    limit: 10,
+    workerId: "synthetic-cron",
+    adapter: failingAdapter,
+  });
+  assert.equal(sweep.executed, 1);
+  assert.equal(sweep.failed, 0);
+  const swept = await getAgentRun(runParticipantId, sweptRun.id);
+  assert.equal(swept.handoff?.deterministicRecoveryUsed, true);
+  assert.equal(swept.handoff?.modelProvider, "sylla-deterministic");
+  assert.equal(swept.fallbackProvider, "synthetic-model");
+  assert.equal(swept.fallbackModel, "synthetic-model-v1");
+  assert.match(swept.fallbackError ?? "", /Synthetic model timeout/);
+
+  const staleLease = await acquireRuntimeLease({
+    participantId: runParticipantId,
+    clientId: "synthetic-host-d",
+    runId: `host-d-${syntheticId}`,
+    purpose: "Verify stale worker recovery",
+    durationSeconds: 30,
+  });
+  const staleRun = await startAgentRun({
+    participantId: runParticipantId,
+    authorization: staleLease,
+    idempotencyKey: `stale-${syntheticId}`,
+    purpose: "Recover a crashed fallback worker",
+    backgroundContinuationAllowed: true,
+    fallbackBudgetCredits: 1,
+  });
+  await checkpointAgentRun({
+    participantId: runParticipantId,
+    agentRunId: staleRun.id,
+    authorization: staleLease,
+    checkpoint: {
+      summary: "The host checkpointed before the synthetic crash.",
+      completedActions: ["Checkpointed before crash"],
+      nextAction: "Recover safely",
+      evidenceRefs: [],
+    },
+  });
+  await yieldAgentRunToBackground({
+    participantId: runParticipantId,
+    agentRunId: staleRun.id,
+    authorization: staleLease,
+  });
+  await database
+    .update(agentRuns)
+    .set({
+      status: "fallback_running",
+      executionMode: "internal_fallback",
+      fallbackCreditsUsed: 1,
+      checkpointSequence: 2,
+      fallbackWorkerRunId: "expired-synthetic-worker",
+      fallbackClaimedAt: new Date(Date.now() - 10 * 60 * 1_000),
+    })
+    .where(eq(agentRuns.id, staleRun.id));
+  const staleSweep = await sweepFallbackRuns({
+    limit: 10,
+    workerId: "synthetic-recovery-cron",
+    adapter: failingAdapter,
+  });
+  assert.equal(staleSweep.executed, 1);
+  const recovered = await getAgentRun(runParticipantId, staleRun.id);
+  assert.equal(recovered.fallbackCreditsUsed, 1);
+  assert.equal(recovered.latestCheckpoint?.sequence, 2);
+  assert.equal(recovered.handoff?.deterministicRecoveryUsed, true);
+  assert.match(recovered.fallbackError ?? "", /Recovered a stale/);
+
+  const overlapLease = await acquireRuntimeLease({
+    participantId: runParticipantId,
+    clientId: "synthetic-host-e",
+    runId: `host-e-${syntheticId}`,
+    purpose: "Verify model-call lease exclusion",
+    durationSeconds: 30,
+  });
+  const overlapRun = await startAgentRun({
+    participantId: runParticipantId,
+    authorization: overlapLease,
+    idempotencyKey: `overlap-${syntheticId}`,
+    purpose: "Block a reconnecting host during internal model work",
+    backgroundContinuationAllowed: true,
+    fallbackBudgetCredits: 1,
+  });
+  await yieldAgentRunToBackground({
+    participantId: runParticipantId,
+    agentRunId: overlapRun.id,
+    authorization: overlapLease,
+  });
+  let releaseModel!: () => void;
+  let announceModelStarted!: () => void;
+  const modelStarted = new Promise<void>((resolve) => {
+    announceModelStarted = resolve;
+  });
+  const continueModel = new Promise<void>((resolve) => {
+    releaseModel = resolve;
+  });
+  const blockingAdapter: InternalModelAdapter = {
+    provider: "synthetic-blocking-model",
+    model: "synthetic-blocking-v1",
+    async generateReconnectHandoff() {
+      announceModelStarted();
+      await continueModel;
+      return {
+        summary: "The bounded model completed after holding the worker lease.",
+        nextAction: "Reconnect safely",
+        provider: "synthetic-blocking-model",
+        model: "synthetic-blocking-v1",
+        inputTokens: 10,
+        outputTokens: 8,
+        deterministicRecoveryUsed: false,
+      };
+    },
+  };
+  const overlapSweepPromise = sweepFallbackRuns({
+    limit: 10,
+    workerId: "synthetic-overlap-cron",
+    adapter: blockingAdapter,
+  });
+  await modelStarted;
+  await assert.rejects(
+    acquireRuntimeLease({
+      participantId: runParticipantId,
+      clientId: "synthetic-returning-host",
+      runId: `returning-host-${syntheticId}`,
+      purpose: "Attempt overlap with internal model",
+      durationSeconds: 30,
+    }),
+    RuntimeLeaseConflictError,
+  );
+  releaseModel();
+  const overlapSweep = await overlapSweepPromise;
+  assert.equal(overlapSweep.executed, 1);
+  const overlapCompleted = await getAgentRun(
+    runParticipantId,
+    overlapRun.id,
+  );
+  assert.equal(
+    overlapCompleted.handoff?.modelProvider,
+    "synthetic-blocking-model",
+  );
+
   console.log(
     JSON.stringify({
       verified: true,
@@ -152,6 +336,10 @@ async function main() {
       fallbackCreditsUsed: completed.fallbackCreditsUsed,
       reconnectAcknowledged: true,
       consequentialActionsTaken: false,
+      automaticSweepExecuted: sweep.executed,
+      modelFailureRecoveredDeterministically: true,
+      staleWorkerRecoveredWithoutDoubleCharge: true,
+      returningHostBlockedDuringModelCall: true,
     }),
   );
   } finally {
