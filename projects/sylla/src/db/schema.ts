@@ -56,6 +56,64 @@ export const memoryStatus = pgEnum("memory_status", [
   "forgotten",
 ]);
 
+export const syllaUsers = pgTable("sylla_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  displayName: text("display_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const personalAgents = pgTable(
+  "personal_agents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    name: text("name"),
+    focus: text("focus"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("personal_agents_owner_user_unique").on(table.ownerUserId),
+  ],
+);
+
+export const authIdentities = pgTable(
+  "auth_identities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    email: text("email"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("auth_identities_user_idx").on(table.userId),
+    uniqueIndex("auth_identities_provider_subject_unique").on(
+      table.provider,
+      table.providerSubject,
+    ),
+  ],
+);
+
 export const events = pgTable(
   "events",
   {
@@ -80,6 +138,12 @@ export const participants = pgTable(
   "participants",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => syllaUsers.id, {
+      onDelete: "restrict",
+    }),
+    agentId: uuid("agent_id").references(() => personalAgents.id, {
+      onDelete: "restrict",
+    }),
     eventId: uuid("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
@@ -101,6 +165,8 @@ export const participants = pgTable(
   },
   (table) => [
     index("participants_event_idx").on(table.eventId),
+    index("participants_user_idx").on(table.userId),
+    index("participants_agent_idx").on(table.agentId),
     uniqueIndex("participants_invite_token_unique").on(table.inviteTokenHash),
   ],
 );
@@ -151,13 +217,19 @@ export const agentWorkspaces = pgTable(
   "agent_workspaces",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id").references(() => personalAgents.id, {
+      onDelete: "cascade",
+    }),
     participantId: uuid("participant_id")
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
     solariDesktopSessionId: text("solari_desktop_session_id"),
+    solariVolumeId: text("solari_volume_id"),
+    solariSnapshotId: text("solari_snapshot_id"),
     provider: text("provider"),
     status: workspaceStatus("status").default("unprovisioned").notNull(),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -165,6 +237,7 @@ export const agentWorkspaces = pgTable(
   },
   (table) => [
     uniqueIndex("agent_workspaces_participant_unique").on(table.participantId),
+    uniqueIndex("agent_workspaces_agent_unique").on(table.agentId),
   ],
 );
 

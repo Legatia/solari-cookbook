@@ -10,6 +10,8 @@ The long-term category is **portable relationship infrastructure for personal ag
 
 The web application is the durable trust and control center: identity, approved memory, evidence, consent, auditing, introductions, private workspace access, fallback status, export, and deletion. It may provide a reference conversation for demos and recovery, but it should not require participants to abandon their existing AI habit.
 
+Sylla—not any host LLM and not a Solari VM—owns the canonical user and agent identity. The first MCP authorization creates or links a permanent Sylla account and a permanent user-owned agent record. ChatGPT, Claude, Gemini, Grok, the web application, and a future native Sylla application are interchangeable clients of that same agent. A participant who later signs into the native application with a linked identity must recover the same approved memory, relationships, permissions, subscription, work history, and private workspace without migration or reset.
+
 Do not attempt to build every possible personal-agent capability, a generic matchmaking application, social feed, dating application, or speculative global social network. Build the smallest complete social-discovery experiment that proves the broader relationship layer can create a trusted real-world outcome.
 
 ## Product hypothesis
@@ -56,8 +58,9 @@ The durable system is:
 user-named agent in participant's chosen LLM
         ↕ active reasoning and MCP tool calls
 OAuth-authenticated Sylla MCP service
-        ↕
-inspectable research, memory, and trust workspace
+        ↕ canonical agent identity, memory, consent, and billing
+persistent, pausable Solari Desktop home
+        ↕ inspectable research and work artifacts
         ↓
 user-reviewed context and memory
         ↓
@@ -71,6 +74,10 @@ user-chosen outcome feedback
 ```
 
 Expose the core research, memory, discovery, bilateral-evaluation, consent, outcome, and run-control operations through typed server-side interfaces and a remote MCP server. MCP is the primary conversational integration in v1, not a future abstraction. Keep provider-specific packaging thin so the same authenticated service can support multiple LLM hosts.
+
+Treat MCP as the conversational control surface for zero-infrastructure onboarding. After Sylla OAuth, an idempotent bootstrap operation creates or links the agent and prepares its durable workspace metadata. Sylla holds its own server-side Solari credentials and provisions Browser, Sandbox, Desktop, volumes, and snapshots on the participant's behalf. The participant must never need a Solari account or API key.
+
+Sylla is also the customer-facing entitlement and usage boundary. MCP may display plans, estimate an operation, check remaining credits, and initiate a hosted checkout, but payment credentials must never pass through an LLM transcript or MCP tool arguments. A Sylla-controlled billing service and hosted payment page process the transaction; verified webhooks update entitlements before a billable Solari operation may begin. Zero setup means no infrastructure work, not zero authentication, consent, or payment confirmation.
 
 The v1 capability must remain narrowly focused on social discovery rather than pretending to implement Sylla's entire long-term platform. Its job is to let the user's chosen agent understand which human interactions the participant values, research relevant social opportunities, organize evidence, and improve only from memories the participant explicitly approves. Keep the underlying identity, memory, provenance, and run contracts reusable for later non-social capabilities.
 
@@ -454,6 +461,7 @@ Use `@solarisdk/desktop` to provide the agent's private, visible workbench. This
 
 Use Desktop to:
 
+- Give each activated agent a persistent private home that survives individual host conversations and can later be opened from the native Sylla application.
 - Materialize a participant workspace from approved application data.
 - Organize research artifacts, evidence boards, introduction hypotheses, and the memory ledger.
 - Carry out visible multi-step research across graphical applications when a task genuinely benefits from a full computer, while recording source-backed artifacts rather than hidden reasoning.
@@ -462,9 +470,10 @@ Use Desktop to:
 - Persist checkpoints and transfer the run lease safely to the internal agent if host orchestration is lost and background continuation is authorized.
 - Open source material and supporting applications when a full graphical environment is useful.
 - Produce screenshots or a sanitized live view for the challenge demo.
-- Pause the VM when idle and reconnect to the same workspace during the pilot.
+- Mount a participant-specific durable volume for approved files, research artifacts, journals, and user-visible work history.
+- Pause the VM when idle, reconnect to the same workspace during the pilot, and take snapshots at meaningful recovery points.
 
-The durable source of truth remains the application database, not the VM filesystem. A workspace must be reconstructible from approved records so deletion, retention, and authorization do not depend on a long-lived VM. Create or resume Desktops on demand, pause them when idle, and destroy them when the participant withdraws or the retention period ends.
+Persistent state does not mean continuously running compute. The canonical agent identity, approved structured memory, permissions, provenance, relationships, billing, and resource mappings remain in the application database. The durable Solari volume is the agent's user-visible home, while snapshots preserve recoverable machine state and the paused Desktop preserves continuity between active runs. A workspace must still be reconstructible from approved records and its volume so deletion, retention, authorization, recovery, and provider migration do not depend on one running VM. Resume Desktops on demand, pause them when idle, and destroy the VM and retained storage when the participant withdraws or the retention period ends.
 
 Treat the desktop stream URL, session identifier, files, screenshots, and activity history as sensitive. Provide participant-only access through a narrowly scoped server-mediated mechanism. Never expose one participant's workspace to another participant or the organizer.
 
@@ -483,6 +492,8 @@ Unless the existing repository requires something else, use:
 - A relational database with migrations
 - A public remote MCP server as the primary agent interface
 - OAuth 2.1 with narrowly scoped per-participant authorization for MCP clients
+- A canonical Sylla user identifier and agent identifier that never depend on a host-provider account identifier
+- Linked authentication identities so MCP hosts, the web control center, and a future native app resolve to the same agent
 - Thin host packages, beginning with a ChatGPT plugin, over one provider-neutral MCP contract
 - Runtime validation for every AI-generated structure
 - Server-only Solari and model-provider credentials
@@ -491,6 +502,8 @@ Unless the existing repository requires something else, use:
 - Run leases, heartbeats, checkpoints, idempotency, and bounded fallback budgets for all long-running tasks
 - Mock Solari and model adapters for deterministic automated tests
 - A live integration mode behind environment variables
+- A Sylla-owned entitlement, usage-ledger, and budget layer in front of all billable Solari creation
+- Hosted checkout and verified billing webhooks; never collect payment credentials through MCP
 
 Required environment variables should be documented in `.env.example`, including at minimum:
 
@@ -507,6 +520,13 @@ Never commit secrets. Never expose Solari session identifiers, sandbox identifie
 
 Design a minimal relational model around these concepts:
 
+- Sylla user
+- User-owned personal agent
+- Linked authentication identity
+- Host connection
+- Subscription and entitlement
+- Usage ledger and spend budget
+- Solari resource lease, durable volume, and snapshot mapping
 - Event
 - Organizer
 - Participant
@@ -622,7 +642,7 @@ Do not build:
 - Private-account scraping
 - Calendar or email integrations
 - Native mobile applications
-- Payments
+- Payment-card collection inside MCP or a model transcript
 - Separate business logic or separate social graphs for every LLM provider
 - An internal LLM that runs by default while an authorized host model is available
 - A standalone ChatGPT replacement or pre-named emotional-companion application; Sylla strengthens the user's chosen agent instead
@@ -640,28 +660,29 @@ Do not build:
 The project is not complete until the following can be demonstrated end to end:
 
 1. A participant connects from at least one major host LLM through OAuth-authenticated MCP and can revoke the connection.
-2. An organizer creates an event and participant invitations.
-3. Two or more participants complete consent, intent, availability, and source submission.
-4. During an active host response, the host model observes and directs a live Solari Browser or Desktop through composable MCP tools, demonstrating that host quota supplies the semantic reasoning.
-5. A live Solari Browser visits approved sources and produces source-backed observations.
-6. A participant edits or deletes an incorrect observation, and it disappears from all downstream inputs.
-7. A participant opens a live Solari Desktop workspace, inspects the agent's current task and evidence, and can interrupt or leave it without losing approved state.
-8. An unfinished host-orchestrated task survives a simulated connection loss: its lease expires, the bounded internal agent resumes from the checkpoint without duplicate actions, and the returning host receives an auditable handoff.
-9. Workspace artifacts can be reconstructed from the application database, and participant withdrawal destroys the Desktop without orphaning the only copy of approved data.
-10. Candidate shortlisting respects event, consent, availability, and disclosure constraints.
-11. Two clean Solari Sandbox jobs produce validated directional evaluations, using host reasoning when available and the internal model only for the explicitly demonstrated fallback path.
-12. The system does not reveal an introduction unless both evaluations recommend it and both humans consent.
-13. The resulting rationale cites only approved observations.
-14. Participants receive a public event meeting window and location.
-15. Follow-up captures whether the meeting happened, was worthwhile, and led to a second action.
-16. A participant can choose a private debrief, understand the host transcript boundary, review proposed memories, and reject all Sylla persistence.
-17. Raw debrief content received by Sylla is absent from the database, analytics, audit logs, replays, Solari Desktop, and Solari jobs.
-18. Only explicitly approved personal memories can influence a later introduction.
-19. The system asks whether the participant wants another introduction and records the request without requiring them to remain in an in-product social channel.
-20. Export, connector revocation, withdrawal, and deletion work across approved context, memory, and workspace artifacts.
-21. Browser sessions close, Desktop VMs pause or terminate as intended, and Sandbox jobs terminate on success and failure paths.
-22. Automated tests cover OAuth authorization, run leases, checkpoint handoff, duplicate-work prevention, state transitions, workspace isolation, deleted-observation exclusion, bilateral gating, memory approval, ephemeral debrief handling, output validation, and failure cleanup.
-23. A live smoke test exercises the MCP connection plus Browser, Desktop, and Sandbox with real credentials when present.
+2. The same participant signs into a second host or reference client and receives the same canonical agent identity and approved state; a simulated future-native-app login resolves identically.
+3. An organizer creates an event and participant invitations.
+4. Two or more participants complete consent, intent, availability, and source submission.
+5. During an active host response, the host model observes and directs a live Solari Browser or Desktop through composable MCP tools, demonstrating that host quota supplies the semantic reasoning.
+6. A live Solari Browser visits approved sources and produces source-backed observations.
+7. A participant edits or deletes an incorrect observation, and it disappears from all downstream inputs.
+8. A participant opens a live Solari Desktop workspace, inspects the agent's current task and evidence, and can interrupt or leave it without losing approved state.
+9. An unfinished host-orchestrated task survives a simulated connection loss: its lease expires, the bounded internal agent resumes from the checkpoint without duplicate actions, and the returning host receives an auditable handoff.
+10. Workspace artifacts can be reconstructed from the application database, and participant withdrawal destroys the Desktop without orphaning the only copy of approved data.
+11. Candidate shortlisting respects event, consent, availability, and disclosure constraints.
+12. Two clean Solari Sandbox jobs produce validated directional evaluations, using host reasoning when available and the internal model only for the explicitly demonstrated fallback path.
+13. The system does not reveal an introduction unless both evaluations recommend it and both humans consent.
+14. The resulting rationale cites only approved observations.
+15. Participants receive a public event meeting window and location.
+16. Follow-up captures whether the meeting happened, was worthwhile, and led to a second action.
+17. A participant can choose a private debrief, understand the host transcript boundary, review proposed memories, and reject all Sylla persistence.
+18. Raw debrief content received by Sylla is absent from the database, analytics, audit logs, replays, Solari Desktop, and Solari jobs.
+19. Only explicitly approved personal memories can influence a later introduction.
+20. The system asks whether the participant wants another introduction and records the request without requiring them to remain in an in-product social channel.
+21. Export, connector revocation, withdrawal, and deletion work across approved context, memory, and workspace artifacts.
+22. Browser sessions close, Desktop VMs pause or terminate as intended, and Sandbox jobs terminate on success and failure paths.
+23. Automated tests cover OAuth authorization, run leases, checkpoint handoff, duplicate-work prevention, state transitions, workspace isolation, deleted-observation exclusion, bilateral gating, memory approval, ephemeral debrief handling, output validation, and failure cleanup.
+24. A live smoke test exercises the MCP connection plus Browser, Desktop, and Sandbox with real credentials when present.
 
 ## Public proof required for the challenge
 

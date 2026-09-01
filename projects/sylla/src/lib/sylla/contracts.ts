@@ -51,12 +51,20 @@ export type SyllaWorkspace = {
   id: string;
   provider: string | null;
   sessionId: string | null;
+  volumeId: string | null;
+  snapshotId: string | null;
   status: "unprovisioned" | "starting" | "ready" | "paused" | "destroyed" | "failed";
   lastActiveAt: string | null;
+  pausedAt: string | null;
 };
 
 export type SyllaSessionState = {
   participantId: string;
+  identity: {
+    userId: string;
+    agentId: string;
+    portable: true;
+  };
   agentName: string | null;
   focus: string | null;
   stage: "new" | "review" | "ready";
@@ -69,4 +77,3 @@ export type SyllaSessionState = {
   observations: SyllaObservation[];
   workspace: SyllaWorkspace | null;
 };
-

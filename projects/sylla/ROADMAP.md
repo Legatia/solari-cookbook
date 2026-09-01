@@ -34,10 +34,13 @@ This project is the first reference implementation of **portable relationship in
 - The first implementation remains narrowly focused on social discovery rather than attempting every future personal-agent capability at once.
 - Solari Desktop is the agent's private, inspectable cloud workbench; it is not access to the participant's physical computer.
 - The application database is the durable source of truth. Desktop workspaces must be reconstructible, pausable, and deletable.
+- Sylla owns a canonical user and personal-agent identity that is independent of every host provider. MCP hosts, the web control center, and a future native Sylla application must all resolve to the same agent.
+- Each activated agent receives a persistent private Desktop home backed by a durable volume and recoverable snapshots. The Desktop is paused between runs rather than treated as disposable or left continuously billable.
 - Core operations must use typed service interfaces exposed through MCP in v1.
 - The connected host model is the default semantic orchestrator while its run lease is active. It observes and directs Solari through MCP using the participant's host-model allowance.
 - Deterministic code handles non-semantic background work. A bounded internal agent is used only after the host lease expires or the participant explicitly requests background continuation.
 - Fallback never expands authority: human approval is still required for memory, disclosure, acceptance, messaging, and other consequential actions.
+- Sylla brokers Solari resources and customer entitlements. Participants never manage Solari accounts or keys; MCP can initiate hosted checkout and report usage, but payment credentials never enter tool arguments or model transcripts.
 
 The trust principle is:
 
@@ -61,6 +64,8 @@ The first end-to-end attachment loop now exists in the reference application:
 - The participant can explicitly close the workbench, destroying the live Desktop and purging its materialized artifacts immediately.
 
 This loop has been exercised end to end in mock mode against the configured development database, including refresh persistence and exclusion of a forgotten observation. A bounded live Solari Browser run has also extracted the public Sylla repository, released its session, and produced an available replay. A live Sandbox smoke test ran successfully and was explicitly destroyed. Desktop creation is currently plan-gated—the API returned `Desktop requires a paid plan` before allocation—so the live Desktop viewer and workbench materialization still require verification after the account is upgraded.
+
+The portability foundation is also underway: the database now assigns canonical Sylla User and Personal Agent identifiers independently of host providers, records Desktop/volume/snapshot lifecycle metadata, and exposes a stateless Streamable HTTP MCP contract for idempotent agent bootstrap, approved-context recall, and workspace status. The endpoint has been exercised against the configured Neon database through a disabled-by-default developer bearer bridge. This is not the Phase 1 gate: production OAuth, identity linking, revocation, entitlements, and checkout continuation still remain.
 
 ## Phase 0 — Lock the experiment
 
@@ -114,7 +119,12 @@ Create the smallest host-independent skeleton capable of authenticating particip
 - Initialize the application, database, migrations, formatting, linting, and tests.
 - Add typed configuration and `.env.example`.
 - Build a public remote MCP endpoint over the same typed services used by the web application.
+- Add permanent Sylla User and Personal Agent identifiers before introducing provider-specific authentication. Never use an OpenAI, Anthropic, Google, or other host subject as the canonical owner identifier.
 - Implement OAuth 2.1 participant authentication, narrowly scoped tool permissions, revocation, and account linking across host providers.
+- Make the first authorized MCP call idempotently create or link the personal agent and its workspace metadata without requiring a Solari account or key from the participant.
+- Add linked identities so a later native-app login resolves the same agent, approved memory, relationship history, subscription, and workspace.
+- Add entitlement, usage-ledger, spend-budget, runtime-lease, and billing-event models in front of Solari provisioning.
+- Let MCP return plan information, operation estimates, usage, and a hosted-checkout URL. Process card data outside MCP and activate entitlements only from verified billing state.
 - Package the first ChatGPT plugin with thin instructions and tool metadata; document manual connection from other MCP-capable hosts without duplicating business logic.
 - Define composable tools for source research, workspace observation and action, approved-memory proposals, candidate retrieval, run status, checkpointing, cancellation, and safe resumption.
 - Add Agent Run, Orchestration Lease, Heartbeat, Checkpoint, Idempotency Key, Fallback Policy, Fallback Reason, and Budget Usage models.
@@ -131,7 +141,7 @@ Create the smallest host-independent skeleton capable of authenticating particip
 
 ### Gate
 
-A participant can connect from ChatGPT through OAuth-authenticated MCP, invoke a typed read-only tool, revoke the connection, and complete consent, intent, and availability without manual database edits. A simulated host loss transfers one authorized mock task to the internal fallback exactly once and returns a valid handoff when the host reconnects.
+A participant can connect from ChatGPT through OAuth-authenticated MCP, idempotently bootstrap a canonical personal agent, invoke a typed read-only tool, revoke the connection, and complete consent, intent, and availability without manual database edits. The same linked identity resolves the same agent from a second client. A simulated host loss transfers one authorized mock task to the internal fallback exactly once and returns a valid handoff when the host reconnects. A billable tool refuses an inactive entitlement and returns a hosted-checkout continuation rather than accepting payment data.
 
 ## Phase 2 — Solari Browser evidence collection
 
@@ -197,6 +207,8 @@ Prove the second Solari-native primitive: a private, visual workbench that makes
 - Define Agent Workspace, Workspace Research Task, Workspace Artifact, and Agent Activity Event models.
 - Create typed mock and live Desktop adapters.
 - Create or resume a participant-specific Solari Desktop on demand.
+- Create one durable volume for the agent's approved files and user-visible work history, and attach it whenever the Desktop is reconstructed.
+- Treat the Desktop as the agent's persistent private home across host conversations and the later native application, while keeping compute paused when idle.
 - Expose narrow MCP tools for observing selected workspace state, clicking, typing, opening approved artifacts, checkpointing, interrupting, and releasing the run lease.
 - Implement computer use as an observe-act-observe loop: capture a selected screenshot before a coordinate action and verify the resulting screen afterward instead of assuming a click or keystroke landed correctly.
 - Let the active host model direct semantic Desktop work using selected screenshots or compressed state under the participant's host allowance.
@@ -207,12 +219,13 @@ Prove the second Solari-native primitive: a private, visual workbench that makes
 - Let the participant view the live workspace, inspect the current task, and interrupt or take over when appropriate.
 - Keep Desktop stream URLs, session identifiers, files, screenshots, and activity history participant-private and server-mediated.
 - Pause idle VMs, reconnect safely, and destroy them on withdrawal or retention expiry.
-- Prove that the workspace can be reconstructed from approved database records after its VM is destroyed.
+- Snapshot meaningful recovery points and record the current VM, volume, and snapshot mappings server-side.
+- Prove that the workspace can be reconstructed from approved database records, the durable volume, and the latest valid snapshot after its VM is destroyed.
 - Prevent raw debriefs, unapproved proposed memories, hidden reasoning, and unapproved third-party dossiers from entering Desktop files or streams.
 
 ### Gate
 
-A participant can open a live Solari Desktop workspace while their host LLM directs a visible task, inspect source-backed artifacts and the memory ledger, interrupt the task, return after a pause, and delete the VM without losing the ability to reconstruct approved state. A simulated host disconnect transfers the lease without duplicate clicks or writes. Automated tests prove cross-participant workspace isolation.
+A participant can open a live Solari Desktop workspace while their host LLM directs a visible task, inspect source-backed artifacts and the memory ledger, interrupt the task, return after a pause from another client, and reconstruct the Desktop without losing approved state. Withdrawal destroys the VM and retained volume according to policy. A simulated host disconnect transfers the lease without duplicate clicks or writes. Automated tests prove cross-participant workspace isolation.
 
 ## Phase 5 — Candidate retrieval
 
@@ -441,22 +454,24 @@ Someone outside the team can understand the experiment, run the project in mock 
 
 When time is constrained, build one vertical slice in this order:
 
-1. OAuth-authenticated remote MCP endpoint and ChatGPT plugin
-2. Run lease, checkpoint, and mock host-to-fallback handoff
-3. Seeded event and two participant invitations
-4. Consent, intent, availability, and source submission
-5. One host-directed live Solari Browser exploration
-6. Observation review and deletion
-7. One host-directed live Solari Desktop workspace with deliberate fallback takeover
-8. Evidence board, activity stream, and memory ledger reconstruction
-9. Deterministic shortlist
-10. Two live Solari Sandbox evaluations using the common host/fallback schema
-11. Bilateral human consent
-12. Meeting assignment
-13. Private debrief and proposed-memory review
-14. Repeat-introduction request
-15. Organizer metrics
-16. Reliability and visual polish
+1. Canonical Sylla user/agent identity and authenticated remote MCP endpoint
+2. Cross-host account linking, entitlement guard, and hosted-checkout continuation
+3. Persistent Desktop-home metadata: VM, durable volume, snapshot, and pause/resume lifecycle
+4. Run lease, checkpoint, and mock host-to-fallback handoff
+5. Seeded event and two participant invitations
+6. Consent, intent, availability, and source submission
+7. One host-directed live Solari Browser exploration
+8. Observation review and deletion
+9. One host-directed live Solari Desktop workspace with deliberate fallback takeover
+10. Evidence board, activity stream, and memory ledger reconstruction
+11. Deterministic shortlist
+12. Two live Solari Sandbox evaluations using the common host/fallback schema
+13. Bilateral human consent
+14. Meeting assignment
+15. Private debrief and proposed-memory review
+16. Repeat-introduction request
+17. Organizer metrics
+18. Reliability and visual polish
 
 Do not build secondary organizer tooling, elaborate animations, bespoke integrations for every host, or additional connection categories before this slice works.
 
@@ -470,6 +485,8 @@ These decisions do not block development, but they must be resolved before the l
 - Supported introduction intents for that cohort
 - Pilot retention period
 - Desktop pause, reconstruction, destruction, and stream-access policy
+- Solari's commercial terms for multi-tenant brokerage and the plan required for persistent Desktop, volumes, and snapshots
+- Initial Sylla plan, included work credits, overage behavior, and participant-visible spend limits
 - Which workspace views are necessary for the vertical slice
 - Raw debrief processing and model-provider retention configuration
 - Which host surfaces qualify for the first pilot and whether scheduled host runs may invoke the plugin

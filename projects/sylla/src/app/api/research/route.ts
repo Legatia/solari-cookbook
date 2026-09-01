@@ -11,6 +11,7 @@ import { createSolariAdapters } from "@/lib/solari";
 import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
 import { researchInputSchema } from "@/lib/sylla/contracts";
 import { synthesizeObservationDrafts } from "@/lib/sylla/research";
+import { updatePortableAgent } from "@/lib/sylla/identity";
 import {
   jsonWithSession,
   loadSessionState,
@@ -62,6 +63,10 @@ export async function POST(request: NextRequest) {
         researchCompletedAt: null,
       })
       .where(eq(participants.id, participant.id));
+    await updatePortableAgent(participant.id, {
+      agentName: parsed.agentName,
+      focus: parsed.focus,
+    });
 
     const sourceRows = await database
       .insert(approvedSources)

@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { createSolariAdapters } from "@/lib/solari";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
+import { ensurePortableIdentity } from "@/lib/sylla/identity";
 
 const SESSION_COOKIE = "sylla_session";
 const DEMO_EVENT_SLUG = "sylla-first-session";
@@ -66,6 +67,7 @@ export async function resolveParticipant(request: NextRequest) {
       .limit(1);
 
     if (participant) {
+      await ensurePortableIdentity(participant.id);
       return { participant, newToken: null };
     }
   }
@@ -81,6 +83,8 @@ export async function resolveParticipant(request: NextRequest) {
       status: "invited",
     })
     .returning();
+
+  await ensurePortableIdentity(participant.id);
 
   return { participant, newToken };
 }
@@ -109,6 +113,7 @@ export async function loadSessionState(
   participantId: string,
 ): Promise<SyllaSessionState> {
   const database = getDatabase();
+  const identity = await ensurePortableIdentity(participantId);
   const [participant] = await database
     .select()
     .from(participants)
@@ -155,8 +160,13 @@ export async function loadSessionState(
 
   return {
     participantId,
-    agentName: participant.agentName,
-    focus: participant.intent,
+    identity: {
+      userId: identity.userId,
+      agentId: identity.agentId,
+      portable: true,
+    },
+    agentName: identity.agentName,
+    focus: identity.focus,
     stage: !hasResearch ? "new" : hasPending ? "review" : "ready",
     research: {
       provider: participant.researchProvider,
@@ -190,8 +200,11 @@ export async function loadSessionState(
           id: workspaceRows[0].id,
           provider: workspaceRows[0].provider,
           sessionId: workspaceRows[0].solariDesktopSessionId,
+          volumeId: workspaceRows[0].solariVolumeId,
+          snapshotId: workspaceRows[0].solariSnapshotId,
           status: workspaceRows[0].status,
           lastActiveAt: workspaceRows[0].lastActiveAt?.toISOString() ?? null,
+          pausedAt: workspaceRows[0].pausedAt?.toISOString() ?? null,
         }
       : null,
   };

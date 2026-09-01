@@ -9,11 +9,13 @@ Evidence-backed social discovery is the flagship use case, not the product bound
 ## Architecture
 
 ```text
-user-named agent in the participant's existing LLM
+canonical user-owned Sylla agent
+   ↕ same identity from every connected client
+user-named agent in the participant's existing LLM or future Sylla app
    ↕ active reasoning under the participant's host quota
-OAuth-authenticated Sylla MCP service ─── Neon Postgres (approved durable state)
+OAuth-authenticated Sylla MCP service ─── Neon Postgres (identity, approved state, entitlements)
    ├─ Solari Browser  → recorded research on approved public URLs
-   ├─ Solari Desktop  ↔ visible, interruptible agent workspace
+   ├─ Solari Desktop  ↔ persistent, pausable agent home + durable volume
    └─ Solari Sandbox  → directional boundaries and fallback evaluations
                   ↕
 internal agent only after the host orchestration lease is lost
@@ -31,6 +33,8 @@ Every long-running run requires a heartbeat, owner lease, checkpoint, idempotenc
 
 The MCP server cannot draw from a user's ChatGPT or other consumer subscription after that host run ends. Host reasoning uses the participant's host quota; Solari runtime and any internal fallback model use project resources.
 
+Sylla is the system of record and infrastructure broker. Participants connect to Sylla through OAuth and never handle a Solari account or API key. MCP may bootstrap the agent, check entitlements, estimate work, report usage, and initiate a hosted checkout; payment credentials stay outside the model conversation and are processed by a Sylla-controlled billing service. The later native Sylla application will use the same account and agent identifiers, so signing in reveals the existing agent rather than creating a replacement.
+
 ## Current foundation
 
 - Next.js 16 App Router, TypeScript, Tailwind CSS, and shadcn/ui
@@ -38,6 +42,10 @@ The MCP server cannot draw from a user's ChatGPT or other consumer subscription 
 - Typed mock and live adapters for all three Solari products
 - Deterministic mock mode for local work without billable sessions
 - Anonymous, HttpOnly-cookie-isolated first sessions backed by durable Neon state
+- Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
+- Persistent workspace metadata for the agent's Desktop, durable volume, recovery snapshot, and paused lifecycle
+- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace status tools
+- A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route that records provider, run reference, extracted evidence, and source status
 - A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
@@ -48,7 +56,7 @@ The MCP server cannot draw from a user's ChatGPT or other consumer subscription 
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. The remote MCP/OAuth layer, host-run leases, and internal-agent failover remain target architecture rather than implemented product behavior. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. Canonical Sylla identity and the first authenticated MCP contract are now implemented and exercised against Neon. Production OAuth, cross-host account linking, billing, actual volume/snapshot provisioning, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -59,7 +67,7 @@ The live Sandbox adapter currently runs a deterministic baseline inside a dispos
 3. Sylla researches those sources through the active Browser adapter and separates `Told to me`, `Observed`, and `Inferred` proposals.
 4. The participant keeps, corrects, changes disclosure, or forgets each proposal. Nothing pending enters the workbench.
 5. The participant can add a concise follow-up reflection, which also waits for explicit memory approval.
-6. Sylla reconstructs the agent's Desktop workbench from approved database state. Rebuilding after a correction or deletion excludes the old material.
+6. Sylla opens or reconstructs the agent's persistent Desktop home from approved database state and its durable volume. Rebuilding after a correction or deletion excludes the old material, and idle compute is paused rather than left running.
 
 ## What the cookbook changed
 
@@ -110,6 +118,18 @@ SOLARI_BASE_URL=https://api.getsolari.com
 Live calls are server-only. `MODEL_API_KEY` is reserved for bounded internal fallback; it is not needed to use a participant's active host LLM through MCP. Desktop stream capabilities must be exchanged through a short-lived, participant-authorized endpoint before any viewer is added.
 
 Solari product availability can differ by account tier. Browser and Sandbox have been verified with the current development account; Desktop currently returns `Desktop requires a paid plan` before creating a session.
+
+## Developer MCP bridge
+
+The Streamable HTTP endpoint is `POST /mcp`. Until production OAuth and account linking are implemented, it is deliberately unavailable unless all three development variables are configured:
+
+```text
+SYLLA_ENABLE_DEV_MCP=true
+SYLLA_MCP_DEV_TOKEN=<local bearer secret>
+SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
+```
+
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract currently exposes `sylla_bootstrap_agent`, `sylla_get_agent_context`, and `sylla_get_agent_workspace`; none exposes Solari credentials or stream capabilities.
 
 ## Commands
 

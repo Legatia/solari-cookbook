@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
         .insert(agentWorkspaces)
         .values({
           participantId: participant.id,
+          agentId: stateBefore.identity.agentId,
           status: "starting",
           lastActiveAt: now,
         })

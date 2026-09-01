@@ -15,6 +15,13 @@
       "when": 1788272399843,
       "tag": "0001_round_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788275258516,
+      "tag": "0002_awesome_ink",
+      "breakpoints": true
     }
   ]
 }
