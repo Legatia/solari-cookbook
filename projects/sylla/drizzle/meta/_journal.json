@@ -22,6 +22,13 @@
       "when": 1788275258516,
       "tag": "0002_awesome_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788275967103,
+      "tag": "0003_complex_cerise",
+      "breakpoints": true
     }
   ]
 }

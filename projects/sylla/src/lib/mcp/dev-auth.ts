@@ -12,6 +12,37 @@ function equalSecret(actual: string, expected: string) {
   );
 }
 
+export function tryAuthenticateDevelopmentMcpRequest(
+  request: Request,
+): AuthInfo | null {
+  if (process.env.SYLLA_ENABLE_DEV_MCP !== "true") return null;
+
+  const expectedToken = process.env.SYLLA_MCP_DEV_TOKEN;
+  const participantId = process.env.SYLLA_MCP_DEV_PARTICIPANT_ID;
+  const authorization = request.headers.get("authorization");
+  const token = authorization?.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : "";
+
+  if (
+    !expectedToken ||
+    !participantId ||
+    !token ||
+    !equalSecret(token, expectedToken)
+  ) {
+    return null;
+  }
+
+  return {
+    token,
+    clientId: "sylla-development-client",
+    scopes: ["sylla:agent"],
+    expiresAt: Math.floor(Date.now() / 1000) + 5 * 60,
+    resource: new URL(request.url),
+    extra: { participantId },
+  };
+}
+
 function unauthorized(message: string, status = 401) {
   return Response.json(
     { error: "unauthorized", error_description: message },
@@ -41,21 +72,10 @@ export function authenticateDevelopmentMcpRequest(
     return unauthorized("The developer MCP bridge is not fully configured.", 503);
   }
 
-  const authorization = request.headers.get("authorization");
-  const token = authorization?.startsWith("Bearer ")
-    ? authorization.slice("Bearer ".length).trim()
-    : "";
-
-  if (!token || !equalSecret(token, expectedToken)) {
+  const authenticated = tryAuthenticateDevelopmentMcpRequest(request);
+  if (!authenticated) {
     return unauthorized("A valid Sylla developer bearer token is required.");
   }
 
-  return {
-    token,
-    clientId: "sylla-development-client",
-    scopes: ["sylla:agent:read", "sylla:agent:write"],
-    expiresAt: Math.floor(Date.now() / 1000) + 5 * 60,
-    resource: new URL(request.url),
-    extra: { participantId },
-  };
+  return authenticated;
 }

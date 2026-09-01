@@ -114,6 +114,35 @@ export const authIdentities = pgTable(
   ],
 );
 
+export const hostConnections = pgTable(
+  "host_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    authIdentityId: uuid("auth_identity_id")
+      .notNull()
+      .references(() => authIdentities.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    scopes: jsonb("scopes").$type<string[]>().default([]).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("host_connections_user_idx").on(table.userId),
+    uniqueIndex("host_connections_identity_client_unique").on(
+      table.authIdentityId,
+      table.clientId,
+    ),
+  ],
+);
+
 export const events = pgTable(
   "events",
   {
@@ -167,6 +196,10 @@ export const participants = pgTable(
     index("participants_event_idx").on(table.eventId),
     index("participants_user_idx").on(table.userId),
     index("participants_agent_idx").on(table.agentId),
+    uniqueIndex("participants_event_agent_unique").on(
+      table.eventId,
+      table.agentId,
+    ),
     uniqueIndex("participants_invite_token_unique").on(table.inviteTokenHash),
   ],
 );

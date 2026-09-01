@@ -43,6 +43,9 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Deterministic mock mode for local work without billable sessions
 - Anonymous, HttpOnly-cookie-isolated first sessions backed by durable Neon state
 - Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
+- OAuth protected-resource discovery plus issuer-, audience-, expiry-, and scope-bound JWT validation
+- Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
+- Per-client host-connection records without storing upstream access tokens
 - Persistent workspace metadata for the agent's Desktop, durable volume, recovery snapshot, and paused lifecycle
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace status tools
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
@@ -56,7 +59,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. Canonical Sylla identity and the first authenticated MCP contract are now implemented and exercised against Neon. Production OAuth, cross-host account linking, billing, actual volume/snapshot provisioning, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. Canonical Sylla identity, the MCP contract, OAuth resource-server discovery, JWT verification, and cross-client identity recovery are now implemented and exercised against Neon. A real external identity-provider tenant must still be connected before the OAuth flow can be exercised from ChatGPT; billing, actual volume/snapshot provisioning, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -130,6 +133,28 @@ SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
 This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract currently exposes `sylla_bootstrap_agent`, `sylla_get_agent_context`, and `sylla_get_agent_workspace`; none exposes Solari credentials or stream capabilities.
+
+## OAuth MCP authentication
+
+For a deployed MCP server, configure a dedicated OAuth/OIDC identity provider to issue JWT access tokens for Sylla:
+
+```text
+APP_BASE_URL=https://your-sylla-host.example
+SYLLA_OAUTH_ISSUER=https://your-identity-provider.example/
+SYLLA_OAUTH_JWKS_URL=https://your-identity-provider.example/.well-known/jwks.json
+SYLLA_OAUTH_AUDIENCE=https://your-sylla-host.example/mcp
+```
+
+The token must include:
+
+- `iss` matching `SYLLA_OAUTH_ISSUER`
+- `aud` matching `SYLLA_OAUTH_AUDIENCE`
+- an unexpired `exp`
+- `sub` identifying the Sylla account
+- `client_id` or `azp` identifying the MCP host
+- the `sylla:agent` scope in `scope` or `scp`
+
+Sylla publishes RFC 9728 protected-resource metadata at `/.well-known/oauth-protected-resource/mcp`. It stores the verified issuer/subject mapping and each client connection, but never stores the upstream access token. Two clients presenting tokens for the same issuer and subject recover the same canonical user, personal agent, participant state, and workspace metadata.
 
 ## Commands
 
