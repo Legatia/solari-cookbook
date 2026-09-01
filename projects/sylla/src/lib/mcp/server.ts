@@ -20,9 +20,16 @@ import {
   acquireRuntimeLease,
   heartbeatRuntimeLease,
   releaseRuntimeLease,
+  requireRuntimeLease,
   type AcquiredRuntimeLease,
   type RuntimeLeaseAuthorization,
 } from "@/lib/sylla/leases";
+import {
+  evaluatePairDirection,
+  getCandidatePairForParticipant,
+  getCandidateShortlist,
+  reserveCandidatePair,
+} from "@/lib/sylla/matching";
 import {
   acknowledgeAgentRunHandoff,
   checkpointAgentRun,
@@ -88,6 +95,25 @@ export type SyllaMcpServices = {
     participantId: string,
     agentRunId: string,
   ) => Promise<BrowserResearchProgress>;
+  prepareCandidatePair: (input: {
+    participantId: string;
+    authorization: RuntimeLeaseAuthorization;
+  }) => Promise<{ id: string; status: string } | null>;
+  evaluateMyDirection: (input: {
+    participantId: string;
+    candidatePairId: string;
+    authorization: RuntimeLeaseAuthorization;
+    idempotencyKey: string;
+  }) => Promise<{
+    id: string;
+    status: string;
+    provider: string | null;
+    result: unknown;
+  }>;
+  getCandidatePair: (
+    participantId: string,
+    candidatePairId: string,
+  ) => ReturnType<typeof getCandidatePairForParticipant>;
   startRun: (input: {
     participantId: string;
     authorization: RuntimeLeaseAuthorization;
@@ -147,6 +173,33 @@ const defaultServices: SyllaMcpServices = {
   prepareBrowserResearch,
   researchNextBrowserSource,
   getBrowserResearchProgress,
+  async prepareCandidatePair(input) {
+    await requireRuntimeLease(input.participantId, input.authorization);
+    const shortlist = await getCandidateShortlist(input.participantId, 1);
+    const candidate = shortlist.candidates[0];
+    if (!candidate) return null;
+    const pair = await reserveCandidatePair({
+      subjectParticipantId: input.participantId,
+      candidateParticipantId: candidate.participantId,
+    });
+    return { id: pair.id, status: pair.status };
+  },
+  async evaluateMyDirection(input) {
+    await requireRuntimeLease(input.participantId, input.authorization);
+    const evaluation = await evaluatePairDirection({
+      candidatePairId: input.candidatePairId,
+      subjectParticipantId: input.participantId,
+      idempotencyKey: input.idempotencyKey,
+      orchestrator: "host_requested_sandbox",
+    });
+    return {
+      id: evaluation.id,
+      status: evaluation.status,
+      provider: evaluation.provider,
+      result: evaluation.result,
+    };
+  },
+  getCandidatePair: getCandidatePairForParticipant,
   startRun: startAgentRun,
   checkpointRun: checkpointAgentRun,
   yieldRun: yieldAgentRunToBackground,
@@ -629,6 +682,96 @@ export function createSyllaMcpServer(
           authorization: leaseAuthorization(clientId, { runId, leaseToken }),
           checkpoint,
         }),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_prepare_candidate_pair",
+    {
+      title: "Prepare one eligible introduction hypothesis",
+      description:
+        "Deterministically reserve one non-identifying candidate pair after enforcing same-event consent, availability, blocks, prior declines, pair conflicts, and approved shareable-context rules. This does not reveal identity, recommend, disclose, or introduce anyone.",
+      inputSchema: z.object({
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ runId, leaseToken }) =>
+      result({
+        pair: await services.prepareCandidatePair({
+          participantId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+        }),
+        gate: {
+          identityRevealed: false,
+          recommendationMade: false,
+          introductionCreated: false,
+        },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_evaluate_my_direction",
+    {
+      title: "Evaluate my direction in an isolated Sandbox",
+      description:
+        "Run one directional candidate hypothesis through the Solari Sandbox boundary. The job receives this participant's approved context and only the candidate's approved shareable context. The structured result cites authorized observation IDs and cannot accept or disclose an introduction.",
+      inputSchema: z.object({
+        candidatePairId: z.uuid(),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+        idempotencyKey: idempotencyKeySchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ candidatePairId, runId, leaseToken, idempotencyKey }) => {
+      try {
+        return result({
+          evaluation: await services.evaluateMyDirection({
+            participantId,
+            candidatePairId,
+            authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+            idempotencyKey,
+          }),
+          humanGate: "No disclosure or introduction occurs from this result.",
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_get_candidate_pair",
+    {
+      title: "Read my candidate-pair gate",
+      description:
+        "Read a privacy-preserving pair status. The other participant's identity, private context, rationale, and decline decision are never returned.",
+      inputSchema: z.object({ candidatePairId: z.uuid() }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ candidatePairId }) =>
+      result({
+        pair: await services.getCandidatePair(participantId, candidatePairId),
       }),
   );
 

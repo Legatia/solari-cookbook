@@ -57,6 +57,13 @@
       "when": 1788296012109,
       "tag": "0007_black_dracula",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788296750778,
+      "tag": "0008_closed_betty_ross",
+      "breakpoints": true
     }
   ]
 }

@@ -60,6 +60,10 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route plus MCP run contract that records provider, run reference, extracted evidence, per-source status, checkpoints, and host-to-background handoff
+- Deterministic candidate eligibility that enforces same-event consent, overlapping availability, blocks, prior declines, pair conflicts, and approved shareable context without producing a compatibility score
+- Canonical candidate-pair reservations plus two independently persisted directional evaluations
+- Privacy-preserving MCP pair tools that never return the other participant's identity, private context, rationale, or decline decision
+- Billable Solari Sandbox evaluation with idempotent per-direction records, authorized-evidence citation validation, and a bilateral recommendation gate that still cannot disclose or introduce anyone
 - A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
 - A reconstructible Desktop workbench generated only from approved memories and source artifacts
@@ -68,7 +72,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before public deployment or paid activation; live Desktop/snapshot verification, production cron deployment/monitoring, participant-visible OAuth connection management, and one real internal-model invocation with project credentials also remain. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. Two live Solari Sandbox jobs have completed a bilateral candidate evaluation with directional privacy boundaries and explicit VM cleanup. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, candidate filtering, pair-conflict prevention, bilateral evaluation, canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before public deployment or paid activation; live Desktop/snapshot verification, production cron deployment/monitoring, participant-visible OAuth connection management, and one real internal-model invocation with project credentials also remain. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -146,13 +150,13 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
 Only one host run may operate an agent at a time. A host acquires a 30–300 second lease using its authenticated MCP client ID and a conversation-specific run ID, heartbeats while working, and releases when finished. Sylla stores only a SHA-256 hash of the lease capability. A second host is refused until the active lease expires or is released; it can then recover the same canonical agent and persistent workspace. The participant's authenticated web control surface may explicitly take over the lease to pause or withdraw, invalidating the old host capability.
 
-New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Each approved Browser source and each workspace open, resume, or explicit checkpoint reserves estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
+New accounts receive a configurable prototype trial (`SYLLA_TRIAL_CREDITS`, default `500`). Each approved Browser source, directional Sandbox evaluation, and workspace open, resume, or explicit checkpoint reserves estimated work credits before calling Solari. Success atomically settles the ledger; failure releases the reservation; repeated idempotency keys never charge twice. Pausing is always allowed at zero credits because stopping compute is a safety and cost-control action. Inactive or exhausted entitlements return an expiring Sylla-hosted checkout URL instead of accepting card data through MCP. The public checkout page intentionally does not activate payment yet because no billing provider or verified webhook is connected.
 
 ## Durable run handoff
 
@@ -167,6 +171,8 @@ Run `pnpm verify:handoff` against a migrated development database to exercise ac
 Run `pnpm verify:browser` to exercise the durable Browser contract against Neon with a recording test adapter: one source per host call, active-host exclusion, background completion of only the remaining source, settled per-source usage, proposal regeneration, duplicate suppression, reconnect handoff, and synthetic-data cleanup.
 
 Run `pnpm verify:participation` to exercise single-use invitation redemption, policy-versioned consent, availability persistence, runtime-lease release, host-connection revocation, privacy-safe audit events, withdrawal, and cleanup against Neon.
+
+Run `pnpm verify:matching` to exercise block and availability filtering, pair-conflict prevention, private/shareable evidence separation, two idempotent directional evaluations, usage settlement, the bilateral gate, and synthetic cleanup. Prefix it with `SYLLA_VERIFY_LIVE_SANDBOX=true` to run both directions in real Solari Sandbox VMs.
 
 Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
 
@@ -205,6 +211,7 @@ pnpm db:studio
 pnpm verify:handoff
 pnpm verify:browser
 pnpm verify:participation
+pnpm verify:matching
 ```
 
 ## Product documents

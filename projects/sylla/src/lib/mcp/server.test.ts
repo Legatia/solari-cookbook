@@ -163,6 +163,28 @@ function services(
       nextSourceId: null,
       ambiguousSourceIds: [],
     }),
+    prepareCandidatePair: vi.fn().mockResolvedValue({
+      id: "b59cf50a-1c23-49a7-875d-538b29978494",
+      status: "shortlisted",
+    }),
+    evaluateMyDirection: vi.fn().mockResolvedValue({
+      id: "1d907539-fbb3-41f7-86fa-3aee3089c18f",
+      status: "completed",
+      provider: "mock",
+      result: {
+        recommend: true,
+        rationale: [],
+        uncertainty: "medium",
+        caution: "A recommendation is only a hypothesis.",
+        evaluator: "mock",
+      },
+    }),
+    getCandidatePair: vi.fn().mockResolvedValue({
+      id: "b59cf50a-1c23-49a7-875d-538b29978494",
+      status: "evaluating",
+      readyForProposal: false,
+      evaluations: [],
+    }),
     startRun: vi.fn().mockResolvedValue(agentRun),
     checkpointRun: vi.fn().mockResolvedValue({
       ...agentRun,
@@ -260,6 +282,9 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_prepare_browser_research" }),
           expect.objectContaining({ name: "sylla_research_next_source" }),
           expect.objectContaining({ name: "sylla_get_research_progress" }),
+          expect.objectContaining({ name: "sylla_prepare_candidate_pair" }),
+          expect.objectContaining({ name: "sylla_evaluate_my_direction" }),
+          expect.objectContaining({ name: "sylla_get_candidate_pair" }),
           expect.objectContaining({ name: "sylla_checkpoint_agent_run" }),
           expect.objectContaining({ name: "sylla_yield_agent_run" }),
           expect.objectContaining({ name: "sylla_attempt_agent_fallback" }),
@@ -650,6 +675,94 @@ describe("Sylla MCP server", () => {
     expect(getBrowserResearchProgress).toHaveBeenCalledWith(
       state.participantId,
       agentRun.id,
+    );
+  });
+
+  it("keeps candidate preparation and directional evaluation behind narrow gates", async () => {
+    const candidatePairId = "b59cf50a-1c23-49a7-875d-538b29978494";
+    const prepareCandidatePair = vi.fn().mockResolvedValue({
+      id: candidatePairId,
+      status: "shortlisted",
+    });
+    const evaluateMyDirection = vi.fn().mockResolvedValue({
+      id: "1d907539-fbb3-41f7-86fa-3aee3089c18f",
+      status: "completed",
+      provider: "mock",
+      result: {
+        recommend: true,
+        rationale: [],
+        uncertainty: "medium",
+        caution: "Hypothesis only",
+        evaluator: "mock",
+      },
+    });
+    const getCandidatePair = vi.fn().mockResolvedValue({
+      id: candidatePairId,
+      status: "evaluating",
+      readyForProposal: false,
+      evaluations: [],
+    });
+    const handler = createTestHandler(
+      services({ prepareCandidatePair, evaluateMyDirection, getCandidatePair }),
+    );
+
+    const prepared = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 44,
+      method: "tools/call",
+      params: {
+        name: "sylla_prepare_candidate_pair",
+        arguments: { runId, leaseToken },
+      },
+    });
+    expect(prepared.body).toMatchObject({
+      result: {
+        structuredContent: {
+          gate: {
+            identityRevealed: false,
+            recommendationMade: false,
+            introductionCreated: false,
+          },
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 45,
+      method: "tools/call",
+      params: {
+        name: "sylla_evaluate_my_direction",
+        arguments: {
+          candidatePairId,
+          runId,
+          leaseToken,
+          idempotencyKey: "sandbox-direction-0001",
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 46,
+      method: "tools/call",
+      params: {
+        name: "sylla_get_candidate_pair",
+        arguments: { candidatePairId },
+      },
+    });
+
+    expect(prepareCandidatePair).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      authorization: { clientId, runId, leaseToken },
+    });
+    expect(evaluateMyDirection).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      candidatePairId,
+      authorization: { clientId, runId, leaseToken },
+      idempotencyKey: "sandbox-direction-0001",
+    });
+    expect(getCandidatePair).toHaveBeenCalledWith(
+      state.participantId,
+      candidatePairId,
     );
   });
 

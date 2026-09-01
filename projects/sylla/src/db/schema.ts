@@ -100,6 +100,27 @@ export const auditActorType = pgEnum("audit_actor_type", [
   "system",
 ]);
 
+export const matchingRunStatus = pgEnum("matching_run_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+]);
+
+export const candidatePairStatus = pgEnum("candidate_pair_status", [
+  "shortlisted",
+  "evaluating",
+  "recommended",
+  "rejected",
+  "expired",
+  "canceled",
+]);
+
+export const directionalEvaluationStatus = pgEnum(
+  "directional_evaluation_status",
+  ["running", "completed", "failed"],
+);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -654,6 +675,154 @@ export const observations = pgTable(
       .notNull(),
   },
   (table) => [index("observations_participant_idx").on(table.participantId)],
+);
+
+export const participantBlocks = pgTable(
+  "participant_blocks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    blockerParticipantId: uuid("blocker_participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    blockedParticipantId: uuid("blocked_participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("participant_blocks_blocker_idx").on(table.blockerParticipantId),
+    index("participant_blocks_blocked_idx").on(table.blockedParticipantId),
+    uniqueIndex("participant_blocks_pair_unique").on(
+      table.blockerParticipantId,
+      table.blockedParticipantId,
+    ),
+  ],
+);
+
+export const matchingRuns = pgTable(
+  "matching_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: matchingRunStatus("status").default("pending").notNull(),
+    candidateCount: integer("candidate_count").default(0).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("matching_runs_event_idx").on(table.eventId),
+    uniqueIndex("matching_runs_event_idempotency_unique").on(
+      table.eventId,
+      table.idempotencyKey,
+    ),
+  ],
+);
+
+export const candidatePairs = pgTable(
+  "candidate_pairs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    matchingRunId: uuid("matching_run_id").references(() => matchingRuns.id, {
+      onDelete: "set null",
+    }),
+    participantLowId: uuid("participant_low_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    participantHighId: uuid("participant_high_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    status: candidatePairStatus("status").default("shortlisted").notNull(),
+    retrievalEvidence: jsonb("retrieval_evidence")
+      .$type<{
+        lowObservationIds: string[];
+        highObservationIds: string[];
+        availabilityWindowIds: string[];
+        explanation: string;
+      }>()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("candidate_pairs_event_idx").on(table.eventId),
+    index("candidate_pairs_low_idx").on(table.participantLowId),
+    index("candidate_pairs_high_idx").on(table.participantHighId),
+    uniqueIndex("candidate_pairs_event_participants_unique").on(
+      table.eventId,
+      table.participantLowId,
+      table.participantHighId,
+    ),
+  ],
+);
+
+export const directionalEvaluations = pgTable(
+  "directional_evaluations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    candidatePairId: uuid("candidate_pair_id")
+      .notNull()
+      .references(() => candidatePairs.id, { onDelete: "cascade" }),
+    subjectParticipantId: uuid("subject_participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    candidateParticipantId: uuid("candidate_participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: directionalEvaluationStatus("status").default("running").notNull(),
+    orchestrator: text("orchestrator").notNull(),
+    provider: text("provider"),
+    policyVersion: text("policy_version").notNull(),
+    subjectObservationIds: jsonb("subject_observation_ids")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    candidateObservationIds: jsonb("candidate_observation_ids")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    result: jsonb("result").$type<{
+      recommend: boolean;
+      rationale: Array<{
+        statement: string;
+        supportingObservationIds: string[];
+      }>;
+      uncertainty: "low" | "medium" | "high";
+      caution: string;
+      evaluator: "mock" | "sandbox-baseline";
+    }>(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("directional_evaluations_pair_idx").on(table.candidatePairId),
+    index("directional_evaluations_subject_idx").on(table.subjectParticipantId),
+    uniqueIndex("directional_evaluations_pair_subject_unique").on(
+      table.candidatePairId,
+      table.subjectParticipantId,
+    ),
+    uniqueIndex("directional_evaluations_idempotency_unique").on(
+      table.idempotencyKey,
+    ),
+  ],
 );
 
 export const agentWorkspaces = pgTable(
