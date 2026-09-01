@@ -11,6 +11,7 @@ import { createSolariAdapters } from "@/lib/solari";
 import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
 import { researchInputSchema } from "@/lib/sylla/contracts";
 import { synthesizeObservationDrafts } from "@/lib/sylla/research";
+import { requireParticipationCapability } from "@/lib/sylla/participation";
 import { updatePortableAgent } from "@/lib/sylla/identity";
 import {
   jsonWithSession,
@@ -26,6 +27,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const parsed = researchInputSchema.parse(await request.json());
+    await requireParticipationCapability(
+      participant.id,
+      "publicSourceResearch",
+    );
     const sources = parsed.sources.map((source) => ({
       ...source,
       url: assertPublicHttpUrl(source.url).toString(),

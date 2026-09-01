@@ -41,7 +41,10 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Neon Postgres with Drizzle schema and migrations
 - Typed mock and live adapters for all three Solari products
 - Deterministic mock mode for local work without billable sessions
-- Anonymous, HttpOnly-cookie-isolated first sessions backed by durable Neon state
+- HttpOnly-cookie-isolated participant sessions backed by durable Neon state
+- Expiring, revocable, usage-bounded event invitations with atomic redemption
+- A versioned adult-consent gate covering approved-source research, private memory, matching, host retention boundaries, optional background continuation, and concrete availability windows
+- Append-only participation audit events plus withdrawal that immediately releases runtime leases, revokes host connections, and removes the participant from matching
 - Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
 - OAuth protected-resource discovery plus issuer-, audience-, expiry-, and scope-bound JWT validation
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
@@ -65,18 +68,19 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before browser consent or paid activation can complete; live Desktop/snapshot verification, production cron deployment/monitoring, and one real internal-model invocation with project credentials also remain. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before public deployment or paid activation; live Desktop/snapshot verification, production cron deployment/monitoring, participant-visible OAuth connection management, and one real internal-model invocation with project credentials also remain. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
 ## First-session flow
 
-1. Name the personal agent and describe one question, transition, or ambition it should understand now.
-2. Approve one to three public URLs. Sylla rejects local, private-network, and unsupported source targets.
-3. Sylla researches those sources through the active Browser adapter and separates `Told to me`, `Observed`, and `Inferred` proposals.
-4. The participant keeps, corrects, changes disclosure, or forgets each proposal. Nothing pending enters the workbench.
-5. The participant can add a concise follow-up reflection, which also waits for explicit memory approval.
-6. Sylla opens or reconstructs the agent's persistent Desktop home from approved database state and its durable volume. Rebuilding after a correction or deletion excludes the old material, and idle compute is paused rather than left running.
+1. Redeem a bounded event invitation and accept the current policy version, including host-data boundaries and at least one availability window.
+2. Name the personal agent and describe one question, transition, or ambition it should understand now.
+3. Approve one to three public URLs. Sylla rejects local, private-network, and unsupported source targets and refuses research without active permission.
+4. Sylla researches those sources through the active Browser adapter and separates `Told to me`, `Observed`, and `Inferred` proposals.
+5. The participant keeps, corrects, changes disclosure, or forgets each proposal. Nothing pending enters the workbench.
+6. The participant can add a concise follow-up reflection, which also waits for explicit memory approval.
+7. Sylla opens or reconstructs the agent's persistent Desktop home from approved database state and its durable volume. Rebuilding after a correction or deletion excludes the old material, and idle compute is paused rather than left running.
 
 ## What the cookbook changed
 
@@ -102,6 +106,8 @@ pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+`SYLLA_ENABLE_DEMO_SESSIONS=true` permits the invitation-free synthetic first session during local development. Production defaults to invitation-only entry; do not enable the demo bypass on a public deployment.
 
 The Vercel-linked development environment can instead be pulled with:
 
@@ -160,6 +166,10 @@ Run `pnpm verify:handoff` against a migrated development database to exercise ac
 
 Run `pnpm verify:browser` to exercise the durable Browser contract against Neon with a recording test adapter: one source per host call, active-host exclusion, background completion of only the remaining source, settled per-source usage, proposal regeneration, duplicate suppression, reconnect handoff, and synthetic-data cleanup.
 
+Run `pnpm verify:participation` to exercise single-use invitation redemption, policy-versioned consent, availability persistence, runtime-lease release, host-connection revocation, privacy-safe audit events, withdrawal, and cleanup against Neon.
+
+Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
+
 ## OAuth MCP authentication
 
 For a deployed MCP server, configure a dedicated OAuth/OIDC identity provider to issue JWT access tokens for Sylla:
@@ -194,6 +204,7 @@ pnpm db:migrate
 pnpm db:studio
 pnpm verify:handoff
 pnpm verify:browser
+pnpm verify:participation
 ```
 
 ## Product documents

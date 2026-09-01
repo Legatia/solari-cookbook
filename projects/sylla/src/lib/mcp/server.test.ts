@@ -17,6 +17,28 @@ const state: SyllaSessionState = {
   agentName: "Mira",
   focus: "Find thoughtful people at a local event.",
   stage: "ready",
+  event: {
+    id: "0ac61474-ff5f-47ec-8d6a-36f4aed822c9",
+    name: "Sylla test event",
+    city: "Warsaw",
+    venue: null,
+    startsAt: "2026-09-10T18:00:00.000Z",
+  },
+  participation: {
+    displayName: "Tobias",
+    policyVersion: "2026-09-01",
+    consentedAt: "2026-09-01T10:00:00.000Z",
+    backgroundContinuationAllowed: true,
+    availability: [
+      {
+        id: "ec8772bf-91c2-4c4b-8e4a-b4e49bce0be9",
+        startsAt: "2026-09-10T18:00:00.000Z",
+        endsAt: "2026-09-10T20:00:00.000Z",
+        timezone: "Europe/Warsaw",
+      },
+    ],
+    withdrawnAt: null,
+  },
   research: { provider: "mock", runReference: "run-1", completedAt: null },
   sources: [],
   observations: [

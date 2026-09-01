@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { getDatabase } from "../src/db";
 import {
   approvedSources,
+  auditEvents,
   entitlements,
   events,
   observations,
@@ -26,6 +27,10 @@ import {
   researchNextBrowserSource,
   sweepBrowserResearchRuns,
 } from "../src/lib/sylla/browser-research";
+import {
+  acceptParticipationConsent,
+  PARTICIPATION_POLICY_VERSION,
+} from "../src/lib/sylla/participation";
 import {
   acquireRuntimeLease,
   releaseRuntimeLease,
@@ -83,6 +88,24 @@ async function main() {
       })
       .returning();
     participantId = participant.id;
+
+    await acceptParticipationConsent(participantId, {
+      displayName: "Synthetic Browser participant",
+      policyVersion: PARTICIPATION_POLICY_VERSION,
+      ageConfirmed: true,
+      publicSourceResearch: true,
+      privateMemoryStorage: true,
+      matchmaking: true,
+      hostDataBoundary: true,
+      backgroundContinuation: true,
+      availability: [
+        {
+          startsAt: "2026-09-10T18:00:00.000Z",
+          endsAt: "2026-09-10T20:00:00.000Z",
+          timezone: "Europe/Warsaw",
+        },
+      ],
+    });
 
     const hostLease = await acquireRuntimeLease({
       participantId,
@@ -221,6 +244,9 @@ async function main() {
     );
   } finally {
     if (participantId) {
+      await database
+        .delete(auditEvents)
+        .where(eq(auditEvents.participantId, participantId));
       await database.delete(participants).where(eq(participants.id, participantId));
     }
     if (agentId) {

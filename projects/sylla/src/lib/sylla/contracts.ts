@@ -67,7 +67,27 @@ export type SyllaSessionState = {
   };
   agentName: string | null;
   focus: string | null;
-  stage: "new" | "review" | "ready";
+  stage: "consent" | "new" | "review" | "ready" | "withdrawn";
+  event: {
+    id: string;
+    name: string;
+    city: string | null;
+    venue: string | null;
+    startsAt: string | null;
+  };
+  participation: {
+    displayName: string | null;
+    policyVersion: string | null;
+    consentedAt: string | null;
+    backgroundContinuationAllowed: boolean;
+    availability: Array<{
+      id: string;
+      startsAt: string;
+      endsAt: string;
+      timezone: string;
+    }>;
+    withdrawnAt: string | null;
+  };
   research: {
     provider: string | null;
     runReference: string | null;

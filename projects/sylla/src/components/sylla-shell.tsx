@@ -155,6 +155,149 @@ function ErrorScreen({ error, retry }: { error: string; retry: () => void }) {
   );
 }
 
+function WithdrawnScreen({ eventName }: { eventName: string }) {
+  return (
+    <main className="observatory-shell relative grid min-h-svh place-items-center bg-background px-6">
+      <div className="max-w-lg text-center">
+        <div className="flex justify-center"><AgentMark /></div>
+        <p className="mt-8 text-[10px] uppercase tracking-[0.22em] text-lime-200/60">
+          Participation withdrawn
+        </p>
+        <h1 className="mt-4 font-heading text-5xl italic text-stone-100">
+          You are out of the matching pool.
+        </h1>
+        <p className="mt-5 text-sm leading-7 text-stone-500">
+          Sylla released active work, revoked event access, and will not use you
+          for introductions at {eventName}. Your withdrawal remains auditable.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function ConsentScreen({
+  state,
+  onComplete,
+}: {
+  state: SyllaSessionState;
+  onComplete: (state: SyllaSessionState) => void;
+}) {
+  const now = new Date();
+  const defaultStart = new Date(now.getTime() + 60 * 60 * 1_000);
+  const defaultEnd = new Date(now.getTime() + 3 * 60 * 60 * 1_000);
+  const localValue = (date: Date) => {
+    const offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  };
+  const [displayName, setDisplayName] = useState("");
+  const [start, setStart] = useState(localValue(defaultStart));
+  const [end, setEnd] = useState(localValue(defaultEnd));
+  const [age, setAge] = useState(false);
+  const [research, setResearch] = useState(false);
+  const [memory, setMemory] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [hostBoundary, setHostBoundary] = useState(false);
+  const [background, setBackground] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mandatoryAccepted = age && research && memory && matching && hostBoundary;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!mandatoryAccepted) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await api("/api/participation", {
+        method: "POST",
+        body: JSON.stringify({
+          displayName,
+          policyVersion: "2026-09-01",
+          ageConfirmed: age,
+          publicSourceResearch: research,
+          privateMemoryStorage: memory,
+          matchmaking: matching,
+          hostDataBoundary: hostBoundary,
+          backgroundContinuation: background,
+          availability: [
+            {
+              startsAt: new Date(start).toISOString(),
+              endsAt: new Date(end).toISOString(),
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          ],
+        }),
+      });
+      if (payload.state) onComplete(payload.state);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Consent could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const choices = [
+    [age, setAge, "I confirm that I am at least 18 years old."],
+    [research, setResearch, "Sylla may visit only the public URLs I explicitly submit."],
+    [memory, setMemory, "Sylla may store proposed private memories; none become approved until I decide."],
+    [matching, setMatching, "Sylla may use only my approved shareable context to look for event introductions."],
+    [hostBoundary, setHostBoundary, "I understand my chosen LLM host may retain our conversation under its own terms."],
+  ] as const;
+
+  return (
+    <main className="observatory-shell relative min-h-svh bg-background px-5 py-10 sm:px-8">
+      <form onSubmit={submit} className="mx-auto grid max-w-5xl gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+        <div className="lg:sticky lg:top-16 lg:self-start">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-lime-200/65">Invitation · {state.event.name}</p>
+          <h1 className="mt-5 font-heading text-[clamp(3.4rem,7vw,6.5rem)] leading-[0.88] tracking-[-0.05em] text-stone-100">
+            Enter on your own terms.
+          </h1>
+          <p className="mt-7 max-w-sm text-sm leading-7 text-stone-500">
+            Sylla is an agent you keep, not a social feed. It researches only what
+            you approve, proposes memory for review, and never introduces you
+            without a separate yes.
+          </p>
+        </div>
+        <div className="space-y-8 rounded-[2rem] border border-white/[0.09] bg-black/15 p-6 sm:p-9">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">How should people know you?</span>
+            <Input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your display name" className="mt-3 border-white/10 bg-white/[0.025]" />
+          </label>
+          <fieldset>
+            <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Your explicit permissions</legend>
+            <div className="mt-4 space-y-3">
+              {choices.map(([checked, setChecked, label]) => (
+                <label key={label} className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-xs leading-5 text-stone-400">
+                  <input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} className="mt-1 accent-lime-200" />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-500">When could an introduction happen?</legend>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-[10px] text-stone-500">Available from<Input required type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
+              <label className="text-[10px] text-stone-500">Available until<Input required type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
+            </div>
+          </fieldset>
+          <label className="flex items-start gap-3 border-t border-white/[0.07] pt-6 text-xs leading-5 text-stone-500">
+            <input type="checkbox" checked={background} onChange={(event) => setBackground(event.target.checked)} className="mt-1 accent-lime-200" />
+            <span><b className="font-medium text-stone-300">Optional:</b> let Sylla finish already-approved public-source research if my LLM disconnects. This never permits introductions or disclosures.</span>
+          </label>
+          {error && <p className="text-xs text-red-300/80">{error}</p>}
+          <div className="flex items-center justify-between gap-5">
+            <p className="max-w-xs text-[10px] leading-4 text-stone-600">Policy 2026-09-01 · You can withdraw and release active access at any time.</p>
+            <Button type="submit" disabled={busy || !mandatoryAccepted || !displayName.trim()} className="rounded-full bg-lime-200 text-stone-950">
+              {busy ? <LoaderCircle className="animate-spin" /> : <ShieldCheck />} Accept and continue
+            </Button>
+          </div>
+        </div>
+      </form>
+    </main>
+  );
+}
+
 function FirstSession({
   onComplete,
 }: {
@@ -1066,6 +1209,16 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const pending = state.observations.filter((item) => item.status === "pending").length;
 
+  async function withdraw() {
+    if (!window.confirm(`Withdraw from ${state.event.name}? This immediately removes you from matching and releases active access.`)) return;
+    const payload = await api("/api/participation", { method: "DELETE" });
+    if (payload.state) setState(payload.state);
+  }
+
+  if (state.stage === "withdrawn") {
+    return <WithdrawnScreen eventName={state.event.name} />;
+  }
+
   return (
     <main className="observatory-shell relative flex min-h-svh overflow-hidden bg-background text-foreground">
       <aside className="hidden w-56 shrink-0 flex-col border-r border-white/[0.07] bg-black/20 p-4 md:flex lg:w-64 lg:p-5">
@@ -1119,6 +1272,9 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
           </div>
           <Button variant="ghost" size="sm" onClick={() => setPaused((value) => !value)} className="mt-3 w-full justify-start text-[10px] text-stone-500">
             {paused ? <CirclePlay /> : <CirclePause />} {paused ? "Resume agent" : "Pause agent"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => void withdraw()} className="mt-1 w-full justify-start text-[10px] text-stone-600 hover:text-red-300">
+            <X /> Withdraw from event
           </Button>
         </div>
       </aside>
@@ -1201,6 +1357,8 @@ export function SyllaShell() {
 
   if (error) return <ErrorScreen error={error} retry={() => void retry()} />;
   if (!state) return <LoadingScreen />;
+  if (state.stage === "withdrawn") return <WithdrawnScreen eventName={state.event.name} />;
+  if (state.stage === "consent") return <ConsentScreen state={state} onComplete={setState} />;
   if (state.stage === "new") return <FirstSession onComplete={setState} />;
   return <AppShell initialState={state} />;
 }

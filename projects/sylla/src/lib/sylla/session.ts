@@ -1,14 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getDatabase } from "@/db";
 import {
   agentWorkspaces,
   approvedSources,
+  availabilityWindows,
   events,
   observations,
+  participantConsents,
   participants,
   workspaceArtifacts,
 } from "@/db/schema";
@@ -55,6 +57,11 @@ async function getOrCreateDemoEvent() {
   return existing;
 }
 
+function demoSessionsEnabled() {
+  if (process.env.SYLLA_ENABLE_DEMO_SESSIONS === "true") return true;
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function resolveParticipant(request: NextRequest) {
   const database = getDatabase();
   const existingToken = validToken(request.cookies.get(SESSION_COOKIE)?.value);
@@ -72,6 +79,9 @@ export async function resolveParticipant(request: NextRequest) {
     }
   }
 
+  if (!demoSessionsEnabled()) {
+    throw new Error("Open Sylla from a valid event invitation.");
+  }
   const event = await getOrCreateDemoEvent();
   const newToken = randomBytes(32).toString("base64url");
   const [participant] = await database
@@ -79,7 +89,7 @@ export async function resolveParticipant(request: NextRequest) {
     .values({
       eventId: event.id,
       inviteTokenHash: hashToken(newToken),
-      ageConfirmed: true,
+      ageConfirmed: false,
       status: "invited",
     })
     .returning();
@@ -89,13 +99,10 @@ export async function resolveParticipant(request: NextRequest) {
   return { participant, newToken };
 }
 
-export function jsonWithSession(
-  body: unknown,
+export function attachSessionCookie<T extends NextResponse>(
+  response: T,
   newToken: string | null,
-  init?: ResponseInit,
 ) {
-  const response = NextResponse.json(body, init);
-
   if (newToken) {
     response.cookies.set(SESSION_COOKIE, newToken, {
       httpOnly: true,
@@ -105,8 +112,15 @@ export function jsonWithSession(
       path: "/",
     });
   }
-
   return response;
+}
+
+export function jsonWithSession(
+  body: unknown,
+  newToken: string | null,
+  init?: ResponseInit,
+) {
+  return attachSessionCookie(NextResponse.json(body, init), newToken);
 }
 
 export async function loadSessionState(
@@ -124,7 +138,14 @@ export async function loadSessionState(
     throw new Error("Sylla session no longer exists.");
   }
 
-  const [sourceRows, observationRows, workspaceRows] = await Promise.all([
+  const [event] = await database
+    .select()
+    .from(events)
+    .where(eq(events.id, participant.eventId))
+    .limit(1);
+  if (!event) throw new Error("The Sylla event no longer exists.");
+
+  const [sourceRows, observationRows, workspaceRows, consentRows, availability] = await Promise.all([
     database
       .select()
       .from(approvedSources)
@@ -151,12 +172,30 @@ export async function loadSessionState(
       .from(agentWorkspaces)
       .where(eq(agentWorkspaces.participantId, participantId))
       .limit(1),
+    database
+      .select()
+      .from(participantConsents)
+      .where(
+        and(
+          eq(participantConsents.participantId, participantId),
+          eq(participantConsents.ageConfirmed, true),
+        ),
+      )
+      .orderBy(desc(participantConsents.acceptedAt))
+      .limit(1),
+    database
+      .select()
+      .from(availabilityWindows)
+      .where(eq(availabilityWindows.participantId, participantId))
+      .orderBy(asc(availabilityWindows.startsAt)),
   ]);
 
   const hasResearch = observationRows.length > 0;
   const hasPending = observationRows.some(
     ({ observation }) => observation.status === "pending",
   );
+  const consent = consentRows[0];
+  const hasActiveConsent = Boolean(consent && !consent.withdrawnAt);
 
   return {
     participantId,
@@ -167,7 +206,37 @@ export async function loadSessionState(
     },
     agentName: identity.agentName,
     focus: identity.focus,
-    stage: !hasResearch ? "new" : hasPending ? "review" : "ready",
+    stage:
+      participant.status === "withdrawn"
+        ? "withdrawn"
+        : !hasActiveConsent
+          ? "consent"
+          : !hasResearch
+            ? "new"
+            : hasPending
+              ? "review"
+              : "ready",
+    event: {
+      id: event.id,
+      name: event.name,
+      city: event.city,
+      venue: event.venue,
+      startsAt: event.startsAt?.toISOString() ?? null,
+    },
+    participation: {
+      displayName: participant.displayName,
+      policyVersion: consent?.policyVersion ?? null,
+      consentedAt: consent?.acceptedAt.toISOString() ?? null,
+      backgroundContinuationAllowed:
+        consent?.backgroundContinuation ?? false,
+      availability: availability.map((window) => ({
+        id: window.id,
+        startsAt: window.startsAt.toISOString(),
+        endsAt: window.endsAt.toISOString(),
+        timezone: window.timezone,
+      })),
+      withdrawnAt: participant.withdrawnAt?.toISOString() ?? null,
+    },
     research: {
       provider: participant.researchProvider,
       runReference: participant.researchRunReference,

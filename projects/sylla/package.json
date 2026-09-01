@@ -14,7 +14,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "verify:handoff": "tsx scripts/verify-run-handoff.ts",
-    "verify:browser": "tsx scripts/verify-browser-handoff.ts"
+    "verify:browser": "tsx scripts/verify-browser-handoff.ts",
+    "verify:participation": "tsx scripts/verify-participation.ts",
+    "invite:create": "tsx scripts/create-event-invite.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -94,6 +94,12 @@ export const orchestrationMode = pgEnum("orchestration_mode", [
   "internal_fallback",
 ]);
 
+export const auditActorType = pgEnum("audit_actor_type", [
+  "participant",
+  "organizer",
+  "system",
+]);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -301,6 +307,29 @@ export const events = pgTable(
   (table) => [uniqueIndex("events_slug_unique").on(table.slug)],
 );
 
+export const eventInvitations = pgTable(
+  "event_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    label: text("label"),
+    maxUses: integer("max_uses").default(1).notNull(),
+    useCount: integer("use_count").default(0).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("event_invitations_event_idx").on(table.eventId),
+    uniqueIndex("event_invitations_token_unique").on(table.tokenHash),
+  ],
+);
+
 export const participants = pgTable(
   "participants",
   {
@@ -314,6 +343,9 @@ export const participants = pgTable(
     eventId: uuid("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
+    invitationId: uuid("invitation_id").references(() => eventInvitations.id, {
+      onDelete: "set null",
+    }),
     inviteTokenHash: text("invite_token_hash").notNull(),
     displayName: text("display_name"),
     agentName: text("agent_name"),
@@ -334,11 +366,91 @@ export const participants = pgTable(
     index("participants_event_idx").on(table.eventId),
     index("participants_user_idx").on(table.userId),
     index("participants_agent_idx").on(table.agentId),
+    index("participants_invitation_idx").on(table.invitationId),
     uniqueIndex("participants_event_agent_unique").on(
       table.eventId,
       table.agentId,
     ),
     uniqueIndex("participants_invite_token_unique").on(table.inviteTokenHash),
+  ],
+);
+
+export const participantConsents = pgTable(
+  "participant_consents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    policyVersion: text("policy_version").notNull(),
+    ageConfirmed: boolean("age_confirmed").notNull(),
+    publicSourceResearch: boolean("public_source_research").notNull(),
+    privateMemoryStorage: boolean("private_memory_storage").notNull(),
+    matchmaking: boolean("matchmaking").notNull(),
+    hostDataBoundary: boolean("host_data_boundary").notNull(),
+    backgroundContinuation: boolean("background_continuation")
+      .default(false)
+      .notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("participant_consents_participant_idx").on(table.participantId),
+    uniqueIndex("participant_consents_version_unique").on(
+      table.participantId,
+      table.policyVersion,
+    ),
+  ],
+);
+
+export const availabilityWindows = pgTable(
+  "availability_windows",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    timezone: text("timezone").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("availability_windows_participant_idx").on(table.participantId),
+    index("availability_windows_range_idx").on(table.startsAt, table.endsAt),
+  ],
+);
+
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eventId: uuid("event_id").references(() => events.id, {
+      onDelete: "set null",
+    }),
+    participantId: uuid("participant_id").references(() => participants.id, {
+      onDelete: "set null",
+    }),
+    actorType: auditActorType("actor_type").notNull(),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, string | number | boolean | null>>()
+      .default({})
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("audit_events_event_idx").on(table.eventId),
+    index("audit_events_participant_idx").on(table.participantId),
+    index("audit_events_action_idx").on(table.action),
   ],
 );
 

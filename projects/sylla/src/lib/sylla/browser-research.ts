@@ -30,6 +30,7 @@ import {
   type RuntimeLeaseAuthorization,
 } from "@/lib/sylla/leases";
 import { synthesizeObservationDrafts } from "@/lib/sylla/research";
+import { requireParticipationCapability } from "@/lib/sylla/participation";
 import {
   BROWSER_RESEARCH_TASK_TYPE,
   checkpointAgentRun,
@@ -161,6 +162,16 @@ export async function prepareBrowserResearch(input: {
   fallbackBudgetCredits: number;
 }): Promise<BrowserResearchProgress> {
   await requireRuntimeLease(input.participantId, input.authorization);
+  await requireParticipationCapability(
+    input.participantId,
+    "publicSourceResearch",
+  );
+  if (input.backgroundContinuationAllowed) {
+    await requireParticipationCapability(
+      input.participantId,
+      "backgroundContinuation",
+    );
+  }
   const normalized = normalizeSources(input.sources);
   const run = await startAgentRun({
     participantId: input.participantId,
