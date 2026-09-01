@@ -46,8 +46,8 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - OAuth protected-resource discovery plus issuer-, audience-, expiry-, and scope-bound JWT validation
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
 - Per-client host-connection records without storing upstream access tokens
-- Persistent workspace metadata for the agent's Desktop, durable volume, recovery snapshot, and paused lifecycle
-- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace status tools
+- Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
+- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, and private-workspace inspect/open/checkpoint/pause tools
 - A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route that records provider, run reference, extracted evidence, and source status
@@ -55,11 +55,11 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
 - A reconstructible Desktop workbench generated only from approved memories and source artifacts
 - A view-only live Desktop viewer for Solari streams, with an honest reconstructible preview in mock mode
-- An explicit workbench close action that destroys a live Desktop and purges its materialized artifacts
+- An explicit pause action that checkpoints and stops active Desktop compute while preserving the agent home; withdrawal remains the separate destructive path
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. Canonical Sylla identity, the MCP contract, OAuth resource-server discovery, JWT verification, and cross-client identity recovery are now implemented and exercised against Neon. A real external identity-provider tenant must still be connected before the OAuth flow can be exercised from ChatGPT; billing, actual volume/snapshot provisioning, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Canonical Sylla identity, the MCP contract, OAuth resource-server discovery, JWT verification, and cross-client identity recovery are implemented and exercised against Neon. A real external identity-provider tenant must still be connected before the OAuth flow can be exercised from ChatGPT; billing, live Desktop/snapshot verification, host-run leases, and internal-agent failover remain target architecture. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -120,7 +120,7 @@ SOLARI_BASE_URL=https://api.getsolari.com
 
 Live calls are server-only. `MODEL_API_KEY` is reserved for bounded internal fallback; it is not needed to use a participant's active host LLM through MCP. Desktop stream capabilities must be exchanged through a short-lived, participant-authorized endpoint before any viewer is added.
 
-Solari product availability can differ by account tier. Browser and Sandbox have been verified with the current development account; Desktop currently returns `Desktop requires a paid plan` before creating a session.
+Browser and Sandbox have been verified with the current development account, and the durable-volume API succeeds. Desktop currently returns `Desktop requires a paid plan` before creating a session; Solari has identified this response as an upstream gate bug. Sylla does not model it as a required paid tier.
 
 ## Developer MCP bridge
 
@@ -132,7 +132,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract currently exposes `sylla_bootstrap_agent`, `sylla_get_agent_context`, and `sylla_get_agent_workspace`; none exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract currently exposes `sylla_bootstrap_agent`, `sylla_get_agent_context`, `sylla_get_agent_workspace`, `sylla_open_agent_workspace`, `sylla_checkpoint_agent_workspace`, and `sylla_pause_agent_workspace`; none exposes Solari credentials or stream capabilities.
 
 ## OAuth MCP authentication
 

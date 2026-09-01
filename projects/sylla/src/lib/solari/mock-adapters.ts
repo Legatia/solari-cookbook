@@ -39,30 +39,72 @@ export class MockBrowserResearchAdapter implements BrowserResearchAdapter {
 }
 
 export class MockDesktopWorkspaceAdapter implements DesktopWorkspaceAdapter {
-  private readonly sessions = new Map<string, "ready" | "paused">();
+  private static readonly sessions = new Map<
+    string,
+    { status: "ready" | "paused"; volumeId: string }
+  >();
+  private static readonly volumes = new Set<string>();
 
-  async provision(input: unknown) {
+  async createVolume() {
+    const volumeId = `volume-mock-${randomUUID()}`;
+    MockDesktopWorkspaceAdapter.volumes.add(volumeId);
+    return volumeId;
+  }
+
+  async provision(
+    input: unknown,
+    options: { sessionId?: string | null; volumeId: string },
+  ) {
     workspaceManifestSchema.parse(input);
-    const sessionId = `desktop-mock-${randomUUID()}`;
-    this.sessions.set(sessionId, "ready");
+    if (!MockDesktopWorkspaceAdapter.volumes.has(options.volumeId)) {
+      throw new Error("Unknown mock Desktop volume.");
+    }
+
+    const sessionId =
+      options.sessionId &&
+      MockDesktopWorkspaceAdapter.sessions.has(options.sessionId)
+        ? options.sessionId
+        : `desktop-mock-${randomUUID()}`;
+    MockDesktopWorkspaceAdapter.sessions.set(sessionId, {
+      status: "ready",
+      volumeId: options.volumeId,
+    });
 
     return workspaceResultSchema.parse({
       provider: "mock",
       sessionId,
+      volumeId: options.volumeId,
+      snapshotId: `snapshot-mock-${randomUUID()}`,
       status: "ready",
     });
   }
 
-  async pause(sessionId: string) {
-    if (!this.sessions.has(sessionId)) {
+  async checkpoint(sessionId: string) {
+    if (!MockDesktopWorkspaceAdapter.sessions.has(sessionId)) {
       throw new Error("Unknown mock Desktop session.");
     }
 
-    this.sessions.set(sessionId, "paused");
+    return `snapshot-mock-${randomUUID()}`;
+  }
+
+  async pause(sessionId: string) {
+    const session = MockDesktopWorkspaceAdapter.sessions.get(sessionId);
+    if (!session) {
+      throw new Error("Unknown mock Desktop session.");
+    }
+
+    MockDesktopWorkspaceAdapter.sessions.set(sessionId, {
+      ...session,
+      status: "paused",
+    });
   }
 
   async destroy(sessionId: string) {
-    this.sessions.delete(sessionId);
+    MockDesktopWorkspaceAdapter.sessions.delete(sessionId);
+  }
+
+  async deleteVolume(volumeId: string) {
+    MockDesktopWorkspaceAdapter.volumes.delete(volumeId);
   }
 }
 

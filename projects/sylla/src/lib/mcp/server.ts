@@ -4,6 +4,11 @@ import * as z from "zod/v4";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { updatePortableAgent } from "@/lib/sylla/identity";
 import { loadSessionState } from "@/lib/sylla/session";
+import {
+  checkpointParticipantWorkspace,
+  openParticipantWorkspace,
+  pauseParticipantWorkspace,
+} from "@/lib/sylla/workspace";
 
 type BootstrapInput = {
   agentName?: string;
@@ -16,6 +21,9 @@ export type SyllaMcpServices = {
     input: BootstrapInput,
   ) => Promise<SyllaSessionState>;
   loadState: (participantId: string) => Promise<SyllaSessionState>;
+  openWorkspace: (participantId: string) => Promise<SyllaSessionState>;
+  checkpointWorkspace: (participantId: string) => Promise<SyllaSessionState>;
+  pauseWorkspace: (participantId: string) => Promise<SyllaSessionState>;
 };
 
 const defaultServices: SyllaMcpServices = {
@@ -24,6 +32,11 @@ const defaultServices: SyllaMcpServices = {
     return loadSessionState(participantId);
   },
   loadState: loadSessionState,
+  async openWorkspace(participantId) {
+    return (await openParticipantWorkspace(participantId)).state;
+  },
+  checkpointWorkspace: checkpointParticipantWorkspace,
+  pauseWorkspace: pauseParticipantWorkspace,
 };
 
 function result<T extends Record<string, unknown>>(value: T) {
@@ -139,6 +152,86 @@ export function createSyllaMcpServer(
               pausedAt: state.workspace.pausedAt,
             }
           : null,
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_open_agent_workspace",
+    {
+      title: "Open my Sylla agent home",
+      description:
+        "Create or resume the caller's persistent private Solari Desktop, attach its durable volume, materialize only approved memories, and checkpoint the result. This may consume Sylla runtime allowance and never returns a stream capability or provider credential.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      const state = await services.openWorkspace(participantId);
+      return result({
+        agent: portableAgent(state),
+        workspace: state.workspace
+          ? {
+              id: state.workspace.id,
+              status: state.workspace.status,
+              hasDesktop: Boolean(state.workspace.sessionId),
+              hasDurableVolume: Boolean(state.workspace.volumeId),
+              hasRecoverySnapshot: Boolean(state.workspace.snapshotId),
+            }
+          : null,
+        viewerPolicy:
+          "Open Sylla's participant-authorized web workspace to view the live Desktop.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_checkpoint_agent_workspace",
+    {
+      title: "Checkpoint my Sylla agent home",
+      description:
+        "Create a recovery checkpoint of the caller's open private Desktop without exposing its files or stream capability.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      const state = await services.checkpointWorkspace(participantId);
+      return result({
+        workspaceStatus: state.workspace?.status ?? "unprovisioned",
+        checkpointCreated: Boolean(state.workspace?.snapshotId),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_pause_agent_workspace",
+    {
+      title: "Pause my Sylla agent home",
+      description:
+        "Checkpoint and pause the caller's Desktop to stop active compute while preserving its durable home for a later host or native Sylla app.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      const state = await services.pauseWorkspace(participantId);
+      return result({
+        workspaceStatus: state.workspace?.status ?? "unprovisioned",
+        preserved: Boolean(state.workspace?.volumeId),
+        hasRecoverySnapshot: Boolean(state.workspace?.snapshotId),
       });
     },
   );

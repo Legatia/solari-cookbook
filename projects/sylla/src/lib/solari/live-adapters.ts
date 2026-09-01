@@ -13,6 +13,7 @@ import {
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
   type WorkspaceManifest,
+  type WorkspaceOpenOptions,
 } from "./contracts";
 import { assertPublicHttpUrl } from "./url-policy";
 
@@ -183,26 +184,66 @@ export class SolariDesktopWorkspaceAdapter
     this.client = new DesktopClient(options);
   }
 
-  async provision(input: unknown) {
-    const manifest = workspaceManifestSchema.parse(input);
-    const desktop = await this.client.create({
-      template: "default",
-      resolution: "1440x900",
-      cpu: 2,
-      memMb: 3072,
-      timeoutMs: 15 * 60 * 1000,
-      lifecycle: { onTimeout: "pause", autoResume: true },
+  async createVolume(participantRef: string) {
+    const volume = await this.client.volumes.create({
+      name: `sylla-${participantRef.slice(0, 8)}`,
+      sizeMb: 512,
       metadata: {
         product: "sylla",
-        participantRef: manifest.participantRef,
+        participantRef,
       },
     });
+
+    return volume.volumeId;
+  }
+
+  async provision(input: unknown, options: WorkspaceOpenOptions) {
+    const manifest = workspaceManifestSchema.parse(input);
+    const createDesktop = () =>
+      this.client.create({
+          template: "default",
+          resolution: "1440x900",
+          cpu: 2,
+          memMb: 3072,
+          timeoutMs: 15 * 60 * 1000,
+          lifecycle: { onTimeout: "pause", autoResume: true },
+          volumes: [
+            {
+              volumeId: options.volumeId,
+              path: "/home/oai/share/sylla-home",
+            },
+          ],
+          metadata: {
+            product: "sylla",
+            participantRef: manifest.participantRef,
+          },
+        });
+    let createdSession = !options.sessionId;
+    let desktop;
+
+    if (options.sessionId) {
+      try {
+        const existing = await this.client.get(options.sessionId);
+        if (existing.status === "gone" || existing.status === "releasing") {
+          desktop = await createDesktop();
+          createdSession = true;
+        } else {
+          desktop = await this.client.connect(options.sessionId);
+        }
+      } catch (error) {
+        if ((error as { status?: number }).status !== 404) throw error;
+        desktop = await createDesktop();
+        createdSession = true;
+      }
+    } else {
+      desktop = await createDesktop();
+    }
 
     try {
       await desktop.connect();
       await waitForDesktopReady(desktop);
 
-      const workspacePath = "/home/oai/share/sylla";
+      const workspacePath = "/home/oai/share/sylla-home/workbench";
       await desktop.exec("mkdir", { args: ["-p", workspacePath] });
       await desktop.fs.write(
         `${workspacePath}/workspace.json`,
@@ -215,18 +256,34 @@ export class SolariDesktopWorkspaceAdapter
       await desktop.open("chrome", [
         "--no-first-run",
         "--disable-default-apps",
-        "--app=file:///home/oai/share/sylla/workspace.html",
+        "--app=file:///home/oai/share/sylla-home/workbench/workspace.html",
       ]);
+      const snapshotId = await desktop.snapshot("sylla-workbench");
 
       return workspaceResultSchema.parse({
         provider: "solari",
         sessionId: desktop.sessionId,
+        volumeId: options.volumeId,
+        snapshotId,
         status: "ready",
         streamCapability: desktop.streamUrl,
       });
     } catch (error) {
-      await this.client.destroy(desktop.sessionId);
+      if (createdSession) {
+        await this.client.destroy(desktop.sessionId);
+      }
       throw error;
+    } finally {
+      desktop.close();
+    }
+  }
+
+  async checkpoint(sessionId: string, name = "sylla-checkpoint") {
+    const desktop = await this.client.connect(sessionId);
+    try {
+      await desktop.connect();
+      await waitForDesktopReady(desktop);
+      return await desktop.snapshot(name);
     } finally {
       desktop.close();
     }
@@ -238,6 +295,10 @@ export class SolariDesktopWorkspaceAdapter
 
   async destroy(sessionId: string) {
     await this.client.destroy(sessionId);
+  }
+
+  async deleteVolume(volumeId: string) {
+    await this.client.volumes.delete(volumeId);
   }
 }
 

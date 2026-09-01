@@ -23,6 +23,7 @@ describe("mock Solari adapters", () => {
     expect(research.provider).toBe("mock");
     expect(research.evidence).toHaveLength(1);
 
+    const volumeId = await adapters.desktop.createVolume("participant-a");
     const workspace = await adapters.desktop.provision({
       participantRef: "participant-a",
       agentName: "Mira",
@@ -31,11 +32,47 @@ describe("mock Solari adapters", () => {
       artifactCount: 1,
       memoryCount: 0,
       observations: [],
+    }, {
+      volumeId,
     });
 
     expect(workspace.status).toBe("ready");
+    expect(workspace.volumeId).toBe(volumeId);
+    expect(workspace.snapshotId).toMatch(/^snapshot-mock-/);
+    await expect(
+      adapters.desktop.checkpoint(workspace.sessionId),
+    ).resolves.toMatch(/^snapshot-mock-/);
     await adapters.desktop.pause(workspace.sessionId);
+    const resumed = await adapters.desktop.provision(
+      {
+        participantRef: "participant-a",
+        agentName: "Mira",
+        eventName: "Thursday Assembly",
+        currentTask: "Reviewing approved sources",
+        artifactCount: 1,
+        memoryCount: 0,
+        observations: [],
+      },
+      { sessionId: workspace.sessionId, volumeId },
+    );
+    expect(resumed.sessionId).toBe(workspace.sessionId);
     await adapters.desktop.destroy(workspace.sessionId);
+    const reconstructed = await adapters.desktop.provision(
+      {
+        participantRef: "participant-a",
+        agentName: "Mira",
+        eventName: "Thursday Assembly",
+        currentTask: "Reconstructing from durable state",
+        artifactCount: 1,
+        memoryCount: 0,
+        observations: [],
+      },
+      { sessionId: workspace.sessionId, volumeId },
+    );
+    expect(reconstructed.sessionId).not.toBe(workspace.sessionId);
+    expect(reconstructed.volumeId).toBe(volumeId);
+    await adapters.desktop.destroy(reconstructed.sessionId);
+    await adapters.desktop.deleteVolume(volumeId);
 
     const evaluation = await adapters.sandbox.evaluate({
       direction: "alice-to-bob",

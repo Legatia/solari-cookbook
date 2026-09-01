@@ -896,15 +896,15 @@ function WorkspaceView({
     }
   }
 
-  async function closeWorkspace() {
+  async function pauseWorkspace() {
     setClosing(true);
     setError(null);
     try {
-      const payload = await api("/api/workspace", { method: "DELETE" });
+      const payload = await api("/api/workspace", { method: "PATCH" });
       if (payload.state) onChange(payload.state);
       onStream(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Workspace could not be closed.");
+      setError(caught instanceof Error ? caught.message : "Workspace could not be paused.");
     } finally {
       setClosing(false);
     }
@@ -927,12 +927,12 @@ function WorkspaceView({
             {state.workspace?.status === "ready" && (
               <Button
                 variant="outline"
-                onClick={closeWorkspace}
+                onClick={pauseWorkspace}
                 disabled={closing || provisioning}
                 className="rounded-full border-white/10 bg-transparent px-4 text-xs text-stone-400"
               >
-                {closing ? <LoaderCircle className="animate-spin" /> : <X />}
-                Close workbench
+                {closing ? <LoaderCircle className="animate-spin" /> : <CirclePause />}
+                Pause Desktop
               </Button>
             )}
             <Button

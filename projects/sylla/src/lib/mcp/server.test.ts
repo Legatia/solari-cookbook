@@ -61,6 +61,19 @@ function createTestHandler(services: SyllaMcpServices) {
   );
 }
 
+function services(
+  overrides: Partial<SyllaMcpServices> = {},
+): SyllaMcpServices {
+  return {
+    bootstrapAgent: vi.fn().mockResolvedValue(state),
+    loadState: vi.fn().mockResolvedValue(state),
+    openWorkspace: vi.fn().mockResolvedValue(state),
+    checkpointWorkspace: vi.fn().mockResolvedValue(state),
+    pauseWorkspace: vi.fn().mockResolvedValue(state),
+    ...overrides,
+  };
+}
+
 async function callMcp(
   handler: ReturnType<typeof createTestHandler>,
   body: Record<string, unknown>,
@@ -96,11 +109,7 @@ async function callMcp(
 
 describe("Sylla MCP server", () => {
   it("lists the portable agent tools over stateless Streamable HTTP", async () => {
-    const services: SyllaMcpServices = {
-      bootstrapAgent: vi.fn().mockResolvedValue(state),
-      loadState: vi.fn().mockResolvedValue(state),
-    };
-    const handler = createTestHandler(services);
+    const handler = createTestHandler(services());
     const { response, body } = await callMcp(handler, {
       jsonrpc: "2.0",
       id: 1,
@@ -117,17 +126,16 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_bootstrap_agent" }),
           expect.objectContaining({ name: "sylla_get_agent_context" }),
           expect.objectContaining({ name: "sylla_get_agent_workspace" }),
+          expect.objectContaining({ name: "sylla_open_agent_workspace" }),
+          expect.objectContaining({ name: "sylla_checkpoint_agent_workspace" }),
+          expect.objectContaining({ name: "sylla_pause_agent_workspace" }),
         ]),
       },
     });
   });
 
   it("returns approved memories without leaking pending proposals by default", async () => {
-    const services: SyllaMcpServices = {
-      bootstrapAgent: vi.fn().mockResolvedValue(state),
-      loadState: vi.fn().mockResolvedValue(state),
-    };
-    const handler = createTestHandler(services);
+    const handler = createTestHandler(services());
     const { body } = await callMcp(handler, {
       jsonrpc: "2.0",
       id: 2,
@@ -147,11 +155,7 @@ describe("Sylla MCP server", () => {
 
   it("bootstraps idempotently through the injected portable-agent service", async () => {
     const bootstrapAgent = vi.fn().mockResolvedValue(state);
-    const services: SyllaMcpServices = {
-      bootstrapAgent,
-      loadState: vi.fn().mockResolvedValue(state),
-    };
-    const handler = createTestHandler(services);
+    const handler = createTestHandler(services({ bootstrapAgent }));
     const { body } = await callMcp(handler, {
       jsonrpc: "2.0",
       id: 3,
@@ -176,5 +180,47 @@ describe("Sylla MCP server", () => {
         },
       },
     });
+  });
+
+  it("opens the persistent home without returning a provider capability", async () => {
+    const openWorkspace = vi.fn().mockResolvedValue(state);
+    const handler = createTestHandler(services({ openWorkspace }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: {
+        name: "sylla_open_agent_workspace",
+        arguments: {},
+      },
+    });
+
+    expect(openWorkspace).toHaveBeenCalledWith(state.participantId);
+    expect(JSON.stringify(body)).not.toContain("streamUrl");
+    expect(JSON.stringify(body)).not.toContain("streamCapability");
+  });
+
+  it("checkpoints and pauses the persistent home through narrow tools", async () => {
+    const checkpointWorkspace = vi.fn().mockResolvedValue(state);
+    const pauseWorkspace = vi.fn().mockResolvedValue(state);
+    const handler = createTestHandler(
+      services({ checkpointWorkspace, pauseWorkspace }),
+    );
+
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: { name: "sylla_checkpoint_agent_workspace", arguments: {} },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: { name: "sylla_pause_agent_workspace", arguments: {} },
+    });
+
+    expect(checkpointWorkspace).toHaveBeenCalledWith(state.participantId);
+    expect(pauseWorkspace).toHaveBeenCalledWith(state.participantId);
   });
 });

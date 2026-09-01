@@ -47,6 +47,8 @@ export const workspaceManifestSchema = z.object({
 export const workspaceResultSchema = z.object({
   provider: z.enum(["mock", "solari"]),
   sessionId: z.string().min(1),
+  volumeId: z.string().min(1),
+  snapshotId: z.string().min(1),
   status: z.enum(["ready", "paused", "destroyed"]),
   // A sensitive server-side capability. Never serialize it directly to a client.
   streamCapability: z.url().optional(),
@@ -82,6 +84,10 @@ export type ResearchRequest = z.infer<typeof researchRequestSchema>;
 export type ResearchResult = z.infer<typeof researchResultSchema>;
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
 export type WorkspaceResult = z.infer<typeof workspaceResultSchema>;
+export type WorkspaceOpenOptions = {
+  sessionId?: string | null;
+  volumeId: string;
+};
 export type DirectionalEvaluationRequest = z.infer<
   typeof directionalEvaluationRequestSchema
 >;
@@ -94,9 +100,15 @@ export interface BrowserResearchAdapter {
 }
 
 export interface DesktopWorkspaceAdapter {
-  provision(manifest: WorkspaceManifest): Promise<WorkspaceResult>;
+  createVolume(participantRef: string): Promise<string>;
+  provision(
+    manifest: WorkspaceManifest,
+    options: WorkspaceOpenOptions,
+  ): Promise<WorkspaceResult>;
+  checkpoint(sessionId: string, name?: string): Promise<string>;
   pause(sessionId: string): Promise<void>;
   destroy(sessionId: string): Promise<void>;
+  deleteVolume(volumeId: string): Promise<void>;
 }
 
 export interface SandboxEvaluationAdapter {

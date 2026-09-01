@@ -220,9 +220,24 @@ export async function retireParticipantWorkspace(participantId: string) {
 
   if (!workspace) return;
 
-  if (workspace.provider === "solari" && workspace.solariDesktopSessionId) {
+  if (workspace.solariDesktopSessionId || workspace.solariVolumeId) {
     const adapters = await createSolariAdapters();
-    await adapters.desktop.destroy(workspace.solariDesktopSessionId);
+    let cleanupError: unknown;
+    if (workspace.solariDesktopSessionId) {
+      await adapters.desktop
+        .destroy(workspace.solariDesktopSessionId)
+        .catch((error) => {
+          cleanupError = error;
+        });
+    }
+    if (workspace.solariVolumeId) {
+      await adapters.desktop
+        .deleteVolume(workspace.solariVolumeId)
+        .catch((error) => {
+          cleanupError ??= error;
+        });
+    }
+    if (cleanupError) throw cleanupError;
   }
 
   await database
@@ -233,6 +248,8 @@ export async function retireParticipantWorkspace(participantId: string) {
     .set({
       provider: null,
       solariDesktopSessionId: null,
+      solariVolumeId: null,
+      solariSnapshotId: null,
       status: "destroyed",
       lastActiveAt: new Date(),
       destroyedAt: new Date(),
