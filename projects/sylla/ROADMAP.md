@@ -58,8 +58,9 @@ The first end-to-end attachment loop now exists in the reference application:
 - A concise follow-up reflection enters the same approval queue instead of becoming implicit memory.
 - The Desktop adapter receives only approved observations and materializes both a machine-readable manifest and a visual private workbench.
 - The browser UI can mount a live view-only Solari Desktop stream; mock mode renders the same approved state as an honest reconstructible preview.
+- The participant can explicitly close the workbench, destroying the live Desktop and purging its materialized artifacts immediately.
 
-This loop has been exercised end to end in mock mode against the configured development database, including refresh persistence and exclusion of a forgotten observation. Live Solari Browser and Desktop verification remains blocked on a live API key; it must be completed before presenting this checkpoint as Solari runtime evidence.
+This loop has been exercised end to end in mock mode against the configured development database, including refresh persistence and exclusion of a forgotten observation. A bounded live Solari Browser run has also extracted the public Sylla repository, released its session, and produced an available replay. A live Sandbox smoke test ran successfully and was explicitly destroyed. Desktop creation is currently plan-gated—the API returned `Desktop requires a paid plan` before allocation—so the live Desktop viewer and workbench materialization still require verification after the account is upgraded.
 
 ## Phase 0 — Lock the experiment
 

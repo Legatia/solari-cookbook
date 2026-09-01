@@ -44,10 +44,11 @@ The MCP server cannot draw from a user's ChatGPT or other consumer subscription 
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth
 - A reconstructible Desktop workbench generated only from approved memories and source artifacts
 - A view-only live Desktop viewer for Solari streams, with an honest reconstructible preview in mock mode
+- An explicit workbench close action that destroys a live Desktop and purges its materialized artifacts
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. A Solari API key is still required to exercise real Browser recordings and a live Desktop stream. The remote MCP/OAuth layer, host-run leases, and internal-agent failover remain target architecture rather than implemented product behavior. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. A live Solari Sandbox smoke test completed and was explicitly destroyed. Live Desktop creation was attempted but rejected before allocation because the current Solari account requires a paid plan for Desktop. The remote MCP/OAuth layer, host-run leases, and internal-agent failover remain target architecture rather than implemented product behavior. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -107,6 +108,8 @@ SOLARI_BASE_URL=https://api.getsolari.com
 ```
 
 Live calls are server-only. `MODEL_API_KEY` is reserved for bounded internal fallback; it is not needed to use a participant's active host LLM through MCP. Desktop stream capabilities must be exchanged through a short-lived, participant-authorized endpoint before any viewer is added.
+
+Solari product availability can differ by account tier. Browser and Sandbox have been verified with the current development account; Desktop currently returns `Desktop requires a paid plan` before creating a session.
 
 ## Commands
 

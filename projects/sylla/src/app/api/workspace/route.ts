@@ -7,6 +7,7 @@ import { createSolariAdapters } from "@/lib/solari";
 import {
   jsonWithSession,
   loadSessionState,
+  retireParticipantWorkspace,
   resolveParticipant,
 } from "@/lib/sylla/session";
 
@@ -113,6 +114,28 @@ export async function POST(request: NextRequest) {
           error instanceof Error
             ? error.message
             : "The workspace could not be opened.",
+      },
+      newToken,
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const { participant, newToken } = await resolveParticipant(request);
+
+  try {
+    await retireParticipantWorkspace(participant.id);
+    const state = await loadSessionState(participant.id);
+    return jsonWithSession({ state }, newToken);
+  } catch (error) {
+    console.error("Unable to close Sylla workspace", error);
+    return jsonWithSession(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "The workspace could not be closed.",
       },
       newToken,
       { status: 500 },

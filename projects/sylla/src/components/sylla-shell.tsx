@@ -876,6 +876,7 @@ function WorkspaceView({
 }) {
   const approved = state.observations.filter((item) => item.status !== "pending");
   const [provisioning, setProvisioning] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function provision() {
@@ -895,6 +896,20 @@ function WorkspaceView({
     }
   }
 
+  async function closeWorkspace() {
+    setClosing(true);
+    setError(null);
+    try {
+      const payload = await api("/api/workspace", { method: "DELETE" });
+      if (payload.state) onChange(payload.state);
+      onStream(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Workspace could not be closed.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
       <div className="mx-auto max-w-5xl animate-rise">
@@ -908,19 +923,32 @@ function WorkspaceView({
               What {state.agentName} understands.
             </h1>
           </div>
-          <Button
-            onClick={provision}
-            disabled={provisioning || approved.length === 0}
-            className="rounded-full bg-lime-200 px-4 text-xs text-stone-950"
-          >
-            {provisioning ? (
-              <><LoaderCircle className="animate-spin" /> Building workbench…</>
-            ) : state.workspace?.status === "ready" ? (
-              <><RefreshCw /> Rebuild from memory</>
-            ) : (
-              <><Monitor /> Open Solari Desktop</>
+          <div className="flex flex-wrap gap-2">
+            {state.workspace?.status === "ready" && (
+              <Button
+                variant="outline"
+                onClick={closeWorkspace}
+                disabled={closing || provisioning}
+                className="rounded-full border-white/10 bg-transparent px-4 text-xs text-stone-400"
+              >
+                {closing ? <LoaderCircle className="animate-spin" /> : <X />}
+                Close workbench
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={provision}
+              disabled={provisioning || closing || approved.length === 0}
+              className="rounded-full bg-lime-200 px-4 text-xs text-stone-950"
+            >
+              {provisioning ? (
+                <><LoaderCircle className="animate-spin" /> Building workbench…</>
+              ) : state.workspace?.status === "ready" ? (
+                <><RefreshCw /> Rebuild from memory</>
+              ) : (
+                <><Monitor /> Open Solari Desktop</>
+              )}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_0.36fr]">
