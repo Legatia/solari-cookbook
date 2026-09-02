@@ -57,8 +57,11 @@ const baseUrl = new URL(
 const mcpEndpoint = `${baseUrl}/mcp`;
 const gatePassword = process.env.SYLLA_DEMO_PASSWORD;
 const verifyLiveResearch = process.env.SYLLA_VERIFY_LIVE_RESEARCH === "true";
+const verifyConversationalSetup =
+  process.env.SYLLA_VERIFY_CONVERSATIONAL_SETUP !== "false";
 let cookie: string | null = null;
 let accessToken: string | null = null;
+let completedParticipation = false;
 
 try {
   const protectedMetadata = await json<{
@@ -218,8 +221,11 @@ try {
   const tools = listed.tools as Array<{ name: string }>;
   for (const name of [
     "sylla_bootstrap_agent",
+    "sylla_get_setup_guide",
+    "sylla_complete_setup",
     "sylla_get_agent_context",
     "sylla_remember",
+    "sylla_review_observation",
     "sylla_research",
     "sylla_find_private_introduction",
   ]) {
@@ -234,6 +240,69 @@ try {
     name: "sylla_get_agent_context",
     arguments: { includePending: false },
   });
+
+  if (verifyConversationalSetup) {
+    const guide = await callMcp(mcpEndpoint, accessToken, 31, "tools/call", {
+      name: "sylla_get_setup_guide",
+      arguments: {},
+    });
+    invariant(guide.structuredContent, "The conversational setup guide was empty.");
+
+    const startsAt = new Date(Date.now() + 60 * 60 * 1_000);
+    const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1_000);
+    const setup = await callMcp(mcpEndpoint, accessToken, 32, "tools/call", {
+      name: "sylla_complete_setup",
+      arguments: {
+        displayName: "Sylla MCP setup verifier",
+        agentName: "Verifier",
+        focus: "Verify that a personal agent can be configured entirely in chat.",
+        policyVersion: "2026-09-01",
+        ageConfirmed: true,
+        publicSourceResearch: true,
+        privateMemoryStorage: true,
+        matchmaking: true,
+        hostDataBoundary: true,
+        backgroundContinuation: false,
+        availability: [
+          {
+            startsAt: startsAt.toISOString(),
+            endsAt: endsAt.toISOString(),
+            timezone: "UTC",
+          },
+        ],
+      },
+    });
+    const setupContent = setup.structuredContent as
+      | { setupComplete?: boolean }
+      | undefined;
+    invariant(setupContent?.setupComplete, "Conversational setup did not complete.");
+    completedParticipation = true;
+
+    const remembered = await callMcp(mcpEndpoint, accessToken, 33, "tools/call", {
+      name: "sylla_remember",
+      arguments: {
+        summary: "I am verifying MCP-first onboarding.",
+        visibility: "private",
+      },
+    });
+    const memory = remembered.structuredContent as
+      | { memory?: { id?: string; status?: string } }
+      | undefined;
+    invariant(memory?.memory?.id, "MCP did not return the proposed memory ID.");
+    invariant(memory.memory.status === "pending", "MCP memory was not proposed first.");
+
+    const reviewed = await callMcp(mcpEndpoint, accessToken, 34, "tools/call", {
+      name: "sylla_review_observation",
+      arguments: {
+        observationId: memory.memory.id,
+        decision: "approve",
+      },
+    });
+    const review = reviewed.structuredContent as
+      | { observation?: { status?: string } }
+      | undefined;
+    invariant(review?.observation?.status === "confirmed", "MCP memory review did not persist.");
+  }
 
   if (verifyLiveResearch) {
     const research = await callMcp(mcpEndpoint, accessToken, 4, "tools/call", {
@@ -288,7 +357,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context${verifyLiveResearch ? ", one real Solari Browser source" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real Solari Browser source" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {
@@ -297,7 +366,7 @@ try {
       headers: { cookie },
     }).catch(() => undefined);
   }
-  if (cookie && verifyLiveResearch) {
+  if (cookie && (verifyLiveResearch || completedParticipation)) {
     await fetch(`${baseUrl}/api/participation`, {
       method: "DELETE",
       headers: { cookie },
