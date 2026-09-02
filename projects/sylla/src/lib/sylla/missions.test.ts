@@ -39,6 +39,12 @@ describe("Sylla mission routing", () => {
     expect(route.plan.some((step) => step.resource === "sandbox")).toBe(true);
   });
 
+  it("does not mistake words inside nouns for consequential actions", () => {
+    const objective = "Research what the Solari cookbook provides to builders.";
+    expect(classifyMission(objective)).toBe("research_public_topic");
+    expect(classifyMissionRisk(objective)).toBe("observe");
+  });
+
   it("bounds mission scope and applies safe defaults", () => {
     const parsed = startMissionSchema.parse({
       requestId: "mission-request-001",

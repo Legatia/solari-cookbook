@@ -95,7 +95,12 @@ export type MissionView = {
 };
 
 function includesAny(value: string, terms: string[]) {
-  return terms.some((term) => value.includes(term));
+  return terms.some((term) => {
+    const phrase = term.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${phrase.replace(/\s+/g, "\\s+")}\\b`, "i").test(
+      value,
+    );
+  });
 }
 
 export function classifyMission(objective: string): MissionCapability {
