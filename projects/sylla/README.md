@@ -37,6 +37,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 
 ## Current foundation
 
+- A responsive editorial marketing landing page at `/`, with the working participant prototype preserved at `/app`
 - Next.js 16 App Router, TypeScript, Tailwind CSS, and shadcn/ui
 - Neon Postgres with Drizzle schema and migrations
 - Typed mock and live adapters for all three Solari products
