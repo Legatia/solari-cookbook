@@ -47,9 +47,11 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - A versioned adult-consent gate covering approved-source research, private memory, matching, host retention boundaries, optional background continuation, and concrete availability windows
 - Append-only participation audit events plus withdrawal that immediately releases runtime leases, revokes host connections, and removes the participant from matching
 - Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
-- OAuth protected-resource discovery plus issuer-, audience-, expiry-, and scope-bound JWT validation
-- Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients
-- Per-client host-connection records without storing upstream access tokens
+- A built-in OAuth 2.1 authorization server with dynamic client registration, S256 PKCE, one-time authorization codes, rotating refresh tokens, and hashed opaque-token storage
+- OAuth protected-resource and authorization-server discovery, plus optional issuer-, audience-, expiry-, and scope-bound external JWT validation
+- A participant-visible **Connect your AI** panel with the live MCP URL, setup instructions, connection status, and one-click revocation
+- Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients; the public prototype binds first-party grants to the participant's current Sylla browser session
+- Per-client host-connection records without exposing Solari credentials or storing plaintext OAuth tokens
 - Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
 - Durable Agent Run, checkpoint, approved fallback scope, budget, reason, and reconnect-handoff records
 - An atomic mock fallback controller that refuses active leases and completes the approved handoff task exactly once under concurrent workers
@@ -58,7 +60,8 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
-- A disabled-by-default developer bearer bridge for exercising MCP before production OAuth is connected
+- Companion-level `sylla_remember`, `sylla_research`, and `sylla_find_private_introduction` tools that hide lease choreography while retaining the lower-level recovery tools
+- A disabled-by-default developer bearer bridge for local testing without bypassing production OAuth
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route plus MCP run contract that records provider, run reference, extracted evidence, per-source status, checkpoints, and host-to-background handoff
 - Deterministic candidate eligibility that enforces same-event consent, overlapping availability, blocks, prior declines, pair conflicts, and approved shareable context without producing a compatibility score
@@ -79,7 +82,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - URL policy checks that reject obvious local and private-network sources
 - Unit tests for adapter contracts, source URL policy, and observation-origin separation
 
-The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. Two live Solari Sandbox jobs have completed a bilateral candidate evaluation with directional privacy boundaries and explicit VM cleanup. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, candidate filtering, pair-conflict prevention, bilateral evaluation, canonical identity, OAuth resource-server verification, cross-client recovery, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. A real identity-provider tenant and billing provider must still be connected before public deployment or paid activation; live Desktop/snapshot verification, production cron deployment/monitoring, participant-visible OAuth connection management, and one real internal-model invocation with project credentials also remain. See the roadmap for the revised implementation order.
+The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. Two live Solari Sandbox jobs have completed a bilateral candidate evaluation with directional privacy boundaries and explicit VM cleanup. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, candidate filtering, pair-conflict prevention, bilateral evaluation, canonical identity, first-party OAuth discovery and PKCE exchange, connection revocation, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. Durable cross-device account login, a real billing provider and verified webhook, live Desktop/snapshot verification, production cron monitoring, and one real internal-model invocation with project credentials still remain before a paid production launch. See the roadmap for the revised implementation order.
 
 The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
 
@@ -147,9 +150,11 @@ Internal fallback defaults to `SYLLA_INTERNAL_MODEL_MODE=mock`, which makes no m
 
 Browser and Sandbox have been verified with the current development account, and the durable-volume API succeeds. Desktop currently returns `Desktop requires a paid plan` before creating a session; Solari has identified this response as an upstream gate bug. Sylla does not model it as a required paid tier.
 
-## Developer MCP bridge
+## Connect an AI host
 
-The Streamable HTTP endpoint is `POST /mcp`. Until production OAuth and account linking are implemented, it is deliberately unavailable unless all three development variables are configured:
+The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. Open `/app`, finish the short agent setup, and choose **Connect your AI** to copy the current endpoint, see active connections, or revoke them. In ChatGPT, enable Developer mode, add the remote MCP URL, and approve the Sylla OAuth screen. The host can then recover the same session-bound agent with `sylla_bootstrap_agent`, recall approved context, propose memories, research participant-supplied URLs through Solari Browser, and start the privacy-preserving introduction flow.
+
+For local development, the disabled-by-default bearer bridge can exercise MCP without running the browser OAuth flow when all three variables are configured:
 
 ```text
 SYLLA_ENABLE_DEV_MCP=true
@@ -157,7 +162,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, explicit disclosure approval, non-identifying proposal creation, private introduction response/status, structured outcome submission, memory review, portable export/deletion, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes three companion-level tools for ordinary use plus portable-agent/context/workspace, plan, lease, durable-run, approved-source, Browser execution, pair evaluation, disclosure, introduction, outcome, memory review, export/deletion, checkpoint, fallback, and handoff tools for advanced orchestration. Mutating low-level host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
@@ -191,7 +196,11 @@ Create an event invitation locally with `pnpm invite:create <event-slug> "Event 
 
 ## OAuth MCP authentication
 
-For a deployed MCP server, configure a dedicated OAuth/OIDC identity provider to issue JWT access tokens for Sylla:
+With `APP_BASE_URL` configured, Sylla is its own OAuth 2.1 authorization server for MCP clients. It publishes protected-resource metadata at `/.well-known/oauth-protected-resource/mcp` and authorization-server metadata at `/.well-known/oauth-authorization-server`. Public clients register dynamically at `/oauth/register`, authorize through `/oauth/authorize`, and exchange an S256 PKCE code at `/oauth/token`. Access and rotating refresh tokens are opaque; only SHA-256 hashes are stored. Authorization codes are short-lived and single-use.
+
+The prototype consent screen binds a grant to the participant represented by the current HttpOnly Sylla browser session. A later production account-login flow must link that session to a durable verified identity before Sylla can promise recovery on a different device. The existing canonical user and personal-agent identifiers do not depend on an LLM provider.
+
+A dedicated OAuth/OIDC provider can optionally replace discovery while the built-in access tokens continue to work. Configure these variables to accept external JWT access tokens:
 
 ```text
 APP_BASE_URL=https://your-sylla-host.example
@@ -211,7 +220,7 @@ The token must include:
 
 The optional `sylla:delete` scope is separately required before the permanent-deletion tool is even visible. The tool still requires an active human-host lease and the exact destructive confirmation phrase. Ordinary agent tokens can export but cannot delete.
 
-Sylla publishes RFC 9728 protected-resource metadata at `/.well-known/oauth-protected-resource/mcp`. It stores the verified issuer/subject mapping and each client connection, but never stores the upstream access token. Two clients presenting tokens for the same issuer and subject recover the same canonical user, personal agent, participant state, and workspace metadata.
+For external JWTs, Sylla stores the verified issuer/subject mapping and each client connection, but never stores the upstream access token. Two clients presenting tokens for the same issuer and subject recover the same canonical user, personal agent, participant state, and workspace metadata.
 
 ## Commands
 

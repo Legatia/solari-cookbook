@@ -21,6 +21,7 @@
     "verify:introduction": "tsx scripts/verify-introduction.ts",
     "verify:outcome": "tsx scripts/verify-introduction.ts",
     "verify:portability": "tsx scripts/verify-portability.ts",
+    "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },
   "dependencies": {

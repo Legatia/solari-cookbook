@@ -10,6 +10,7 @@ import {
   participants,
   runtimeLeases,
 } from "@/db/schema";
+import { revokeParticipantOAuthTokens } from "@/lib/mcp/first-party-oauth";
 import { loadSessionState, retireParticipantWorkspace } from "@/lib/sylla/session";
 
 export const PARTICIPATION_POLICY_VERSION = "2026-09-01";
@@ -216,6 +217,7 @@ export async function withdrawParticipation(participantId: string) {
         ),
       );
   }
+  await revokeParticipantOAuthTokens(participantId);
   await recordAuditEvent({
     eventId: participant.eventId,
     participantId,

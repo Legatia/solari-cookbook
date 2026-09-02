@@ -129,6 +129,13 @@ function services(
   return {
     bootstrapAgent: vi.fn().mockResolvedValue(state),
     loadState: vi.fn().mockResolvedValue(state),
+    proposeMemory: vi.fn().mockResolvedValue({
+      id: "3295a3c0-a857-4be3-9a03-bd31d3995045",
+      summary: "I prefer quiet one-on-one conversations.",
+      status: "pending",
+      visibility: "private",
+      approvalRequired: true,
+    }),
     getBilling: vi.fn().mockResolvedValue(billing),
     acquireLease: vi.fn().mockResolvedValue({
       leaseId: "lease-id",
@@ -375,6 +382,9 @@ describe("Sylla MCP server", () => {
         tools: expect.arrayContaining([
           expect.objectContaining({ name: "sylla_bootstrap_agent" }),
           expect.objectContaining({ name: "sylla_get_agent_context" }),
+          expect.objectContaining({ name: "sylla_remember" }),
+          expect.objectContaining({ name: "sylla_research" }),
+          expect.objectContaining({ name: "sylla_find_private_introduction" }),
           expect.objectContaining({ name: "sylla_get_agent_workspace" }),
           expect.objectContaining({ name: "sylla_get_plan" }),
           expect.objectContaining({ name: "sylla_acquire_agent_lease" }),
@@ -451,6 +461,122 @@ describe("Sylla MCP server", () => {
     };
     expect(result.structuredContent.memories).toHaveLength(1);
     expect(result.structuredContent.memories[0]?.status).toBe("confirmed");
+  });
+
+  it("creates an explicit memory proposal through the companion tool", async () => {
+    const proposeMemory = vi.fn().mockResolvedValue({
+      id: "3295a3c0-a857-4be3-9a03-bd31d3995045",
+      summary: "I recharge through quiet one-on-one conversations.",
+      status: "pending",
+      visibility: "private",
+      approvalRequired: true,
+    });
+    const handler = createTestHandler(services({ proposeMemory }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 202,
+      method: "tools/call",
+      params: {
+        name: "sylla_remember",
+        arguments: {
+          summary: "I recharge through quiet one-on-one conversations.",
+          visibility: "private",
+        },
+      },
+    });
+
+    expect(proposeMemory).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      summary: "I recharge through quiet one-on-one conversations.",
+      visibility: "private",
+    });
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          memory: { status: "pending", approvalRequired: true },
+        },
+      },
+    });
+  });
+
+  it("runs high-level research under an internally managed lease", async () => {
+    const acquireLease = vi.fn().mockResolvedValue({
+      leaseId: "lease-id",
+      clientId,
+      runId: "companion-research-research-123",
+      leaseToken,
+      purpose: "Research participant-approved public sources",
+      expiresAt: "2026-09-01T10:10:00.000Z",
+    });
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    const prepareBrowserResearch = vi.fn().mockResolvedValue({
+      run: { ...agentRun, taskType: "research_approved_sources" },
+      sources: [{ id: "source-1", url: "https://example.com", label: "Example", title: null, excerpt: null, status: "approved" }],
+      completedCount: 0,
+      totalCount: 1,
+      nextSourceId: "source-1",
+      ambiguousSourceIds: [],
+    });
+    const researchNextBrowserSource = vi.fn().mockResolvedValue({
+      run: { ...agentRun, taskType: "research_approved_sources" },
+      sources: [{ id: "source-1", url: "https://example.com", label: "Example", title: "Example", excerpt: "Evidence", status: "complete" }],
+      completedCount: 1,
+      totalCount: 1,
+      nextSourceId: null,
+      ambiguousSourceIds: [],
+    });
+    const handler = createTestHandler(
+      services({
+        acquireLease,
+        releaseLease,
+        prepareBrowserResearch,
+        researchNextBrowserSource,
+      }),
+    );
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 203,
+      method: "tools/call",
+      params: {
+        name: "sylla_research",
+        arguments: {
+          requestId: "research-123",
+          focus: "Understand this project",
+          sources: [{ url: "https://example.com", label: "Example" }],
+        },
+      },
+    });
+
+    expect(acquireLease).toHaveBeenCalledOnce();
+    expect(researchNextBrowserSource).toHaveBeenCalledOnce();
+    expect(releaseLease).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({
+      result: { structuredContent: { progress: { completedCount: 1 } } },
+    });
+  });
+
+  it("runs one private introduction direction without disclosing identity", async () => {
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    const handler = createTestHandler(services({ releaseLease }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 204,
+      method: "tools/call",
+      params: {
+        name: "sylla_find_private_introduction",
+        arguments: { requestId: "intro-123" },
+      },
+    });
+    expect(releaseLease).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          status: "waiting_for_other_agent",
+          candidatePair: { readyForProposal: false },
+        },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("otherParticipant");
   });
 
   it("bootstraps idempotently through the injected portable-agent service", async () => {

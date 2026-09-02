@@ -12,8 +12,10 @@ import {
   ArrowUpRight,
   Brain,
   Check,
+  CheckCircle2,
   CirclePause,
   CirclePlay,
+  Copy,
   ExternalLink,
   Eye,
   EyeOff,
@@ -22,6 +24,7 @@ import {
   LoaderCircle,
   Monitor,
   Pencil,
+  Plug,
   Plus,
   RefreshCw,
   Send,
@@ -41,13 +44,19 @@ import type {
 } from "@/lib/sylla/contracts";
 import { cn } from "@/lib/utils";
 
-type View = "conversation" | "workspace" | "memory";
+type View = "conversation" | "connections" | "workspace" | "memory";
 type SourceDraft = { url: string; label: string };
 type ApiResponse = {
   state?: SyllaSessionState;
   error?: string;
   streamCapability?: string | null;
   checkout?: { url: string; hosted: true };
+  connection?: {
+    endpoint: string;
+    connected: boolean;
+    connectionCount: number;
+    lastUsedAt: string | null;
+  };
 };
 
 class SyllaApiError extends Error {
@@ -61,6 +70,7 @@ class SyllaApiError extends Error {
 
 const navigation = [
   { id: "conversation" as const, label: "Conversation", icon: Sparkles },
+  { id: "connections" as const, label: "Connect your AI", icon: Plug },
   { id: "workspace" as const, label: "Workspace", icon: Monitor },
   { id: "memory" as const, label: "Memory", icon: Brain },
 ];
@@ -178,9 +188,11 @@ function WithdrawnScreen({ eventName }: { eventName: string }) {
 function ConsentScreen({
   state,
   onComplete,
+  onConnect,
 }: {
   state: SyllaSessionState;
   onComplete: (state: SyllaSessionState) => void;
+  onConnect: () => void;
 }) {
   const now = new Date();
   const defaultStart = new Date(now.getTime() + 60 * 60 * 1_000);
@@ -257,6 +269,16 @@ function ConsentScreen({
             you approve, proposes memory for review, and never introduces you
             without a separate yes.
           </p>
+          <button
+            type="button"
+            onClick={onConnect}
+            className="mt-8 inline-flex items-center gap-2 rounded-full border border-lime-200/20 bg-lime-200/[0.06] px-4 py-2.5 text-[10px] uppercase tracking-[0.16em] text-lime-200 transition-colors hover:bg-lime-200/[0.1]"
+          >
+            <Plug className="size-3.5" /> Connect your AI first
+          </button>
+          <p className="mt-3 max-w-xs text-[10px] leading-5 text-stone-600">
+            Your AI can meet the agent now. Private actions unlock only after you choose the permissions here.
+          </p>
         </div>
         <div className="space-y-8 rounded-[2rem] border border-white/[0.09] bg-black/15 p-6 sm:p-9">
           <label className="block">
@@ -300,8 +322,10 @@ function ConsentScreen({
 
 function FirstSession({
   onComplete,
+  onConnect,
 }: {
   onComplete: (state: SyllaSessionState) => void;
+  onConnect: () => void;
 }) {
   const [agentName, setAgentName] = useState("");
   const [focus, setFocus] = useState("");
@@ -432,13 +456,22 @@ function FirstSession({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={loadDemo}
-            className="text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
-          >
-            Load demo identity
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={onConnect}
+              className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-lime-200/75 transition-colors hover:text-lime-200"
+            >
+              <Plug className="size-3.5" /> Connect your AI
+            </button>
+            <button
+              type="button"
+              onClick={loadDemo}
+              className="text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+            >
+              Load demo identity
+            </button>
+          </div>
         </header>
 
         <form
@@ -1202,6 +1235,152 @@ function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openW
   );
 }
 
+function ConnectionsView({ agentName }: { agentName: string | null }) {
+  const [connection, setConnection] = useState<ApiResponse["connection"] | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    setError(null);
+    try {
+      const payload = await api("/api/mcp/connection");
+      setConnection(payload.connection);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Connection state failed.");
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    api("/api/mcp/connection")
+      .then((payload) => {
+        if (active) setConnection(payload.connection);
+      })
+      .catch((caught) => {
+        if (active) {
+          setError(caught instanceof Error ? caught.message : "Connection state failed.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function copyEndpoint() {
+    if (!connection?.endpoint) return;
+    await navigator.clipboard.writeText(connection.endpoint);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1_800);
+  }
+
+  async function disconnect() {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await api("/api/mcp/connection", { method: "DELETE" });
+      setConnection(payload.connection);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Disconnect failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
+      <div className="mx-auto max-w-5xl animate-rise">
+        <div className="grid gap-8 border-b border-white/[0.08] pb-9 lg:grid-cols-[1fr_0.7fr] lg:items-end">
+          <div>
+            <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
+              <span className="size-1.5 rounded-full bg-lime-200" /> MCP connection
+            </div>
+            <h1 className="max-w-3xl font-heading text-5xl leading-[0.92] tracking-[-0.045em] text-stone-100 sm:text-6xl">
+              Bring {agentName ?? "your agent"} into the AI you already use.
+            </h1>
+          </div>
+          <p className="text-sm leading-7 text-stone-500">
+            The host model supplies active reasoning. Sylla supplies your approved memory, identity, permissions, introductions, and Solari tools.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+          <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-600">Your Sylla MCP endpoint</p>
+                <p className="mt-2 text-xs text-stone-400">OAuth 2.1 · PKCE · portable identity</p>
+              </div>
+              <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px]", connection?.connected ? "border-lime-200/20 bg-lime-200/[0.06] text-lime-200" : "border-white/10 text-stone-500")}>
+                <span className={cn("size-1.5 rounded-full", connection?.connected ? "bg-lime-200" : "bg-stone-600")} />
+                {connection?.connected ? `${connection.connectionCount} connected` : "Ready to connect"}
+              </span>
+            </div>
+
+            <div className="mt-7 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 p-3">
+              <code className="min-w-0 flex-1 truncate text-xs text-stone-300">{connection?.endpoint ?? "Loading endpoint…"}</code>
+              <Button type="button" variant="ghost" size="sm" onClick={() => void copyEndpoint()} disabled={!connection?.endpoint} className="shrink-0 text-stone-400 hover:text-lime-200">
+                {copied ? <CheckCircle2 /> : <Copy />} {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+
+            <ol className="mt-8 space-y-5">
+              {[
+                ["01", "Enable Developer mode", "In ChatGPT, open Settings → Security and login → Developer mode."],
+                ["02", "Add an MCP connection", "Open ChatGPT Plugins, press +, and paste your Sylla MCP endpoint."],
+                ["03", "Approve the relationship", `Sylla opens a private consent screen. Choose “Connect my agent” to give the host access to ${agentName ?? "your agent"}.`],
+                ["04", "Talk normally", `Ask “What do you remember about me?”, “Remember this,” or “Use ${agentName ?? "my agent"} to research these sources.”`],
+              ].map(([number, title, body]) => (
+                <li key={number} className="grid grid-cols-[2.4rem_1fr] gap-4">
+                  <span className="font-mono text-[9px] text-lime-200/50">{number}</span>
+                  <div>
+                    <p className="text-sm font-medium text-stone-200">{title}</p>
+                    <p className="mt-1.5 text-xs leading-6 text-stone-500">{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-8 flex flex-wrap gap-3 border-t border-white/[0.07] pt-6">
+              <a href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-lime-200 px-5 text-xs font-semibold text-stone-950">
+                Open ChatGPT Plugins <ArrowUpRight className="size-3.5" />
+              </a>
+              <Button type="button" variant="outline" onClick={() => void refresh()} className="rounded-full border-white/10 bg-transparent text-xs text-stone-400">
+                <RefreshCw /> Refresh status
+              </Button>
+              {connection?.connected && (
+                <Button type="button" variant="ghost" onClick={() => void disconnect()} disabled={busy} className="rounded-full text-xs text-red-300/60 hover:text-red-300">
+                  <X /> Disconnect all
+                </Button>
+              )}
+            </div>
+            {connection?.lastUsedAt && <p className="mt-4 text-[9px] text-stone-600">Last used {new Date(connection.lastUsedAt).toLocaleString()}</p>}
+            {error && <p className="mt-4 text-xs text-red-300/80">{error}</p>}
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-[2rem] border border-lime-200/15 bg-lime-200/[0.045] p-6 sm:p-8">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">Companion actions</p>
+              <div className="mt-6 space-y-5">
+                {[
+                  [Brain, "Recall", "Bring only approved context into this conversation."],
+                  [Sparkles, "Remember", "Propose something you explicitly asked it to keep."],
+                  [Globe2, "Research", "Read approved public sources with evidence preserved."],
+                  [ShieldCheck, "Introduce", "Look privately for one bilateral human possibility."],
+                ].map(([Icon, title, body]) => {
+                  const ActionIcon = Icon as typeof Brain;
+                  return <div key={title as string} className="grid grid-cols-[2.25rem_1fr] gap-3"><span className="grid size-8 place-items-center rounded-full border border-white/10 text-lime-200/70"><ActionIcon className="size-3.5" /></span><div><p className="text-xs font-medium text-stone-200">{title as ReactNode}</p><p className="mt-1 text-[11px] leading-5 text-stone-500">{body as ReactNode}</p></div></div>;
+                })}
+              </div>
+            </div>
+            <p className="px-2 text-[10px] leading-5 text-stone-600">Sylla never receives the host’s subscription credentials. The host uses its own model allowance while the conversation is active; Sylla meters only its own Solari and fallback work.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AppShell({ initialState }: { initialState: SyllaSessionState }) {
   const [state, setState] = useState(initialState);
   const [view, setView] = useState<View>(state.stage === "review" ? "memory" : "conversation");
@@ -1310,6 +1489,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
           {view === "conversation" && (
             <ConversationView state={state} onChange={setState} openMemory={() => setView("memory")} openWorkspace={() => setView("workspace")} />
           )}
+          {view === "connections" && <ConnectionsView agentName={state.agentName} />}
           {view === "memory" && (
             <MemoryView state={state} onChange={setState} openWorkspace={() => setView("workspace")} />
           )}
@@ -1326,6 +1506,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
 export function SyllaShell() {
   const [state, setState] = useState<SyllaSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showOnboardingConnections, setShowOnboardingConnections] = useState(false);
 
   async function retry() {
     setError(null);
@@ -1358,7 +1539,39 @@ export function SyllaShell() {
   if (error) return <ErrorScreen error={error} retry={() => void retry()} />;
   if (!state) return <LoadingScreen />;
   if (state.stage === "withdrawn") return <WithdrawnScreen eventName={state.event.name} />;
-  if (state.stage === "consent") return <ConsentScreen state={state} onComplete={setState} />;
-  if (state.stage === "new") return <FirstSession onComplete={setState} />;
+  if (showOnboardingConnections && (state.stage === "consent" || state.stage === "new")) {
+    return (
+      <main className="observatory-shell min-h-svh bg-background text-foreground">
+        <header className="flex h-14 items-center border-b border-white/[0.07] px-5 sm:px-10">
+          <button
+            type="button"
+            onClick={() => setShowOnboardingConnections(false)}
+            className="text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+          >
+            ← Back to setup
+          </button>
+          <span className="ml-auto font-heading italic text-stone-200">Sylla</span>
+        </header>
+        <ConnectionsView agentName={state.agentName} />
+      </main>
+    );
+  }
+  if (state.stage === "consent") {
+    return (
+      <ConsentScreen
+        state={state}
+        onComplete={setState}
+        onConnect={() => setShowOnboardingConnections(true)}
+      />
+    );
+  }
+  if (state.stage === "new") {
+    return (
+      <FirstSession
+        onComplete={setState}
+        onConnect={() => setShowOnboardingConnections(true)}
+      />
+    );
+  }
   return <AppShell initialState={state} />;
 }

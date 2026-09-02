@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
+
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
+import { proposeConversationMemory } from "@/lib/sylla/companion";
 import {
   EntitlementRequiredError,
   getBillingSummary,
@@ -75,6 +78,11 @@ export type SyllaMcpServices = {
     input: BootstrapInput,
   ) => Promise<SyllaSessionState>;
   loadState: (participantId: string) => Promise<SyllaSessionState>;
+  proposeMemory: (input: {
+    participantId: string;
+    summary: string;
+    visibility: "private" | "shareable";
+  }) => ReturnType<typeof proposeConversationMemory>;
   getBilling: (participantId: string) => Promise<BillingSummary>;
   acquireLease: (input: {
     participantId: string;
@@ -233,6 +241,7 @@ const defaultServices: SyllaMcpServices = {
     return loadSessionState(participantId);
   },
   loadState: loadSessionState,
+  proposeMemory: proposeConversationMemory,
   getBilling: getBillingSummary,
   acquireLease: acquireRuntimeLease,
   heartbeatLease: heartbeatRuntimeLease,
@@ -366,12 +375,28 @@ function entitlementContinuation(error: EntitlementRequiredError) {
   });
 }
 
+function companionOperationKey(
+  participantId: string,
+  requestId: string,
+  operation: string,
+) {
+  return `sylla:${createHash("sha256")
+    .update(`${participantId}:${requestId}:${operation}`)
+    .digest("hex")}`;
+}
+
 export function createSyllaMcpServer(
   context: { participantId: string; clientId: string; scopes?: string[] },
   services: SyllaMcpServices = defaultServices,
 ) {
   const { participantId, clientId } = context;
-  const server = new McpServer({ name: "sylla", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "sylla", version: "0.2.0" },
+    {
+      instructions:
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent and recall approved context with sylla_get_agent_context. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+    },
+  );
 
   server.registerTool(
     "sylla_bootstrap_agent",
@@ -433,6 +458,182 @@ export function createSyllaMcpServer(
           sourceCount: state.sources.length,
         },
       });
+    },
+  );
+
+  server.registerTool(
+    "sylla_remember",
+    {
+      title: "Remember something about me",
+      description:
+        "Create a short memory proposal from something the participant explicitly asked Sylla to remember. The proposal is not approved memory until the participant reviews it in Sylla. Never send a raw transcript or infer sensitive facts.",
+      inputSchema: z.object({
+        summary: z.string().trim().min(3).max(280),
+        visibility: z.enum(["private", "shareable"]).default("private"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ summary, visibility }) =>
+      result({
+        memory: await services.proposeMemory({
+          participantId,
+          summary,
+          visibility,
+        }),
+        nextStep:
+          "Tell the participant this is waiting for their approval in Sylla Memory.",
+      }),
+  );
+
+  server.registerTool(
+    "sylla_research",
+    {
+      title: "Research approved sources for me",
+      description:
+        "High-level companion action: research one to three public URLs the participant explicitly provided, preserve evidence with Solari Browser, and return memory proposals for review. Sylla manages the runtime lease and durable checkpoints internally.",
+      inputSchema: z.object({
+        requestId: idempotencyKeySchema,
+        focus: z.string().trim().min(3).max(280),
+        sources: z.array(browserSourceSchema).min(1).max(3),
+        backgroundContinuationAllowed: z.boolean().default(false),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ requestId, focus, sources, backgroundContinuationAllowed }) => {
+      const runKey = companionOperationKey(participantId, requestId, "research");
+      const runId = `companion-research-${runKey.slice(6, 38)}`;
+      const lease = await services.acquireLease({
+        participantId,
+        clientId,
+        runId,
+        purpose: "Research participant-approved public sources",
+        durationSeconds: 300,
+      });
+      const authorization = leaseAuthorization(clientId, {
+        runId,
+        leaseToken: lease.leaseToken,
+      });
+      try {
+        let progress = await services.prepareBrowserResearch({
+          participantId,
+          authorization,
+          idempotencyKey: companionOperationKey(
+            participantId,
+            requestId,
+            "research:prepare",
+          ),
+          focus,
+          sources,
+          backgroundContinuationAllowed,
+          fallbackBudgetCredits: backgroundContinuationAllowed ? sources.length : 0,
+        });
+        for (
+          let index = 0;
+          index < sources.length &&
+          progress.nextSourceId &&
+          progress.run.status === "host_orchestrated";
+          index += 1
+        ) {
+          progress = await services.researchNextBrowserSource({
+            participantId,
+            agentRunId: progress.run.id,
+            authorization,
+            idempotencyKey: companionOperationKey(
+              participantId,
+              requestId,
+              `research:source:${index + 1}`,
+            ),
+          });
+        }
+        return result({
+          progress,
+          memoryPolicy: "Evidence and inferences remain proposals until the participant approves them.",
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      } finally {
+        await services.releaseLease(participantId, authorization).catch(() => undefined);
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_find_private_introduction",
+    {
+      title: "Find someone I may genuinely want to meet",
+      description:
+        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate only the caller's direction. Returns no identity or private rationale. A proposal can advance only after the other agent independently recommends the match and both humans separately consent.",
+      inputSchema: z.object({ requestId: idempotencyKeySchema }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ requestId }) => {
+      const runKey = companionOperationKey(participantId, requestId, "introduction");
+      const runId = `companion-introduction-${runKey.slice(6, 38)}`;
+      const lease = await services.acquireLease({
+        participantId,
+        clientId,
+        runId,
+        purpose: "Evaluate a private introduction candidate",
+        durationSeconds: 300,
+      });
+      const authorization = leaseAuthorization(clientId, {
+        runId,
+        leaseToken: lease.leaseToken,
+      });
+      try {
+        const pair = await services.prepareCandidatePair({
+          participantId,
+          authorization,
+        });
+        if (!pair) {
+          return result({
+            status: "no_candidate_yet",
+            message:
+              "No eligible mutual possibility is ready yet. Sylla will not lower the consent or availability bar.",
+          });
+        }
+        await services.evaluateMyDirection({
+          participantId,
+          candidatePairId: pair.id,
+          authorization,
+          idempotencyKey: companionOperationKey(
+            participantId,
+            requestId,
+            "introduction:my-direction",
+          ),
+        });
+        return result({
+          status: "waiting_for_other_agent",
+          candidatePair: await services.getCandidatePair(participantId, pair.id),
+          privacy:
+            "No identity, private context, decision, or evaluation rationale is disclosed before the bilateral gates complete.",
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      } finally {
+        await services.releaseLease(participantId, authorization).catch(() => undefined);
+      }
     },
   );
 

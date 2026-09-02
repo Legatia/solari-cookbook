@@ -78,6 +78,13 @@
       "when": 1788305418989,
       "tag": "0010_long_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788341151778,
+      "tag": "0011_rapid_husk",
+      "breakpoints": true
     }
   ]
 }

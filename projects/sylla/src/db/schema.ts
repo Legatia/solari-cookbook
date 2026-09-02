@@ -326,6 +326,90 @@ export const hostConnections = pgTable(
   ],
 );
 
+export const oauthClients = pgTable("oauth_clients", {
+  clientId: text("client_id").primaryKey(),
+  clientName: text("client_name"),
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  grantTypes: jsonb("grant_types")
+    .$type<string[]>()
+    .default(["authorization_code", "refresh_token"])
+    .notNull(),
+  responseTypes: jsonb("response_types")
+    .$type<string[]>()
+    .default(["code"])
+    .notNull(),
+  tokenEndpointAuthMethod: text("token_endpoint_auth_method")
+    .default("none")
+    .notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const oauthAuthorizationCodes = pgTable(
+  "oauth_authorization_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    codeHash: text("code_hash").notNull(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    codeChallenge: text("code_challenge").notNull(),
+    resource: text("resource").notNull(),
+    scopes: jsonb("scopes").$type<string[]>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("oauth_authorization_codes_hash_unique").on(table.codeHash),
+    index("oauth_authorization_codes_participant_idx").on(table.participantId),
+    index("oauth_authorization_codes_client_idx").on(table.clientId),
+  ],
+);
+
+export const oauthAccessTokens = pgTable(
+  "oauth_access_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    accessTokenHash: text("access_token_hash").notNull(),
+    refreshTokenHash: text("refresh_token_hash").notNull(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: "cascade" }),
+    resource: text("resource").notNull(),
+    scopes: jsonb("scopes").$type<string[]>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    refreshExpiresAt: timestamp("refresh_expires_at", {
+      withTimezone: true,
+    }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("oauth_access_tokens_access_hash_unique").on(
+      table.accessTokenHash,
+    ),
+    uniqueIndex("oauth_access_tokens_refresh_hash_unique").on(
+      table.refreshTokenHash,
+    ),
+    index("oauth_access_tokens_participant_idx").on(table.participantId),
+    index("oauth_access_tokens_client_idx").on(table.clientId),
+  ],
+);
+
 export const events = pgTable(
   "events",
   {
