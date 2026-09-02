@@ -118,7 +118,7 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-`SYLLA_ENABLE_DEMO_SESSIONS=true` permits the invitation-free synthetic first session during local development. Production defaults to invitation-only entry; do not enable the demo bypass on a public deployment.
+`SYLLA_ENABLE_DEMO_SESSIONS=true` permits invitation-free synthetic sessions. Production defaults to invitation-only entry. The public showcase enables this flag together with `INTEGRATION_MODE=mock`, so visitors can use isolated demo sessions without creating paid Solari resources. Never combine an ungated public deployment with the live adapter unless abuse controls are in place.
 
 The Vercel-linked development environment can instead be pulled with:
 
