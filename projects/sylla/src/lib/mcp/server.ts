@@ -367,7 +367,7 @@ function entitlementContinuation(error: EntitlementRequiredError) {
 }
 
 export function createSyllaMcpServer(
-  context: { participantId: string; clientId: string },
+  context: { participantId: string; clientId: string; scopes?: string[] },
   services: SyllaMcpServices = defaultServices,
 ) {
   const { participantId, clientId } = context;
@@ -1090,8 +1090,9 @@ export function createSyllaMcpServer(
     async () => result({ export: await services.exportAgent(participantId) }),
   );
 
-  server.registerTool(
-    "sylla_delete_my_agent",
+  if (context.scopes?.includes("sylla:delete")) {
+    server.registerTool(
+      "sylla_delete_my_agent",
     {
       title: "Permanently delete my Sylla agent",
       description:
@@ -1116,7 +1117,8 @@ export function createSyllaMcpServer(
           confirmation,
         }),
       ),
-  );
+    );
+  }
 
   server.registerTool(
     "sylla_yield_agent_run",

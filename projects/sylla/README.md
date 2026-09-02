@@ -156,7 +156,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, explicit disclosure approval, non-identifying proposal creation, private introduction response/status, structured outcome submission, memory review, portable export/deletion, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes portable-agent/context/workspace tools plus plan, lease, durable-run, approved-source preparation, one-source Browser execution, research-progress, privacy-preserving pair preparation/status, one-direction Sandbox evaluation, explicit disclosure approval, non-identifying proposal creation, private introduction response/status, structured outcome submission, memory review, portable export/deletion, checkpoint, yield, fallback-attempt, reconnect-read, and handoff-acknowledgment tools. Mutating host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 
@@ -207,6 +207,8 @@ The token must include:
 - `sub` identifying the Sylla account
 - `client_id` or `azp` identifying the MCP host
 - the `sylla:agent` scope in `scope` or `scp`
+
+The optional `sylla:delete` scope is separately required before the permanent-deletion tool is even visible. The tool still requires an active human-host lease and the exact destructive confirmation phrase. Ordinary agent tokens can export but cannot delete.
 
 Sylla publishes RFC 9728 protected-resource metadata at `/.well-known/oauth-protected-resource/mcp`. It stores the verified issuer/subject mapping and each client connection, but never stores the upstream access token. Two clients presenting tokens for the same issuer and subject recover the same canonical user, personal agent, participant state, and workspace metadata.
 

@@ -110,11 +110,14 @@ const agentRun: AgentRunView = {
   handoff: null,
 };
 
-function createTestHandler(services: SyllaMcpServices) {
+function createTestHandler(
+  services: SyllaMcpServices,
+  scopes = ["sylla:agent", "sylla:delete"],
+) {
   return createMcpHandler(
     () =>
       createSyllaMcpServer(
-        { participantId: state.participantId, clientId },
+        { participantId: state.participantId, clientId, scopes },
         services,
       ),
   );
@@ -412,6 +415,23 @@ describe("Sylla MCP server", () => {
         ]),
       },
     });
+  });
+
+  it("hides permanent deletion without the elevated OAuth scope", async () => {
+    const handler = createTestHandler(services(), ["sylla:agent"]);
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 101,
+      method: "tools/list",
+      params: {},
+    });
+    const tools = (body.result as { tools: Array<{ name: string }> }).tools;
+    expect(tools.some((tool) => tool.name === "sylla_export_my_agent")).toBe(
+      true,
+    );
+    expect(tools.some((tool) => tool.name === "sylla_delete_my_agent")).toBe(
+      false,
+    );
   });
 
   it("returns approved memories without leaking pending proposals by default", async () => {

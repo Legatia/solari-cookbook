@@ -36,7 +36,7 @@ export function tryAuthenticateDevelopmentMcpRequest(
   return {
     token,
     clientId: "sylla-development-client",
-    scopes: ["sylla:agent"],
+    scopes: ["sylla:agent", "sylla:delete"],
     expiresAt: Math.floor(Date.now() / 1000) + 5 * 60,
     resource: new URL(request.url),
     extra: { participantId },

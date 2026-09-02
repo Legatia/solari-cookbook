@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 
 export const SYLLA_AGENT_SCOPE = "sylla:agent";
+export const SYLLA_DELETE_SCOPE = "sylla:delete";
 
 const optionalUrl = z.preprocess(
   (value) =>
@@ -138,7 +139,7 @@ export function getProtectedResourceMetadata(
   return {
     resource: configuration.audience,
     authorization_servers: [configuration.issuer],
-    scopes_supported: [SYLLA_AGENT_SCOPE],
+    scopes_supported: [SYLLA_AGENT_SCOPE, SYLLA_DELETE_SCOPE],
     bearer_methods_supported: ["header"],
     resource_name: "Sylla personal agent",
   };

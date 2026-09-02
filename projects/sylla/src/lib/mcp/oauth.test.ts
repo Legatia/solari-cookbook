@@ -59,7 +59,7 @@ describe("Sylla OAuth resource server", () => {
     expect(getProtectedResourceMetadata(configuration)).toEqual({
       resource: configuration.audience,
       authorization_servers: [configuration.issuer],
-      scopes_supported: ["sylla:agent"],
+      scopes_supported: ["sylla:agent", "sylla:delete"],
       bearer_methods_supported: ["header"],
       resource_name: "Sylla personal agent",
     });
