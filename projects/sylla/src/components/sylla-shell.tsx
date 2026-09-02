@@ -759,7 +759,7 @@ function ConversationView({
     try {
       const payload = await api("/api/reflections", {
         method: "POST",
-        body: JSON.stringify({ reflection }),
+        body: JSON.stringify({ proposedMemory: reflection }),
       });
       if (payload.state) onChange(payload.state);
       setReflection("");
@@ -837,8 +837,8 @@ function ConversationView({
             value={reflection}
             onChange={(event) => setReflection(event.target.value)}
             rows={1}
-            maxLength={600}
-            placeholder={`Tell ${state.agentName} one thing…`}
+            maxLength={280}
+            placeholder="Write one exact sentence to propose as memory…"
             className="max-h-32 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-stone-200 outline-none placeholder:text-stone-600"
           />
           <Button
@@ -852,7 +852,7 @@ function ConversationView({
           </Button>
         </div>
         <p className="mx-auto mt-2.5 max-w-2xl px-1 text-[10px] tracking-wide text-stone-600">
-          Your answer is proposed as private memory and still waits for approval.
+          Only this exact sentence is stored as a private proposal. Do not paste a raw debrief; it still waits for your approval.
         </p>
         {error && <p className="mx-auto mt-2 max-w-2xl px-1 text-xs text-red-300/80">{error}</p>}
       </form>

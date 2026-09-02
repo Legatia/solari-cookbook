@@ -34,9 +34,33 @@ export type WorkspaceOperationContext = {
 };
 
 function approvedWorkspaceManifest(state: SyllaSessionState): WorkspaceManifest {
-  const approved = state.observations.filter(
+  const approvedObservations = state.observations.filter(
     (observation) => observation.status !== "pending",
   );
+  const approvedPersonalMemories = state.personalMemories.filter(
+    (memory) => memory.status !== "proposed",
+  );
+  const approved = [
+    ...approvedObservations.map((observation) => ({
+      id: observation.id,
+      claim: observation.claim,
+      origin: observation.origin,
+      visibility: observation.visibility,
+      sourceTitle: observation.sourceTitle,
+      evidenceExcerpt: observation.evidenceExcerpt,
+    })),
+    ...approvedPersonalMemories.map((memory) => ({
+      id: memory.id,
+      claim: memory.summary,
+      origin: "told_to_me" as const,
+      visibility: memory.visibility,
+      sourceTitle:
+        memory.source === "introduction_debrief"
+          ? "Approved after an introduction"
+          : "Approved personal memory",
+      evidenceExcerpt: null,
+    })),
+  ];
 
   if (!state.agentName || !state.focus || approved.length === 0) {
     throw new WorkspacePrerequisiteError(
@@ -51,14 +75,7 @@ function approvedWorkspaceManifest(state: SyllaSessionState): WorkspaceManifest 
     currentTask: `Understand what matters now: ${state.focus}`,
     artifactCount: state.sources.length,
     memoryCount: approved.length,
-    observations: approved.map((observation) => ({
-      id: observation.id,
-      claim: observation.claim,
-      origin: observation.origin,
-      visibility: observation.visibility,
-      sourceTitle: observation.sourceTitle,
-      evidenceExcerpt: observation.evidenceExcerpt,
-    })),
+    observations: approved,
   };
 }
 

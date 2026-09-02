@@ -131,6 +131,14 @@ export const introductionDecision = pgEnum("introduction_decision", [
   "declined",
 ]);
 
+export const outcomeAnswer = pgEnum("outcome_answer", ["yes", "no", "unsure"]);
+
+export const debriefDisposition = pgEnum("debrief_disposition", [
+  "skipped",
+  "quick",
+  "private_host_conversation",
+]);
+
 export const syllaUsers = pgTable("sylla_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   displayName: text("display_name"),
@@ -917,6 +925,47 @@ export const introductionResponses = pgTable(
   ],
 );
 
+export const introductionOutcomes = pgTable(
+  "introduction_outcomes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    introductionProposalId: uuid("introduction_proposal_id")
+      .notNull()
+      .references(() => introductionProposals.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    met: boolean("met").notNull(),
+    worthwhile: outcomeAnswer("worthwhile"),
+    meetAgain: outcomeAnswer("meet_again"),
+    alreadyKnew: boolean("already_knew").notNull(),
+    wouldHaveMetWithoutSylla: outcomeAnswer("would_have_met_without_sylla")
+      .notNull(),
+    contactExchanged: boolean("contact_exchanged").default(false).notNull(),
+    secondInteractionPlanned: boolean("second_interaction_planned")
+      .default(false)
+      .notNull(),
+    wantsAnotherIntroduction: boolean("wants_another_introduction")
+      .default(false)
+      .notNull(),
+    debriefDisposition: debriefDisposition("debrief_disposition").notNull(),
+    proposedMemoryCount: integer("proposed_memory_count").default(0).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("introduction_outcomes_proposal_idx").on(
+      table.introductionProposalId,
+    ),
+    index("introduction_outcomes_participant_idx").on(table.participantId),
+    uniqueIndex("introduction_outcomes_proposal_participant_unique").on(
+      table.introductionProposalId,
+      table.participantId,
+    ),
+  ],
+);
+
 export const agentWorkspaces = pgTable(
   "agent_workspaces",
   {
@@ -973,6 +1022,10 @@ export const personalMemories = pgTable(
     participantId: uuid("participant_id")
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
+    introductionOutcomeId: uuid("introduction_outcome_id").references(
+      () => introductionOutcomes.id,
+      { onDelete: "set null" },
+    ),
     summary: text("summary").notNull(),
     status: memoryStatus("status").default("proposed").notNull(),
     visibility: visibility("visibility").default("private").notNull(),
@@ -982,7 +1035,10 @@ export const personalMemories = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index("personal_memories_participant_idx").on(table.participantId)],
+  (table) => [
+    index("personal_memories_participant_idx").on(table.participantId),
+    index("personal_memories_outcome_idx").on(table.introductionOutcomeId),
+  ],
 );
 
 // Raw debrief text is intentionally absent from the durable schema.

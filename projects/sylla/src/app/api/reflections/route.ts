@@ -9,19 +9,21 @@ import {
   resolveParticipant,
 } from "@/lib/sylla/session";
 
-const reflectionSchema = z.object({
-  reflection: z.string().trim().min(3).max(600),
-});
+const proposedMemorySchema = z
+  .object({
+    proposedMemory: z.string().trim().min(3).max(280),
+  })
+  .strict();
 
 export async function POST(request: NextRequest) {
   const { participant, newToken } = await resolveParticipant(request);
 
   try {
-    const { reflection } = reflectionSchema.parse(await request.json());
+    const { proposedMemory } = proposedMemorySchema.parse(await request.json());
     await getDatabase().insert(observations).values({
       participantId: participant.id,
-      claim: reflection,
-      evidenceExcerpt: reflection,
+      claim: proposedMemory,
+      evidenceExcerpt: null,
       origin: "told_to_me",
       status: "pending",
       visibility: "private",
@@ -36,11 +38,10 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error
             ? error.message
-            : "That reflection could not be proposed as memory.",
+            : "That exact memory proposal could not be saved.",
       },
       newToken,
       { status: 400 },
     );
   }
 }
-

@@ -300,6 +300,8 @@ No identity is revealed without two valid recommendations, two approved disclosu
 
 ## Phase 8 — Private debrief, memory, and organizer evidence
 
+**Implementation status: complete in the reference backend and MCP contract; participant-facing debrief polish, authenticated organizer presentation, and live rehearsal remain in Phase 9.**
+
 ### Objective
 
 Measure whether the introduction created value and whether the agent earned enough trust for voluntary reflection and repeated use.

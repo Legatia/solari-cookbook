@@ -37,6 +37,17 @@ import {
   reserveCandidatePair,
 } from "@/lib/sylla/matching";
 import {
+  getOwnIntroductionOutcome,
+  listParticipantMemories,
+  reviewPersonalMemory,
+  structuredOutcomeSchema,
+  submitIntroductionOutcome,
+} from "@/lib/sylla/outcomes";
+import {
+  buildPortableAgentExport,
+  deletePortableAgent,
+} from "@/lib/sylla/portability";
+import {
   acknowledgeAgentRunHandoff,
   checkpointAgentRun,
   executeFallbackOnce,
@@ -142,6 +153,34 @@ export type SyllaMcpServices = {
     participantId: string,
     introductionProposalId: string,
   ) => ReturnType<typeof getIntroductionProposalForParticipant>;
+  submitOutcome: (input: {
+    participantId: string;
+    introductionProposalId: string;
+    authorization: RuntimeLeaseAuthorization;
+    outcome: unknown;
+  }) => ReturnType<typeof submitIntroductionOutcome>;
+  getOwnOutcome: (
+    participantId: string,
+    introductionProposalId: string,
+  ) => ReturnType<typeof getOwnIntroductionOutcome>;
+  listPersonalMemories: (
+    participantId: string,
+  ) => ReturnType<typeof listParticipantMemories>;
+  reviewMemory: (input: {
+    participantId: string;
+    memoryId: string;
+    authorization: RuntimeLeaseAuthorization;
+    decision: "approve" | "edit" | "forget";
+    editedSummary?: string;
+  }) => ReturnType<typeof reviewPersonalMemory>;
+  exportAgent: (
+    participantId: string,
+  ) => ReturnType<typeof buildPortableAgentExport>;
+  deleteAgent: (input: {
+    participantId: string;
+    authorization: RuntimeLeaseAuthorization;
+    confirmation: "DELETE MY SYLLA AGENT";
+  }) => ReturnType<typeof deletePortableAgent>;
   startRun: (input: {
     participantId: string;
     authorization: RuntimeLeaseAuthorization;
@@ -238,6 +277,12 @@ const defaultServices: SyllaMcpServices = {
   },
   respondToIntroduction: respondToIntroductionProposal,
   getIntroduction: getIntroductionProposalForParticipant,
+  submitOutcome: submitIntroductionOutcome,
+  getOwnOutcome: getOwnIntroductionOutcome,
+  listPersonalMemories: listParticipantMemories,
+  reviewMemory: reviewPersonalMemory,
+  exportAgent: buildPortableAgentExport,
+  deleteAgent: deletePortableAgent,
   startRun: startAgentRun,
   checkpointRun: checkpointAgentRun,
   yieldRun: yieldAgentRunToBackground,
@@ -368,7 +413,10 @@ export function createSyllaMcpServer(
       },
     },
     async ({ includePending }) => {
-      const state = await services.loadState(participantId);
+      const [state, personalMemories] = await Promise.all([
+        services.loadState(participantId),
+        services.listPersonalMemories(participantId),
+      ]);
       const observations = state.observations.filter(
         (observation) => includePending || observation.status !== "pending",
       );
@@ -376,6 +424,9 @@ export function createSyllaMcpServer(
       return result({
         agent: portableAgent(state),
         memories: observations,
+        relationshipMemories: personalMemories.filter(
+          (memory) => includePending || memory.status !== "proposed",
+        ),
         memoryPolicy: {
           pendingIsApproved: false,
           approvalRequired: true,
@@ -930,6 +981,141 @@ export function createSyllaMcpServer(
           introductionProposalId,
         ),
       }),
+  );
+
+  server.registerTool(
+    "sylla_submit_my_introduction_outcome",
+    {
+      title: "Submit my private introduction outcome",
+      description:
+        "Human-controlled post-meeting gate. Submit only the explicit structured answers and zero to three short proposed memories the participant has reviewed. Never send a transcript or raw debrief. The other participant's outcome is not returned.",
+      inputSchema: z.object({
+        introductionProposalId: z.uuid(),
+        outcome: structuredOutcomeSchema,
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ introductionProposalId, outcome, runId, leaseToken }) =>
+      result({
+        submission: await services.submitOutcome({
+          participantId,
+          introductionProposalId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          outcome,
+        }),
+        retentionPolicy: {
+          rawDebriefAccepted: false,
+          rawDebriefPersisted: false,
+          proposedMemoriesRequireReview: true,
+        },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_get_my_introduction_outcome",
+    {
+      title: "Read my introduction outcome",
+      description:
+        "Return only the caller's structured outcome for this introduction. The other participant's answers and debrief state are never exposed.",
+      inputSchema: z.object({ introductionProposalId: z.uuid() }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ introductionProposalId }) =>
+      result({
+        outcome: await services.getOwnOutcome(
+          participantId,
+          introductionProposalId,
+        ),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_review_my_memory",
+    {
+      title: "Approve, edit, or forget my proposed memory",
+      description:
+        "Human-controlled memory gate. Approve a distilled private proposal, replace it with the participant's edited wording, or permanently forget it. Proposed memory never affects future reasoning until approved or edited.",
+      inputSchema: z.object({
+        memoryId: z.uuid(),
+        decision: z.enum(["approve", "edit", "forget"]),
+        editedSummary: z.string().trim().min(3).max(280).optional(),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ memoryId, decision, editedSummary, runId, leaseToken }) =>
+      result({
+        memory: await services.reviewMemory({
+          participantId,
+          memoryId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          decision,
+          editedSummary,
+        }),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_export_my_agent",
+    {
+      title: "Export my portable Sylla agent",
+      description:
+        "Export the caller's canonical agent identity and approved state across Sylla event records. The export excludes pending or forgotten memory, raw debriefs, other participants' outcomes, provider credentials, and Solari capabilities.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => result({ export: await services.exportAgent(participantId) }),
+  );
+
+  server.registerTool(
+    "sylla_delete_my_agent",
+    {
+      title: "Permanently delete my Sylla agent",
+      description:
+        "Irreversibly delete the caller's canonical Sylla account, event-participation records, approved and proposed memory, outcomes, host connections, and Sylla-managed workspace resources. This requires a human-controlled host lease and the exact confirmation phrase. Export first if the participant wants a copy.",
+      inputSchema: z.object({
+        confirmation: z.literal("DELETE MY SYLLA AGENT"),
+        runId: runIdSchema,
+        leaseToken: leaseTokenSchema,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ confirmation, runId, leaseToken }) =>
+      result(
+        await services.deleteAgent({
+          participantId,
+          authorization: leaseAuthorization(clientId, { runId, leaseToken }),
+          confirmation,
+        }),
+      ),
   );
 
   server.registerTool(

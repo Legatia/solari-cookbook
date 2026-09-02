@@ -19,6 +19,8 @@
     "verify:participation": "tsx scripts/verify-participation.ts",
     "verify:matching": "tsx scripts/verify-matching.ts",
     "verify:introduction": "tsx scripts/verify-introduction.ts",
+    "verify:outcome": "tsx scripts/verify-introduction.ts",
+    "verify:portability": "tsx scripts/verify-portability.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },
   "dependencies": {

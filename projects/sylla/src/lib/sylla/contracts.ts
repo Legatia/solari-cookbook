@@ -47,6 +47,15 @@ export type SyllaObservation = {
   confidence: string | null;
 };
 
+export type SyllaPersonalMemory = {
+  id: string;
+  summary: string;
+  status: "proposed" | "approved" | "edited";
+  visibility: "private" | "shareable";
+  approvedAt: string | null;
+  source: "introduction_debrief" | "personal";
+};
+
 export type SyllaWorkspace = {
   id: string;
   provider: string | null;
@@ -95,5 +104,6 @@ export type SyllaSessionState = {
   };
   sources: SyllaSource[];
   observations: SyllaObservation[];
+  personalMemories: SyllaPersonalMemory[];
   workspace: SyllaWorkspace | null;
 };

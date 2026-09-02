@@ -34,6 +34,13 @@ import {
   acceptParticipationConsent,
   PARTICIPATION_POLICY_VERSION,
 } from "../src/lib/sylla/participation";
+import {
+  getOwnIntroductionOutcome,
+  listParticipantMemories,
+  reviewPersonalMemory,
+  submitIntroductionOutcome,
+} from "../src/lib/sylla/outcomes";
+import { getPrivacySafeEventAggregate } from "../src/lib/sylla/organizer";
 
 async function main() {
   const database = getDatabase();
@@ -182,7 +189,7 @@ async function main() {
     );
     await releaseRuntimeLease(aliceId, internalLease);
 
-    const aliceLease = await acquireRuntimeLease({
+    let aliceLease = await acquireRuntimeLease({
       participantId: aliceId,
       clientId: "chatgpt-alice",
       runId: `alice-${syntheticId}`,
@@ -259,6 +266,118 @@ async function main() {
     assert.equal(afterMutual.meeting?.area, "North lobby welcome desk");
     assert.equal(afterMutual.privacy.otherDecisionRevealed, false);
 
+    const aliceOutcome = {
+      met: true,
+      worthwhile: "yes" as const,
+      meetAgain: "yes" as const,
+      alreadyKnew: false,
+      wouldHaveMetWithoutSylla: "no" as const,
+      contactExchanged: true,
+      secondInteractionPlanned: false,
+      wantsAnotherIntroduction: true,
+      debriefDisposition: "private_host_conversation" as const,
+      proposedMemories: [
+        "I value conversations that connect product ideas to local community.",
+        "I prefer one focused introduction over a crowded networking room.",
+      ],
+    };
+    await assert.rejects(
+      submitIntroductionOutcome({
+        participantId: aliceId,
+        introductionProposalId: proposal.id,
+        authorization: aliceLease,
+        outcome: {
+          ...aliceOutcome,
+          rawDebrief: "This exact private sentence must never be stored.",
+        },
+      }),
+      /Unrecognized key/,
+    );
+    await releaseRuntimeLease(aliceId, aliceLease);
+    const outcomeFallbackLease = await acquireRuntimeLease({
+      participantId: aliceId,
+      clientId: "sylla-internal",
+      runId: `outcome-internal-${syntheticId}`,
+      purpose: "Prove fallback cannot submit a debrief",
+      ownerKind: "internal",
+    });
+    await assert.rejects(
+      submitIntroductionOutcome({
+        participantId: aliceId,
+        introductionProposalId: proposal.id,
+        authorization: outcomeFallbackLease,
+        outcome: aliceOutcome,
+      }),
+      RuntimeLeaseAuthorizationError,
+    );
+    await releaseRuntimeLease(aliceId, outcomeFallbackLease);
+    aliceLease = await acquireRuntimeLease({
+      participantId: aliceId,
+      clientId: "chatgpt-alice",
+      runId: `alice-outcome-${syntheticId}`,
+      purpose: "Submit and review my outcome",
+    });
+    const aliceSubmission = await submitIntroductionOutcome({
+      participantId: aliceId,
+      introductionProposalId: proposal.id,
+      authorization: aliceLease,
+      outcome: aliceOutcome,
+    });
+    assert.equal(aliceSubmission.memoryProposals.length, 2);
+    assert.equal(
+      aliceSubmission.memoryProposals.every(
+        (memory) => memory.status === "proposed" && memory.visibility === "private",
+      ),
+      true,
+    );
+    const [firstMemory, secondMemory] = aliceSubmission.memoryProposals;
+    await reviewPersonalMemory({
+      participantId: aliceId,
+      memoryId: firstMemory!.id,
+      authorization: aliceLease,
+      decision: "edit",
+      editedSummary:
+        "I value focused conversations connecting product ideas to community.",
+    });
+    await reviewPersonalMemory({
+      participantId: aliceId,
+      memoryId: secondMemory!.id,
+      authorization: aliceLease,
+      decision: "forget",
+    });
+    const aliceMemories = await listParticipantMemories(aliceId);
+    assert.equal(aliceMemories.length, 1);
+    assert.equal(aliceMemories[0]?.status, "edited");
+
+    await submitIntroductionOutcome({
+      participantId: bobId,
+      introductionProposalId: proposal.id,
+      authorization: bobLease,
+      outcome: {
+        met: true,
+        worthwhile: "yes",
+        meetAgain: "unsure",
+        alreadyKnew: false,
+        wouldHaveMetWithoutSylla: "no",
+        contactExchanged: false,
+        secondInteractionPlanned: false,
+        wantsAnotherIntroduction: false,
+        debriefDisposition: "skipped",
+        proposedMemories: [],
+      },
+    });
+    const bobOwnOutcome = await getOwnIntroductionOutcome(bobId, proposal.id);
+    assert.equal(bobOwnOutcome?.worthwhile, "yes");
+    assert.equal(bobOwnOutcome?.otherOutcomeRevealed, false);
+    const completed = await getIntroductionProposalForParticipant(
+      aliceId,
+      proposal.id,
+    );
+    assert.equal(completed.status, "completed");
+    const organizerAggregate = await getPrivacySafeEventAggregate(eventId);
+    assert.equal(organizerAggregate.suppressed, true);
+    assert.equal(organizerAggregate.metrics, null);
+
     const identityRows = await database
       .select({ userId: participants.userId, agentId: participants.agentId })
       .from(participants)
@@ -288,6 +407,14 @@ async function main() {
         identityAfterMutualAcceptance: true,
         otherDecisionRevealed: false,
         approvedPreviewObservationCount: before.preview.length,
+        rawDebriefFieldRejected: true,
+        internalFallbackOutcomeBlocked: true,
+        proposedMemoriesRequireReview: true,
+        approvedMemoryCount: aliceMemories.length,
+        forgottenMemoryExcluded: true,
+        otherOutcomeRevealed: false,
+        completedOutcomeCount: 2,
+        smallCohortOrganizerMetricsSuppressed: true,
       }),
     );
   } finally {

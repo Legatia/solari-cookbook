@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getDatabase } from "@/db";
@@ -12,6 +12,7 @@ import {
   observations,
   participantConsents,
   participants,
+  personalMemories,
   workspaceArtifacts,
 } from "@/db/schema";
 import { createSolariAdapters } from "@/lib/solari";
@@ -145,11 +146,23 @@ export async function loadSessionState(
     .limit(1);
   if (!event) throw new Error("The Sylla event no longer exists.");
 
-  const [sourceRows, observationRows, workspaceRows, consentRows, availability] = await Promise.all([
+  const ownedParticipants = await database
+    .select({ id: participants.id })
+    .from(participants)
+    .where(eq(participants.agentId, identity.agentId));
+  const ownedParticipantIds = ownedParticipants.map((item) => item.id);
+  const [
+    sourceRows,
+    observationRows,
+    personalMemoryRows,
+    workspaceRows,
+    consentRows,
+    availability,
+  ] = await Promise.all([
     database
       .select()
       .from(approvedSources)
-      .where(eq(approvedSources.participantId, participantId))
+      .where(inArray(approvedSources.participantId, ownedParticipantIds))
       .orderBy(asc(approvedSources.approvedAt)),
     database
       .select({
@@ -162,11 +175,27 @@ export async function loadSessionState(
       .leftJoin(approvedSources, eq(observations.sourceId, approvedSources.id))
       .where(
         and(
-          eq(observations.participantId, participantId),
+          inArray(observations.participantId, ownedParticipantIds),
           ne(observations.status, "forgotten"),
         ),
       )
       .orderBy(asc(observations.observedAt)),
+    ownedParticipantIds.length > 0
+      ? database
+          .select()
+          .from(personalMemories)
+          .where(
+            and(
+              inArray(personalMemories.participantId, ownedParticipantIds),
+              inArray(personalMemories.status, [
+                "proposed",
+                "approved",
+                "edited",
+              ]),
+            ),
+          )
+          .orderBy(asc(personalMemories.createdAt))
+      : Promise.resolve([]),
     database
       .select()
       .from(agentWorkspaces)
@@ -264,6 +293,16 @@ export async function loadSessionState(
         confidence: observation.confidence,
       }),
     ),
+    personalMemories: personalMemoryRows.map((memory) => ({
+      id: memory.id,
+      summary: memory.summary,
+      status: memory.status as "proposed" | "approved" | "edited",
+      visibility: memory.visibility,
+      approvedAt: memory.approvedAt?.toISOString() ?? null,
+      source: memory.introductionOutcomeId
+        ? ("introduction_debrief" as const)
+        : ("personal" as const),
+    })),
     workspace: workspaceRows[0]
       ? {
           id: workspaceRows[0].id,

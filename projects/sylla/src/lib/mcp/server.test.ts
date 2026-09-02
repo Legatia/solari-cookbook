@@ -67,6 +67,7 @@ const state: SyllaSessionState = {
       confidence: "low",
     },
   ],
+  personalMemories: [],
   workspace: {
     id: "e275e249-bfc0-4cb7-9dbf-12b0de8e2955",
     provider: "solari",
@@ -219,6 +220,70 @@ function services(
         rawRationaleRevealed: false,
       },
     }),
+    submitOutcome: vi.fn().mockResolvedValue({
+      outcome: {
+        id: "f2ee2a67-6594-4657-b101-3df414cb2ba3",
+        introductionProposalId: "84145b35-3fae-4910-af85-ce9e49f7a606",
+        met: true,
+        worthwhile: "yes",
+        meetAgain: "yes",
+        alreadyKnew: false,
+        wouldHaveMetWithoutSylla: "no",
+        contactExchanged: true,
+        secondInteractionPlanned: false,
+        wantsAnotherIntroduction: true,
+        debriefDisposition: "quick",
+        proposedMemoryCount: 1,
+        submittedAt: "2026-09-10T20:00:00.000Z",
+      },
+      memoryProposals: [
+        {
+          id: "51fab9e4-e6af-4668-9161-763af0ad59df",
+          summary: "I value conversations grounded in local community.",
+          status: "proposed",
+          visibility: "private",
+          approvedAt: null,
+          source: "introduction_debrief",
+        },
+      ],
+      otherOutcomeRevealed: false,
+    }),
+    getOwnOutcome: vi.fn().mockResolvedValue(null),
+    listPersonalMemories: vi.fn().mockResolvedValue([]),
+    reviewMemory: vi.fn().mockResolvedValue({
+      id: "51fab9e4-e6af-4668-9161-763af0ad59df",
+      summary: "I value conversations grounded in local community.",
+      status: "approved",
+      visibility: "private",
+      approvedAt: "2026-09-10T20:05:00.000Z",
+    }),
+    exportAgent: vi.fn().mockResolvedValue({
+      format: "sylla-portable-agent",
+      version: 1,
+      generatedAt: "2026-09-10T20:10:00.000Z",
+      identity: {
+        userId: state.identity.userId,
+        agentId: state.identity.agentId,
+        agentName: state.agentName,
+        focus: state.focus,
+      },
+      participationRefs: [state.participantId],
+      approvedSources: [],
+      approvedObservations: [],
+      approvedPersonalMemories: [],
+      introductionOutcomes: [],
+      privacy: {
+        rawDebriefIncluded: false,
+        otherParticipantOutcomeIncluded: false,
+        providerCredentialIncluded: false,
+        desktopCapabilityIncluded: false,
+      },
+    }),
+    deleteAgent: vi.fn().mockResolvedValue({
+      deleted: true,
+      participantRecordsDeleted: 1,
+      recoverableBySylla: false,
+    }),
     startRun: vi.fn().mockResolvedValue(agentRun),
     checkpointRun: vi.fn().mockResolvedValue({
       ...agentRun,
@@ -325,6 +390,15 @@ describe("Sylla MCP server", () => {
           }),
           expect.objectContaining({ name: "sylla_respond_to_introduction" }),
           expect.objectContaining({ name: "sylla_get_introduction" }),
+          expect.objectContaining({
+            name: "sylla_submit_my_introduction_outcome",
+          }),
+          expect.objectContaining({
+            name: "sylla_get_my_introduction_outcome",
+          }),
+          expect.objectContaining({ name: "sylla_review_my_memory" }),
+          expect.objectContaining({ name: "sylla_export_my_agent" }),
+          expect.objectContaining({ name: "sylla_delete_my_agent" }),
           expect.objectContaining({ name: "sylla_checkpoint_agent_run" }),
           expect.objectContaining({ name: "sylla_yield_agent_run" }),
           expect.objectContaining({ name: "sylla_attempt_agent_fallback" }),
@@ -924,6 +998,219 @@ describe("Sylla MCP server", () => {
           },
         },
       },
+    });
+  });
+
+  it("accepts only structured outcomes and reviewable memory proposals", async () => {
+    const introductionProposalId = "84145b35-3fae-4910-af85-ce9e49f7a606";
+    const memoryId = "51fab9e4-e6af-4668-9161-763af0ad59df";
+    const outcome = {
+      met: true,
+      worthwhile: "yes" as const,
+      meetAgain: "yes" as const,
+      alreadyKnew: false,
+      wouldHaveMetWithoutSylla: "no" as const,
+      contactExchanged: true,
+      secondInteractionPlanned: false,
+      wantsAnotherIntroduction: true,
+      debriefDisposition: "quick" as const,
+      proposedMemories: [
+        "I value conversations grounded in local community.",
+      ],
+    };
+    const submitOutcome = vi.fn().mockResolvedValue({
+      outcome: {
+        id: "f2ee2a67-6594-4657-b101-3df414cb2ba3",
+        introductionProposalId,
+        ...outcome,
+        proposedMemoryCount: 1,
+        submittedAt: "2026-09-10T20:00:00.000Z",
+      },
+      memoryProposals: [
+        {
+          id: memoryId,
+          summary: outcome.proposedMemories[0],
+          status: "proposed",
+          visibility: "private",
+          approvedAt: null,
+          source: "introduction_debrief",
+        },
+      ],
+      otherOutcomeRevealed: false,
+    });
+    const getOwnOutcome = vi.fn().mockResolvedValue(null);
+    const reviewMemory = vi.fn().mockResolvedValue({
+      id: memoryId,
+      summary: outcome.proposedMemories[0],
+      status: "approved",
+      visibility: "private",
+      approvedAt: "2026-09-10T20:05:00.000Z",
+    });
+    const handler = createTestHandler(
+      services({ submitOutcome, getOwnOutcome, reviewMemory }),
+    );
+
+    const submitted = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 51,
+      method: "tools/call",
+      params: {
+        name: "sylla_submit_my_introduction_outcome",
+        arguments: {
+          introductionProposalId,
+          outcome,
+          runId,
+          leaseToken,
+        },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 52,
+      method: "tools/call",
+      params: {
+        name: "sylla_get_my_introduction_outcome",
+        arguments: { introductionProposalId },
+      },
+    });
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 53,
+      method: "tools/call",
+      params: {
+        name: "sylla_review_my_memory",
+        arguments: { memoryId, decision: "approve", runId, leaseToken },
+      },
+    });
+
+    expect(submitOutcome).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      introductionProposalId,
+      authorization: { clientId, runId, leaseToken },
+      outcome,
+    });
+    expect(getOwnOutcome).toHaveBeenCalledWith(
+      state.participantId,
+      introductionProposalId,
+    );
+    expect(reviewMemory).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      memoryId,
+      authorization: { clientId, runId, leaseToken },
+      decision: "approve",
+      editedSummary: undefined,
+    });
+    expect(submitted.body).toMatchObject({
+      result: {
+        structuredContent: {
+          retentionPolicy: {
+            rawDebriefAccepted: false,
+            rawDebriefPersisted: false,
+            proposedMemoriesRequireReview: true,
+          },
+          submission: { otherOutcomeRevealed: false },
+        },
+      },
+    });
+
+    const rejected = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 54,
+      method: "tools/call",
+      params: {
+        name: "sylla_submit_my_introduction_outcome",
+        arguments: {
+          introductionProposalId,
+          outcome: { ...outcome, rawDebrief: "must not cross MCP" },
+          runId,
+          leaseToken,
+        },
+      },
+    });
+    expect(submitOutcome).toHaveBeenCalledTimes(1);
+    expect(rejected.body).toMatchObject({ result: { isError: true } });
+  });
+
+  it("exports portable state and requires exact destructive deletion consent", async () => {
+    const exportAgent = vi.fn().mockResolvedValue({
+      format: "sylla-portable-agent",
+      version: 1,
+      generatedAt: "2026-09-10T20:10:00.000Z",
+      identity: {
+        userId: state.identity.userId,
+        agentId: state.identity.agentId,
+        agentName: state.agentName,
+        focus: state.focus,
+      },
+      participationRefs: [state.participantId],
+      approvedSources: [],
+      approvedObservations: [],
+      approvedPersonalMemories: [],
+      introductionOutcomes: [],
+      privacy: {
+        rawDebriefIncluded: false,
+        otherParticipantOutcomeIncluded: false,
+        providerCredentialIncluded: false,
+        desktopCapabilityIncluded: false,
+      },
+    });
+    const deleteAgent = vi.fn().mockResolvedValue({
+      deleted: true,
+      participantRecordsDeleted: 1,
+      recoverableBySylla: false,
+    });
+    const handler = createTestHandler(services({ exportAgent, deleteAgent }));
+
+    const exported = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 55,
+      method: "tools/call",
+      params: { name: "sylla_export_my_agent", arguments: {} },
+    });
+    expect(exported.body).toMatchObject({
+      result: {
+        structuredContent: {
+          export: {
+            format: "sylla-portable-agent",
+            privacy: {
+              rawDebriefIncluded: false,
+              providerCredentialIncluded: false,
+            },
+          },
+        },
+      },
+    });
+
+    const invalid = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 56,
+      method: "tools/call",
+      params: {
+        name: "sylla_delete_my_agent",
+        arguments: { confirmation: "delete", runId, leaseToken },
+      },
+    });
+    expect(invalid.body).toMatchObject({ result: { isError: true } });
+    expect(deleteAgent).not.toHaveBeenCalled();
+
+    await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 57,
+      method: "tools/call",
+      params: {
+        name: "sylla_delete_my_agent",
+        arguments: {
+          confirmation: "DELETE MY SYLLA AGENT",
+          runId,
+          leaseToken,
+        },
+      },
+    });
+    expect(exportAgent).toHaveBeenCalledWith(state.participantId);
+    expect(deleteAgent).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      authorization: { clientId, runId, leaseToken },
+      confirmation: "DELETE MY SYLLA AGENT",
     });
   });
 
