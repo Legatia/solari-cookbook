@@ -57,6 +57,8 @@ const baseUrl = new URL(
 const mcpEndpoint = `${baseUrl}/mcp`;
 const gatePassword = process.env.SYLLA_DEMO_PASSWORD;
 const verifyLiveResearch = process.env.SYLLA_VERIFY_LIVE_RESEARCH === "true";
+const verifyLiveSandboxMission =
+  process.env.SYLLA_VERIFY_LIVE_SANDBOX_MISSION === "true";
 const verifyConversationalSetup =
   process.env.SYLLA_VERIFY_CONVERSATIONAL_SETUP !== "false";
 let cookie: string | null = null;
@@ -386,6 +388,71 @@ try {
     }
   }
 
+  if (verifyLiveSandboxMission) {
+    const startedMission = await callMcp(mcpEndpoint, accessToken, 50, "tools/call", {
+      name: "sylla_start_mission",
+      arguments: {
+        requestId: `live-sandbox-mission-${randomBytes(12).toString("base64url")}`,
+        objective: "Test this public GitHub repository in an isolated environment.",
+        requestedOutcome: "Report the detected project type and check result",
+        sources: [
+          {
+            url: "https://github.com/solari-sdk/solari-cookbook",
+            label: "Solari cookbook",
+          },
+        ],
+        maxCredits: 100,
+      },
+    });
+    const started = startedMission.structuredContent as
+      | {
+          mission?: {
+            id?: string;
+            status?: string;
+            capability?: string;
+            resourcePlan?: { primary?: string };
+          };
+        }
+      | undefined;
+    invariant(started?.mission?.id, "The live Sandbox mission did not start.");
+    invariant(started.mission.status === "ready", "The live Sandbox mission was not ready.");
+    invariant(
+      started.mission.capability === "test_software" &&
+        started.mission.resourcePlan?.primary === "sandbox",
+      "The repository objective was not routed to Solari Sandbox.",
+    );
+    const continuedMission = await callMcp(mcpEndpoint, accessToken, 51, "tools/call", {
+      name: "sylla_continue_mission",
+      arguments: { missionId: started.mission.id },
+    });
+    const completed = continuedMission.structuredContent as
+      | {
+          mission?: {
+            status?: string;
+            result?: {
+              provider?: string;
+              exitCode?: number;
+              runReference?: unknown;
+            };
+            steps?: Array<{ providerReference?: unknown }>;
+          };
+        }
+      | undefined;
+    invariant(
+      completed?.mission?.status === "completed" &&
+        completed.mission.result?.provider === "solari" &&
+        completed.mission.result.exitCode === 0,
+      `The live Solari Sandbox mission did not complete: ${JSON.stringify(continuedMission)}`,
+    );
+    invariant(
+      completed.mission.result.runReference === undefined &&
+        completed.mission.steps?.every(
+          (step) => step.providerReference === undefined,
+        ),
+      "The mission response exposed a raw provider execution reference.",
+    );
+  }
+
   const connection = await json<{ connection: { connected: boolean } }>(
     await fetch(`${baseUrl}/api/mcp/connection`, { headers: { cookie } }),
   );
@@ -411,7 +478,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {

@@ -204,6 +204,8 @@ Run `pnpm verify:outcome` to continue that proof through two structured outcomes
 
 Run `pnpm verify:portability` to create one canonical agent across two event records, export only approved state from both, exclude pending memory and private runtime capabilities, then irreversibly delete the account and verify that its participants, audit rows, user, and agent no longer exist.
 
+Run `SYLLA_DEMO_PASSWORD=… pnpm verify:mcp-live https://serendipity-kappa.vercel.app` to exercise production OAuth, the 41-tool MCP surface, conversational setup, approved memory, the durable mission lifecycle, connection visibility, and revocation. Add `SYLLA_VERIFY_LIVE_RESEARCH=true` for one mission-routed Browser source or `SYLLA_VERIFY_LIVE_SANDBOX_MISSION=true` for one mission-routed disposable repository check. Those optional modes consume real Solari resources.
+
 Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
 
 ## OAuth MCP authentication
