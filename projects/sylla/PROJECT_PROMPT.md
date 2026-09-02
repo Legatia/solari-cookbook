@@ -135,6 +135,10 @@ Do not make the primary agent experience read like an essay generator. The conve
 
 From Sylla, the host receives only the MCP tool inputs and results necessary for the current action. Sylla must not silently ingest the participant's entire host chat history. When the host proposes a durable memory, show the exact distilled statement and require explicit approval before saving it.
 
+Give every canonical agent a portable, participant-controlled conversation profile: preferred reply length, warmth, directness, humor, challenge style, preferred address, and concrete preferred or avoided behaviors. The active host should request a compact conversation brief using only a short current-topic description. Sylla may use that topic ephemerally to rank approved memory, but must not store it as transcript or memory. Return no more than four relevant approved memories and instruct the host to use them quietly rather than listing them to demonstrate recall.
+
+Natural conversation is a product contract, not a vague tone request. Default to the useful point first, two to four sentences, at most one genuine question, and no automatic closing offer. Avoid canned validation, repeated summaries, excessive headings, raw mission statuses, provider mechanics, and performative apologies. Warmth must not become claims of consciousness, human feeling, exclusivity, dependence, or a relationship the participant did not define. The user can change these defaults explicitly, and the same profile must follow the agent across hosts.
+
 Place depth in the agent workspace. The workspace may contain:
 
 - Current research tasks and an interruptible activity log
@@ -534,6 +538,7 @@ Design a minimal relational model around these concepts:
 
 - Sylla user
 - User-owned personal agent
+- Portable conversation profile
 - Linked authentication identity
 - Host connection
 - Subscription and entitlement

@@ -171,6 +171,40 @@ export const personalAgents = pgTable(
   ],
 );
 
+export const agentConversationProfiles = pgTable(
+  "agent_conversation_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    responseLength: text("response_length").default("short").notNull(),
+    warmth: integer("warmth").default(3).notNull(),
+    directness: integer("directness").default(4).notNull(),
+    humor: text("humor").default("light").notNull(),
+    challengeStyle: text("challenge_style").default("gentle").notNull(),
+    preferredAddress: text("preferred_address"),
+    preferredBehaviors: jsonb("preferred_behaviors")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    avoidedBehaviors: jsonb("avoided_behaviors")
+      .$type<string[]>()
+      .default([])
+      .notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("agent_conversation_profiles_agent_unique").on(table.agentId),
+  ],
+);
+
 export const entitlements = pgTable(
   "entitlements",
   {

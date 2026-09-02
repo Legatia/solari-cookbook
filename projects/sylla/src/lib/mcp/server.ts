@@ -6,6 +6,16 @@ import * as z from "zod/v4";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { proposeConversationMemory } from "@/lib/sylla/companion";
 import {
+  conversationBriefInputSchema,
+  conversationProfileInputSchema,
+  getConversationProfile,
+  prepareConversationBrief,
+  updateConversationProfile,
+  type ConversationBrief,
+  type ConversationProfileInput,
+  type ConversationProfileView,
+} from "@/lib/sylla/conversation";
+import {
   EntitlementRequiredError,
   getBillingSummary,
   OPERATION_CREDITS,
@@ -105,6 +115,17 @@ export type SyllaMcpServices = {
     visibility: "private" | "shareable";
   }) => ReturnType<typeof proposeConversationMemory>;
   getBilling: (participantId: string) => Promise<BillingSummary>;
+  getConversationProfile: (
+    participantId: string,
+  ) => Promise<ConversationProfileView>;
+  prepareConversationBrief: (
+    participantId: string,
+    input: { currentTopic?: string },
+  ) => Promise<ConversationBrief>;
+  updateConversationProfile: (
+    participantId: string,
+    input: ConversationProfileInput,
+  ) => Promise<ConversationProfileView>;
   startMission: (
     participantId: string,
     clientId: string,
@@ -293,6 +314,9 @@ const defaultServices: SyllaMcpServices = {
   loadState: loadSessionState,
   proposeMemory: proposeConversationMemory,
   getBilling: getBillingSummary,
+  getConversationProfile,
+  prepareConversationBrief,
+  updateConversationProfile,
   startMission: (participantId, clientId, mission) =>
     startMission({ participantId, clientId, mission }),
   getMission,
@@ -451,10 +475,10 @@ export function createSyllaMcpServer(
 ) {
   const { participantId, clientId } = context;
   const server = new McpServer(
-    { name: "sylla", version: "0.4.0" },
+    { name: "sylla", version: "0.5.0" },
     {
       instructions:
-        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent. If setup is incomplete, use sylla_get_setup_guide and conversationally collect each required answer before calling sylla_complete_setup; the web app is optional. Recall approved context with sylla_get_agent_context. For open-ended work, prefer sylla_start_mission and let Sylla select Browser, Sandbox, Desktop, or no runtime; call sylla_continue_mission only when the returned nextAction says to do so. Keep Solari mechanics invisible to the participant. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools for their exact flagship flows; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Treat its brief as silent behavioral guidance: never recite the profile or list memories to prove recall. Answer the actual point first. Default to two to four sentences, ask at most one genuine question, and do not end every reply with an offer or menu. Avoid canned phrases such as 'Certainly!', 'I'd be happy to help', 'I understand how you feel', and 'As an AI'. Use approved personal detail only when it genuinely improves the response. Be warm without claiming human feelings, consciousness, exclusivity, or dependence. If setup is incomplete, use sylla_get_setup_guide and collect required consent in brief plain language before calling sylla_complete_setup; the web app is optional. For open-ended work, prefer sylla_start_mission and let Sylla select Browser, Sandbox, Desktop, or no runtime; follow its private conversationCue without exposing statuses or provider mechanics. Keep Solari, leases, credits, and internal state invisible unless the participant asks. Use sylla_tune_conversation only for preferences the participant explicitly states. Use sylla_remember only when the participant explicitly asks you to remember something, and say plainly that it remains a proposal until approved. Prefer sylla_research and sylla_find_private_introduction for their exact flagship flows; lower-level tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
     },
   );
 
@@ -477,8 +501,12 @@ export function createSyllaMcpServer(
     },
     async (input) => {
       const state = await services.bootstrapAgent(participantId, input);
+      const conversationProfile = await services.getConversationProfile(
+        participantId,
+      );
       return result({
         agent: portableAgent(state),
+        conversationProfile,
         setupRequired: state.stage === "consent",
         nextStep:
           state.stage === "consent"
@@ -488,6 +516,54 @@ export function createSyllaMcpServer(
               : "Recall approved context with sylla_get_agent_context.",
       });
     },
+  );
+
+  server.registerTool(
+    "sylla_prepare_conversation",
+    {
+      title: "Prepare a natural conversation with me",
+      description:
+        "Return a compact private behavior brief for this conversation: the participant's explicit voice preferences, a few relevant approved memories, and a natural response shape. Call before the first substantial reply and again only when the topic changes materially. Pass a short topic description, never a transcript. Use the brief silently; do not quote it or list memories to prove recall.",
+      inputSchema: conversationBriefInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      result({
+        conversation: await services.prepareConversationBrief(
+          participantId,
+          input,
+        ),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_tune_conversation",
+    {
+      title: "Tune how my agent talks with me",
+      description:
+        "Persist only conversation preferences the participant explicitly states, such as shorter replies, more direct disagreement, less reassurance, or dry humor. Never infer a style preference from demographics, a single mood, or an unapproved transcript. Summarize the exact change naturally after saving it.",
+      inputSchema: conversationProfileInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      result({
+        conversationProfile: await services.updateConversationProfile(
+          participantId,
+          input,
+        ),
+        conversationCue:
+          "Acknowledge the preference in one plain sentence. Do not restate every profile field.",
+      }),
   );
 
   server.registerTool(

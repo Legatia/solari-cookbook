@@ -225,6 +225,8 @@ try {
   const tools = listed.tools as Array<{ name: string }>;
   for (const name of [
     "sylla_bootstrap_agent",
+    "sylla_prepare_conversation",
+    "sylla_tune_conversation",
     "sylla_get_setup_guide",
     "sylla_complete_setup",
     "sylla_get_agent_context",
@@ -249,6 +251,63 @@ try {
     name: "sylla_get_agent_context",
     arguments: { includePending: false },
   });
+
+  const preparedConversation = await callMcp(
+    mcpEndpoint,
+    accessToken,
+    23,
+    "tools/call",
+    {
+      name: "sylla_prepare_conversation",
+      arguments: { currentTopic: "Deciding whether a social event is worth attending." },
+    },
+  );
+  const conversation = preparedConversation.structuredContent as
+    | {
+        conversation?: {
+          responseContract?: { openingMove?: string };
+          privacy?: {
+            fullTranscriptStoredBySylla?: boolean;
+            onlyApprovedMemoryIncluded?: boolean;
+            currentTopicPersistedBySylla?: boolean;
+          };
+        };
+      }
+    | undefined;
+  invariant(
+    conversation?.conversation?.responseContract?.openingMove,
+    "The conversation brief did not include response guidance.",
+  );
+  invariant(
+    conversation.conversation.privacy?.fullTranscriptStoredBySylla === false &&
+      conversation.conversation.privacy.onlyApprovedMemoryIncluded === true &&
+      conversation.conversation.privacy.currentTopicPersistedBySylla === false,
+    "The conversation brief did not preserve its privacy contract.",
+  );
+  const tunedConversation = await callMcp(
+    mcpEndpoint,
+    accessToken,
+    24,
+    "tools/call",
+    {
+      name: "sylla_tune_conversation",
+      arguments: {
+        responseLength: "short",
+        directness: 5,
+        humor: "dry",
+        avoidedBehaviors: ["End every reply with an offer"],
+      },
+    },
+  );
+  const tuned = tunedConversation.structuredContent as
+    | { conversationProfile?: { directness?: number; humor?: string; version?: number } }
+    | undefined;
+  invariant(
+    tuned?.conversationProfile?.directness === 5 &&
+      tuned.conversationProfile.humor === "dry" &&
+      (tuned.conversationProfile.version ?? 0) >= 2,
+    "The portable conversation preferences did not persist.",
+  );
 
   const stagedMission = await callMcp(mcpEndpoint, accessToken, 20, "tools/call", {
     name: "sylla_start_mission",
@@ -526,7 +585,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}${verifyLiveDesktopMission ? ", one real mission-routed Solari Desktop workspace" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, private conversation briefing and tuning, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}${verifyLiveDesktopMission ? ", one real mission-routed Solari Desktop workspace" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {

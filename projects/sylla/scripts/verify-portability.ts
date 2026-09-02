@@ -7,6 +7,7 @@ import { eq, inArray } from "drizzle-orm";
 
 import { getDatabase } from "../src/db";
 import {
+  agentConversationProfiles,
   auditEvents,
   events,
   observations,
@@ -15,6 +16,7 @@ import {
   personalMemories,
   syllaUsers,
 } from "../src/db/schema";
+import { updateConversationProfile } from "../src/lib/sylla/conversation";
 import { ensurePortableIdentity } from "../src/lib/sylla/identity";
 import { acquireRuntimeLease } from "../src/lib/sylla/leases";
 import {
@@ -63,6 +65,13 @@ async function main() {
       .update(participants)
       .set({ userId, agentId })
       .where(eq(participants.id, participantIds[1]!));
+    await updateConversationProfile(participantIds[0]!, {
+      responseLength: "terse",
+      directness: 5,
+      humor: "dry",
+      preferredBehaviors: ["Lead with the actual recommendation"],
+      avoidedBehaviors: ["End every response with an offer"],
+    });
 
     await database.insert(observations).values([
       {
@@ -124,6 +133,9 @@ async function main() {
     assert.equal(exported.participationRefs.length, 2);
     assert.equal(exported.approvedObservations.length, 2);
     assert.equal(exported.approvedPersonalMemories.length, 1);
+    assert.equal(exported.conversationProfile.responseLength, "terse");
+    assert.equal(exported.conversationProfile.directness, 5);
+    assert.equal(exported.conversationProfile.humor, "dry");
     assert.equal(exported.privacy.rawDebriefIncluded, false);
     assert.equal(JSON.stringify(exported).includes("unapproved proposal"), false);
 
@@ -142,7 +154,13 @@ async function main() {
     assert.equal(deletion.participantRecordsDeleted, 2);
     assert.equal(deletion.recoverableBySylla, false);
 
-    const [remainingParticipants, remainingUsers, remainingAgents, remainingAudit] =
+    const [
+      remainingParticipants,
+      remainingUsers,
+      remainingAgents,
+      remainingConversationProfiles,
+      remainingAudit,
+    ] =
       await Promise.all([
         database
           .select({ id: participants.id })
@@ -157,6 +175,10 @@ async function main() {
           .from(personalAgents)
           .where(eq(personalAgents.id, agentId)),
         database
+          .select({ id: agentConversationProfiles.id })
+          .from(agentConversationProfiles)
+          .where(eq(agentConversationProfiles.agentId, agentId)),
+        database
           .select({ id: auditEvents.id })
           .from(auditEvents)
           .where(inArray(auditEvents.participantId, participantIds)),
@@ -164,6 +186,7 @@ async function main() {
     assert.equal(remainingParticipants.length, 0);
     assert.equal(remainingUsers.length, 0);
     assert.equal(remainingAgents.length, 0);
+    assert.equal(remainingConversationProfiles.length, 0);
     assert.equal(remainingAudit.length, 0);
 
     console.log(
@@ -173,6 +196,7 @@ async function main() {
         approvedObservationsExported: exported.approvedObservations.length,
         approvedPersonalMemoriesExported:
           exported.approvedPersonalMemories.length,
+        conversationProfilePortable: true,
         crossEventStateLoadedIntoWorkspaceContract: true,
         pendingMemoryExcluded: true,
         rawDebriefIncluded: false,

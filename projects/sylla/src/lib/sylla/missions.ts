@@ -89,6 +89,7 @@ export type MissionView = {
   result: Record<string, unknown> | null;
   lastError: string | null;
   nextAction: string;
+  conversationCue: string;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -301,6 +302,36 @@ function nextAction(status: MissionStatus, capability: MissionCapability) {
   return "Explain the failure without hiding it; start a new bounded mission only if the participant asks.";
 }
 
+function conversationCue(
+  status: MissionStatus,
+  capability: MissionCapability,
+) {
+  if (status === "waiting_for_input") {
+    return capability === "test_software"
+      ? "Say: 'Send me the public repository link and I can check it.' Ask nothing else."
+      : "Say: 'Send me the public link or links you trust for this, and I'll take it from there.' Do not mention Browser or source scope.";
+  }
+  if (status === "waiting_for_approval") {
+    return "Explain the real-world effect in one sentence and ask for a clear yes. Do not quote internal risk labels or approval syntax.";
+  }
+  if (status === "ready") {
+    return "Continue without narrating setup, routing, leases, credits, or provider selection.";
+  }
+  if (status === "active") {
+    return "Say only that the work is underway if the participant needs an update; do not manufacture progress.";
+  }
+  if (status === "waiting_for_user") {
+    return "Lead with the human consequence or useful finding, then ask at most one decision question.";
+  }
+  if (status === "completed") {
+    return "Lead with the strongest useful conclusion in plain language. Offer depth only when it would genuinely help; do not recite the execution log.";
+  }
+  if (status === "canceled") {
+    return "Confirm the stop in one plain sentence without explaining internal cleanup.";
+  }
+  return "Say plainly that it did not work and what the participant can do next. Avoid stack traces, provider terminology, and performative apologies.";
+}
+
 async function loadMissionForAgent(
   participantId: string,
   missionId: string,
@@ -346,6 +377,10 @@ async function loadMissionForAgent(
     result: mission.result,
     lastError: mission.lastError,
     nextAction: nextAction(mission.status as MissionStatus, mission.capability as MissionCapability),
+    conversationCue: conversationCue(
+      mission.status as MissionStatus,
+      mission.capability as MissionCapability,
+    ),
     createdAt: mission.createdAt.toISOString(),
     updatedAt: mission.updatedAt.toISOString(),
     completedAt: mission.completedAt?.toISOString() ?? null,

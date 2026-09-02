@@ -141,6 +141,7 @@ const mission: MissionView = {
   result: null,
   lastError: null,
   nextAction: "Call sylla_continue_mission.",
+  conversationCue: "Continue without narrating internal setup.",
   createdAt: "2026-09-02T10:00:00.000Z",
   updatedAt: "2026-09-02T10:00:00.000Z",
   completedAt: null,
@@ -174,6 +175,70 @@ function services(
       approvalRequired: true,
     }),
     getBilling: vi.fn().mockResolvedValue(billing),
+    getConversationProfile: vi.fn().mockResolvedValue({
+      responseLength: "short",
+      warmth: 3,
+      directness: 4,
+      humor: "light",
+      challengeStyle: "gentle",
+      preferredAddress: "Tobias",
+      preferredBehaviors: [],
+      avoidedBehaviors: [],
+      version: 1,
+      updatedAt: "2026-09-02T10:00:00.000Z",
+    }),
+    prepareConversationBrief: vi.fn().mockResolvedValue({
+      agent: { name: "Mira", preferredAddress: "Tobias" },
+      relationship: {
+        stage: "familiar",
+        approvedMemoryCount: 2,
+        relevantMemories: [
+          {
+            id: "3295a3c0-a857-4be3-9a03-bd31d3995045",
+            text: "Prefers thoughtful conversations over networking theatre.",
+            kind: "approved_observation",
+          },
+        ],
+      },
+      voice: {
+        responseLength: "short",
+        warmth: 3,
+        directness: 4,
+        humor: "light",
+        challengeStyle: "gentle",
+        preferredAddress: "Tobias",
+        preferredBehaviors: [],
+        avoidedBehaviors: [],
+        version: 1,
+        updatedAt: "2026-09-02T10:00:00.000Z",
+      },
+      responseContract: {
+        openingMove: "Respond to the actual point immediately.",
+        tone: "Be quietly warm and direct.",
+        shape: "Usually two to four sentences.",
+        memoryUse: "Use relevant memory quietly.",
+        questions: "Ask at most one genuine question.",
+        honesty: "Be warm without claiming human feelings.",
+        avoid: ["Certainly!"],
+      },
+      privacy: {
+        fullTranscriptStoredBySylla: false,
+        onlyApprovedMemoryIncluded: true,
+        currentTopicPersistedBySylla: false,
+      },
+    }),
+    updateConversationProfile: vi.fn().mockResolvedValue({
+      responseLength: "terse",
+      warmth: 3,
+      directness: 5,
+      humor: "dry",
+      challengeStyle: "direct",
+      preferredAddress: "Tobias",
+      preferredBehaviors: ["Disagree plainly when needed"],
+      avoidedBehaviors: ["End every answer with an offer"],
+      version: 2,
+      updatedAt: "2026-09-02T10:05:00.000Z",
+    }),
     startMission: vi.fn().mockResolvedValue(mission),
     getMission: vi.fn().mockResolvedValue(mission),
     approveMission: vi.fn().mockResolvedValue({
@@ -327,7 +392,7 @@ function services(
     reviewObservation: vi.fn().mockResolvedValue(state),
     exportAgent: vi.fn().mockResolvedValue({
       format: "sylla-portable-agent",
-      version: 1,
+      version: 2,
       generatedAt: "2026-09-10T20:10:00.000Z",
       identity: {
         userId: state.identity.userId,
@@ -336,6 +401,18 @@ function services(
         focus: state.focus,
       },
       participationRefs: [state.participantId],
+      conversationProfile: {
+        responseLength: "short",
+        warmth: 3,
+        directness: 4,
+        humor: "light",
+        challengeStyle: "gentle",
+        preferredAddress: "Tobias",
+        preferredBehaviors: [],
+        avoidedBehaviors: [],
+        version: 1,
+        updatedAt: "2026-09-10T20:00:00.000Z",
+      },
       approvedSources: [],
       approvedObservations: [],
       approvedPersonalMemories: [],
@@ -439,6 +516,8 @@ describe("Sylla MCP server", () => {
       result: {
         tools: expect.arrayContaining([
           expect.objectContaining({ name: "sylla_bootstrap_agent" }),
+          expect.objectContaining({ name: "sylla_prepare_conversation" }),
+          expect.objectContaining({ name: "sylla_tune_conversation" }),
           expect.objectContaining({ name: "sylla_get_setup_guide" }),
           expect.objectContaining({ name: "sylla_complete_setup" }),
           expect.objectContaining({ name: "sylla_get_agent_context" }),
@@ -668,6 +747,81 @@ describe("Sylla MCP server", () => {
             agentId: state.identity.agentId,
             portable: true,
             workspaceStatus: "paused",
+          },
+        },
+      },
+    });
+  });
+
+  it("prepares a compact private conversation brief for the current topic", async () => {
+    const prepareConversationBrief = vi.fn(
+      services().prepareConversationBrief,
+    );
+    const handler = createTestHandler(
+      services({ prepareConversationBrief }),
+    );
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 306,
+      method: "tools/call",
+      params: {
+        name: "sylla_prepare_conversation",
+        arguments: { currentTopic: "I am unsure about attending the event." },
+      },
+    });
+
+    expect(prepareConversationBrief).toHaveBeenCalledWith(
+      state.participantId,
+      { currentTopic: "I am unsure about attending the event." },
+    );
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          conversation: {
+            relationship: { stage: "familiar" },
+            privacy: {
+              fullTranscriptStoredBySylla: false,
+              onlyApprovedMemoryIncluded: true,
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("persists only conversation preferences explicitly supplied by the participant", async () => {
+    const updateConversationProfile = vi.fn(
+      services().updateConversationProfile,
+    );
+    const handler = createTestHandler(
+      services({ updateConversationProfile }),
+    );
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 307,
+      method: "tools/call",
+      params: {
+        name: "sylla_tune_conversation",
+        arguments: {
+          responseLength: "terse",
+          directness: 5,
+          humor: "dry",
+          avoidedBehaviors: ["End every answer with an offer"],
+        },
+      },
+    });
+
+    expect(updateConversationProfile).toHaveBeenCalledWith(
+      state.participantId,
+      expect.objectContaining({ responseLength: "terse", directness: 5 }),
+    );
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          conversationProfile: {
+            responseLength: "terse",
+            directness: 5,
+            version: 2,
           },
         },
       },
@@ -1489,7 +1643,7 @@ describe("Sylla MCP server", () => {
   it("exports portable state and requires exact destructive deletion consent", async () => {
     const exportAgent = vi.fn().mockResolvedValue({
       format: "sylla-portable-agent",
-      version: 1,
+      version: 2,
       generatedAt: "2026-09-10T20:10:00.000Z",
       identity: {
         userId: state.identity.userId,
@@ -1498,6 +1652,18 @@ describe("Sylla MCP server", () => {
         focus: state.focus,
       },
       participationRefs: [state.participantId],
+      conversationProfile: {
+        responseLength: "short",
+        warmth: 3,
+        directness: 4,
+        humor: "light",
+        challengeStyle: "gentle",
+        preferredAddress: "Tobias",
+        preferredBehaviors: [],
+        avoidedBehaviors: [],
+        version: 1,
+        updatedAt: "2026-09-10T20:00:00.000Z",
+      },
       approvedSources: [],
       approvedObservations: [],
       approvedPersonalMemories: [],

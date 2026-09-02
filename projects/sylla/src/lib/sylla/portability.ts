@@ -12,6 +12,7 @@ import {
   syllaUsers,
 } from "@/db/schema";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
+import { getConversationProfile } from "@/lib/sylla/conversation";
 import {
   requireHumanHostLease,
   type RuntimeLeaseAuthorization,
@@ -38,6 +39,7 @@ export async function buildPortableAgentExport(participantId: string) {
     .where(eq(personalAgents.id, identity.agentId))
     .limit(1);
   if (!agent) throw new Error("The portable agent no longer exists.");
+  const conversationProfile = await getConversationProfile(participantId);
   const [sourceRows, observationRows, memoryRows, outcomeRows] =
     participantIds.length > 0
       ? await Promise.all([
@@ -118,7 +120,7 @@ export async function buildPortableAgentExport(participantId: string) {
 
   return {
     format: "sylla-portable-agent",
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
     identity: {
       userId: identity.userId,
@@ -127,6 +129,7 @@ export async function buildPortableAgentExport(participantId: string) {
       focus: agent.focus,
     },
     participationRefs: participantIds,
+    conversationProfile,
     approvedSources: sourceRows.map((source) => ({
       ...source,
       approvedAt: source.approvedAt.toISOString(),

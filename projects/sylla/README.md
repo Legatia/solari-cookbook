@@ -53,6 +53,8 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - OAuth protected-resource and authorization-server discovery, plus optional issuer-, audience-, expiry-, and scope-bound external JWT validation
 - A participant-visible **Connect your AI** panel with the live MCP URL, setup instructions, connection status, and one-click revocation
 - MCP-first conversational onboarding: the connected host can explain the exact consent boundary, collect explicit answers, name and focus the agent, save availability, and continue into source research without requiring `/app`
+- A portable conversation profile for reply length, warmth, directness, humor, challenge style, preferred address, and explicit do/don't preferences
+- A topic-scoped conversation brief that ranks only approved cross-event memories, returns at most four relevant items, and never stores the supplied topic or full host transcript
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients; the public prototype binds first-party grants to the participant's current Sylla browser session
 - Per-client host-connection records without exposing Solari credentials or storing plaintext OAuth tokens
 - Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
@@ -97,6 +99,12 @@ The live Sandbox adapter supports the deterministic directional-evaluation basel
 The normal MCP path is deliberately small: `sylla_start_mission`, `sylla_get_mission`, `sylla_approve_mission`, `sylla_continue_mission`, and `sylla_cancel_mission`. The host describes the participant's objective and explicit public source scope; Sylla classifies it, selects Browser, Sandbox, Desktop, or no runtime, checks consent and credits, persists a step plan, and returns the next safe action. The participant should never need to understand Solari products, lease tokens, VM cleanup, or provider billing.
 
 This is an abstraction over real bounded executors, not a claim that every computer task works today. Public-source research and comparison, meeting preparation, repository checks, workspace lifecycle, and the private-introduction flow are routed now. Consequential web-account missions require explicit mission approval but currently stop after inspection and preparation: no authenticated action is performed until the persistent-profile, takeover, and point-of-action confirmation path is implemented. Desktop routing is implemented but live allocation remains blocked by Solari's acknowledged upstream subscription-gate bug.
+
+## Conversation layer
+
+The host calls `sylla_prepare_conversation` with a short description of the current topic before its first substantial reply. Sylla returns explicit voice preferences, relationship depth, at most four relevance-ranked approved memories, and a response contract covering the opening move, tone, length, questions, memory use, and honesty. The brief is private behavioral guidance: the host must not recite it, list memories to prove recall, leak mission states, or force a personal reference.
+
+`sylla_tune_conversation` changes the portable profile only when the participant explicitly asks. It supports terse through detailed replies, warmth and directness levels, humor, challenge style, preferred address, and concrete preferred or avoided behaviors. Sylla does not infer these preferences from demographics, a temporary mood, or the transcript. The current topic is used in-memory for ranking and is not persisted. Full host transcripts remain outside Sylla.
 
 ## First-session flow
 
@@ -204,7 +212,7 @@ Run `pnpm verify:outcome` to continue that proof through two structured outcomes
 
 Run `pnpm verify:portability` to create one canonical agent across two event records, export only approved state from both, exclude pending memory and private runtime capabilities, then irreversibly delete the account and verify that its participants, audit rows, user, and agent no longer exist.
 
-Run `SYLLA_DEMO_PASSWORD=… pnpm verify:mcp-live https://serendipity-kappa.vercel.app` to exercise production OAuth, the 41-tool MCP surface, conversational setup, approved memory, the durable mission lifecycle, connection visibility, and revocation. Add `SYLLA_VERIFY_LIVE_RESEARCH=true` for one mission-routed Browser source, `SYLLA_VERIFY_LIVE_SANDBOX_MISSION=true` for one mission-routed disposable repository check, or `SYLLA_VERIFY_LIVE_DESKTOP_MISSION=true` to retry Desktop after Solari fixes the current plan-gate defect. Those optional modes consume real Solari resources when allocation succeeds.
+Run `SYLLA_DEMO_PASSWORD=… pnpm verify:mcp-live https://serendipity-kappa.vercel.app` to exercise production OAuth, the 43-tool MCP surface, conversation briefing and tuning, conversational setup, approved memory, the durable mission lifecycle, connection visibility, and revocation. Add `SYLLA_VERIFY_LIVE_RESEARCH=true` for one mission-routed Browser source, `SYLLA_VERIFY_LIVE_SANDBOX_MISSION=true` for one mission-routed disposable repository check, or `SYLLA_VERIFY_LIVE_DESKTOP_MISSION=true` to retry Desktop after Solari fixes the current plan-gate defect. Those optional modes consume real Solari resources when allocation succeeds.
 
 Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
 
