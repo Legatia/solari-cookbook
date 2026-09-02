@@ -19,9 +19,9 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Sylla — keep the agent, change the model",
+  title: "Sylla — an agent that knows you because you let it",
   description:
-    "A personal agent that finds the people you may genuinely want to meet.",
+    "An intimate personal agent that follows you across AI models through MCP and privately introduces people worth knowing.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
