@@ -43,6 +43,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Typed mock and live adapters for all three Solari products
 - Deterministic mock mode for local work without billable sessions
 - HttpOnly-cookie-isolated participant sessions backed by durable Neon state
+- A server-side shared demo gate with a signed seven-day HttpOnly cookie; protected pages, APIs, checkout, invitations, and OAuth consent cannot create metered work before unlock
 - Expiring, revocable, usage-bounded event invitations with atomic redemption
 - A versioned adult-consent gate covering approved-source research, private memory, matching, host retention boundaries, optional background continuation, and concrete availability windows
 - Append-only participation audit events plus withdrawal that immediately releases runtime leases, revokes host connections, and removes the participant from matching
@@ -121,7 +122,7 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-`SYLLA_ENABLE_DEMO_SESSIONS=true` permits invitation-free synthetic sessions. Production defaults to invitation-only entry. The public showcase enables this flag together with `INTEGRATION_MODE=mock`, so visitors can use isolated demo sessions without creating paid Solari resources. Never combine an ungated public deployment with the live adapter unless abuse controls are in place.
+`SYLLA_ENABLE_DEMO_SESSIONS=true` permits invitation-free synthetic sessions. Production defaults to invitation-only entry. `SYLLA_DEMO_PASSWORD` adds a server-side shared-password gate in front of the application, protected APIs, invitations, checkout, and OAuth consent. The public showcase combines that gate with `INTEGRATION_MODE=live`, so approved Browser, Sandbox, and workspace operations use the configured Solari account without exposing it to anonymous traffic. This shared password is a controlled-demo boundary, not a replacement for durable per-user login.
 
 The Vercel-linked development environment can instead be pulled with:
 
@@ -152,7 +153,7 @@ Browser and Sandbox have been verified with the current development account, and
 
 ## Connect an AI host
 
-The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. Open `/app`, finish the short agent setup, and choose **Connect your AI** to copy the current endpoint, see active connections, or revoke them. In ChatGPT, enable Developer mode, add the remote MCP URL, and approve the Sylla OAuth screen. The host can then recover the same session-bound agent with `sylla_bootstrap_agent`, recall approved context, propose memories, research participant-supplied URLs through Solari Browser, and start the privacy-preserving introduction flow.
+The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. Open `/app`, enter the private-demo password, and choose **Connect your AI** before or after the short agent setup to copy the endpoint, see active connections, or revoke them. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the demo password when Sylla opens its OAuth flow, and approve the relationship. The host can then recover the same session-bound agent with `sylla_bootstrap_agent`, recall approved context, propose memories, research participant-supplied URLs through Solari Browser, and start the privacy-preserving introduction flow.
 
 For local development, the disabled-by-default bearer bridge can exercise MCP without running the browser OAuth flow when all three variables are configured:
 

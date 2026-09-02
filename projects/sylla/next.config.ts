@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
     "patchright",
     "patchright-core",
   ],
+  // patchright resolves this manifest with fs at runtime, so static tracing
+  // cannot discover it through the Solari SDK's pnpm symlink.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/.pnpm/patchright-core@*/node_modules/patchright-core/browsers.json",
+    ],
+  },
 };
 
 export default nextConfig;

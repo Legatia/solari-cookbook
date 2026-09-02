@@ -4,10 +4,10 @@ function invariant(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
 
-function cookieFrom(response: Response) {
+function cookieFrom(response: Response, name: string) {
   const setCookie = response.headers.get("set-cookie");
-  const match = setCookie?.match(/(?:^|,\s*)(sylla_session=[^;]+)/);
-  invariant(match?.[1], "Sylla did not issue the demo session cookie.");
+  const match = setCookie?.match(new RegExp(`(?:^|,\\s*)(${name}=[^;]+)`));
+  invariant(match?.[1], `Sylla did not issue the ${name} cookie.`);
   return match[1];
 }
 
@@ -55,6 +55,8 @@ const baseUrl = new URL(
   process.argv[2] ?? "https://serendipity-kappa.vercel.app",
 ).origin;
 const mcpEndpoint = `${baseUrl}/mcp`;
+const gatePassword = process.env.SYLLA_DEMO_PASSWORD;
+const verifyLiveResearch = process.env.SYLLA_VERIFY_LIVE_RESEARCH === "true";
 let cookie: string | null = null;
 let accessToken: string | null = null;
 
@@ -98,9 +100,51 @@ try {
     201,
   );
 
-  const sessionResponse = await fetch(`${baseUrl}/api/session`);
+  let accessCookie: string | null = null;
+  if (gatePassword) {
+    const accessResponse = await fetch(`${baseUrl}/api/access`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      redirect: "manual",
+      body: new URLSearchParams({ password: gatePassword, next: "/app" }),
+    });
+    invariant(accessResponse.status === 303, "The demo password was not accepted.");
+    accessCookie = cookieFrom(accessResponse, "sylla_demo_access");
+  }
+
+  const sessionResponse = await fetch(`${baseUrl}/api/session`, {
+    headers: accessCookie ? { cookie: accessCookie } : undefined,
+  });
   invariant(sessionResponse.ok, "The Sylla browser session could not be created.");
-  cookie = cookieFrom(sessionResponse);
+  const sessionCookie = cookieFrom(sessionResponse, "sylla_session");
+  cookie = [accessCookie, sessionCookie].filter(Boolean).join("; ");
+
+  if (verifyLiveResearch) {
+    const startsAt = new Date(Date.now() + 60 * 60 * 1_000);
+    const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1_000);
+    const consentResponse = await fetch(`${baseUrl}/api/participation`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        displayName: "Sylla live verifier",
+        policyVersion: "2026-09-01",
+        ageConfirmed: true,
+        publicSourceResearch: true,
+        privateMemoryStorage: true,
+        matchmaking: true,
+        hostDataBoundary: true,
+        backgroundContinuation: false,
+        availability: [
+          {
+            startsAt: startsAt.toISOString(),
+            endsAt: endsAt.toISOString(),
+            timezone: "UTC",
+          },
+        ],
+      }),
+    });
+    invariant(consentResponse.ok, "The live verification participant could not consent.");
+  }
 
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -191,6 +235,34 @@ try {
     arguments: { includePending: false },
   });
 
+  if (verifyLiveResearch) {
+    const research = await callMcp(mcpEndpoint, accessToken, 4, "tools/call", {
+      name: "sylla_research",
+      arguments: {
+        requestId: `live-research-${randomBytes(12).toString("base64url")}`,
+        focus: "Understand what the Solari cookbook provides to builders.",
+        sources: [
+          {
+            url: "https://github.com/solari-sdk/solari-cookbook",
+            label: "Solari cookbook",
+          },
+        ],
+        backgroundContinuationAllowed: false,
+      },
+    });
+    const structured = research.structuredContent as
+      | { progress?: { completedCount?: number; totalCount?: number } }
+      | undefined;
+    if (
+      structured?.progress?.completedCount !== 1 ||
+      structured.progress.totalCount !== 1
+    ) {
+      throw new Error(
+        `The live Solari Browser source did not complete: ${JSON.stringify(research)}`,
+      );
+    }
+  }
+
   const connection = await json<{ connection: { connected: boolean } }>(
     await fetch(`${baseUrl}/api/mcp/connection`, { headers: { cookie } }),
   );
@@ -216,11 +288,17 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context${verifyLiveResearch ? ", one real Solari Browser source" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {
     await fetch(`${baseUrl}/api/mcp/connection`, {
+      method: "DELETE",
+      headers: { cookie },
+    }).catch(() => undefined);
+  }
+  if (cookie && verifyLiveResearch) {
+    await fetch(`${baseUrl}/api/participation`, {
       method: "DELETE",
       headers: { cookie },
     }).catch(() => undefined);
