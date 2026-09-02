@@ -5,11 +5,14 @@ import {
   directionalEvaluationSchema,
   researchRequestSchema,
   researchResultSchema,
+  repositoryTaskRequestSchema,
+  repositoryTaskResultSchema,
   workspaceManifestSchema,
   workspaceResultSchema,
   type BrowserResearchAdapter,
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
+  type SandboxTaskAdapter,
 } from "./contracts";
 import { assertPublicHttpUrl } from "./url-policy";
 
@@ -131,6 +134,23 @@ export class MockSandboxEvaluationAdapter
       uncertainty: "medium",
       caution: "A useful introduction is a hypothesis, not a compatibility claim.",
       evaluator: "mock",
+    });
+  }
+}
+
+export class MockSandboxTaskAdapter implements SandboxTaskAdapter {
+  async runRepositoryTask(input: unknown) {
+    const request = repositoryTaskRequestSchema.parse(input);
+    return repositoryTaskResultSchema.parse({
+      provider: "mock",
+      runReference: `sandbox-task-mock-${randomUUID()}`,
+      repositoryUrl: request.repositoryUrl,
+      projectType: "node",
+      command: "pnpm test",
+      exitCode: 0,
+      stdout: "Mock repository checks passed.",
+      stderr: "",
+      summary: "The isolated mock repository check completed successfully.",
     });
   }
 }

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { EntitlementRequiredError } from "@/lib/sylla/billing";
 import type { AgentRunView } from "@/lib/sylla/runs";
+import type { MissionView } from "@/lib/sylla/missions";
 
 import { createSyllaMcpServer, type SyllaMcpServices } from "./server";
 
@@ -109,6 +110,41 @@ const agentRun: AgentRunView = {
   latestCheckpoint: null,
   handoff: null,
 };
+const mission: MissionView = {
+  id: "65c0b649-a997-493f-a935-4b6b2e6dbf12",
+  objective: "Research whether this conference is worthwhile.",
+  requestedOutcome: "A concise recommendation",
+  capability: "research_public_topic",
+  status: "ready",
+  riskLevel: "observe",
+  approvalRequired: false,
+  approvedAt: null,
+  constraints: {
+    sourceUrls: [{ url: "https://example.com", label: "Conference" }],
+    maxCredits: 100,
+    backgroundContinuationAllowed: false,
+  },
+  resourcePlan: {
+    primary: "browser",
+    supporting: [],
+    reason: "The objective can be answered from approved public evidence.",
+  },
+  plan: [
+    {
+      sequence: 1,
+      title: "Validate the approved source scope",
+      resource: "sylla",
+      risk: "observe",
+    },
+  ],
+  steps: [],
+  result: null,
+  lastError: null,
+  nextAction: "Call sylla_continue_mission.",
+  createdAt: "2026-09-02T10:00:00.000Z",
+  updatedAt: "2026-09-02T10:00:00.000Z",
+  completedAt: null,
+};
 
 function createTestHandler(
   services: SyllaMcpServices,
@@ -138,6 +174,26 @@ function services(
       approvalRequired: true,
     }),
     getBilling: vi.fn().mockResolvedValue(billing),
+    startMission: vi.fn().mockResolvedValue(mission),
+    getMission: vi.fn().mockResolvedValue(mission),
+    approveMission: vi.fn().mockResolvedValue({
+      ...mission,
+      status: "ready",
+      approvalRequired: true,
+      approvedAt: "2026-09-02T10:01:00.000Z",
+    }),
+    continueMission: vi.fn().mockResolvedValue({
+      ...mission,
+      status: "completed",
+      result: { completedCount: 1 },
+      nextAction: "Report the result naturally.",
+      completedAt: "2026-09-02T10:02:00.000Z",
+    }),
+    cancelMission: vi.fn().mockResolvedValue({
+      ...mission,
+      status: "canceled",
+      nextAction: "The mission is canceled.",
+    }),
     acquireLease: vi.fn().mockResolvedValue({
       leaseId: "lease-id",
       clientId,
@@ -386,6 +442,11 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_get_setup_guide" }),
           expect.objectContaining({ name: "sylla_complete_setup" }),
           expect.objectContaining({ name: "sylla_get_agent_context" }),
+          expect.objectContaining({ name: "sylla_start_mission" }),
+          expect.objectContaining({ name: "sylla_get_mission" }),
+          expect.objectContaining({ name: "sylla_approve_mission" }),
+          expect.objectContaining({ name: "sylla_continue_mission" }),
+          expect.objectContaining({ name: "sylla_cancel_mission" }),
           expect.objectContaining({ name: "sylla_remember" }),
           expect.objectContaining({ name: "sylla_review_observation" }),
           expect.objectContaining({ name: "sylla_research" }),
@@ -683,6 +744,75 @@ describe("Sylla MCP server", () => {
           observation: { status: "confirmed" },
           pendingCount: 0,
         },
+      },
+    });
+  });
+
+  it("turns a natural objective into a managed mission and continues it", async () => {
+    const startMission = vi.fn().mockResolvedValue(mission);
+    const completedMission = {
+      ...mission,
+      status: "completed" as const,
+      result: { completedCount: 1 },
+      completedAt: "2026-09-02T10:02:00.000Z",
+    };
+    const continueMission = vi.fn().mockResolvedValue(completedMission);
+    const handler = createTestHandler(
+      services({ startMission, continueMission }),
+    );
+    const { body: started } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 304,
+      method: "tools/call",
+      params: {
+        name: "sylla_start_mission",
+        arguments: {
+          requestId: "conference-mission-001",
+          objective: "Research whether this conference is worthwhile.",
+          requestedOutcome: "A concise recommendation",
+          sources: [
+            { url: "https://example.com", label: "Conference" },
+          ],
+        },
+      },
+    });
+    expect(startMission).toHaveBeenCalledWith(
+      state.participantId,
+      clientId,
+      expect.objectContaining({
+        objective: "Research whether this conference is worthwhile.",
+        maxCredits: 100,
+        backgroundContinuationAllowed: false,
+      }),
+    );
+    expect(started).toMatchObject({
+      result: {
+        structuredContent: {
+          mission: {
+            capability: "research_public_topic",
+            resourcePlan: { primary: "browser" },
+          },
+        },
+      },
+    });
+
+    const { body: continued } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 305,
+      method: "tools/call",
+      params: {
+        name: "sylla_continue_mission",
+        arguments: { missionId: mission.id },
+      },
+    });
+    expect(continueMission).toHaveBeenCalledWith(
+      state.participantId,
+      clientId,
+      mission.id,
+    );
+    expect(continued).toMatchObject({
+      result: {
+        structuredContent: { mission: { status: "completed" } },
       },
     });
   });

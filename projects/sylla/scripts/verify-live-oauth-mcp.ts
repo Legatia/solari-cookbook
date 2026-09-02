@@ -224,6 +224,11 @@ try {
     "sylla_get_setup_guide",
     "sylla_complete_setup",
     "sylla_get_agent_context",
+    "sylla_start_mission",
+    "sylla_get_mission",
+    "sylla_approve_mission",
+    "sylla_continue_mission",
+    "sylla_cancel_mission",
     "sylla_remember",
     "sylla_review_observation",
     "sylla_research",
@@ -240,6 +245,39 @@ try {
     name: "sylla_get_agent_context",
     arguments: { includePending: false },
   });
+
+  const stagedMission = await callMcp(mcpEndpoint, accessToken, 20, "tools/call", {
+    name: "sylla_start_mission",
+    arguments: {
+      requestId: `mission-contract-${randomBytes(12).toString("base64url")}`,
+      objective: "Research a public topic for a later decision.",
+      requestedOutcome: "A concise recommendation",
+    },
+  });
+  const staged = stagedMission.structuredContent as
+    | { mission?: { id?: string; status?: string; nextAction?: string } }
+    | undefined;
+  invariant(staged?.mission?.id, "The mission controller did not return a mission ID.");
+  invariant(
+    staged.mission.status === "waiting_for_input",
+    "A research mission without explicit URLs did not wait for input.",
+  );
+  const inspectedMission = await callMcp(mcpEndpoint, accessToken, 21, "tools/call", {
+    name: "sylla_get_mission",
+    arguments: { missionId: staged.mission.id },
+  });
+  invariant(inspectedMission.structuredContent, "The durable mission could not be read.");
+  const canceledMission = await callMcp(mcpEndpoint, accessToken, 22, "tools/call", {
+    name: "sylla_cancel_mission",
+    arguments: {
+      missionId: staged.mission.id,
+      confirmation: "CANCEL THIS MISSION",
+    },
+  });
+  const canceled = canceledMission.structuredContent as
+    | { mission?: { status?: string } }
+    | undefined;
+  invariant(canceled?.mission?.status === "canceled", "Mission cancellation did not persist.");
 
   if (verifyConversationalSetup) {
     const guide = await callMcp(mcpEndpoint, accessToken, 31, "tools/call", {
@@ -305,11 +343,12 @@ try {
   }
 
   if (verifyLiveResearch) {
-    const research = await callMcp(mcpEndpoint, accessToken, 4, "tools/call", {
-      name: "sylla_research",
+    const startedMission = await callMcp(mcpEndpoint, accessToken, 40, "tools/call", {
+      name: "sylla_start_mission",
       arguments: {
-        requestId: `live-research-${randomBytes(12).toString("base64url")}`,
-        focus: "Understand what the Solari cookbook provides to builders.",
+        requestId: `live-mission-${randomBytes(12).toString("base64url")}`,
+        objective: "Research what the Solari cookbook provides to builders.",
+        requestedOutcome: "A concise evidence-backed summary",
         sources: [
           {
             url: "https://github.com/solari-sdk/solari-cookbook",
@@ -319,15 +358,30 @@ try {
         backgroundContinuationAllowed: false,
       },
     });
-    const structured = research.structuredContent as
-      | { progress?: { completedCount?: number; totalCount?: number } }
+    const started = startedMission.structuredContent as
+      | { mission?: { id?: string; status?: string } }
+      | undefined;
+    invariant(started?.mission?.id, "The live Browser mission did not start.");
+    invariant(started.mission.status === "ready", "The live Browser mission was not ready.");
+    const continuedMission = await callMcp(mcpEndpoint, accessToken, 41, "tools/call", {
+      name: "sylla_continue_mission",
+      arguments: { missionId: started.mission.id },
+    });
+    const structured = continuedMission.structuredContent as
+      | {
+          mission?: {
+            status?: string;
+            result?: { completedCount?: number; totalCount?: number };
+          };
+        }
       | undefined;
     if (
-      structured?.progress?.completedCount !== 1 ||
-      structured.progress.totalCount !== 1
+      structured?.mission?.status !== "completed" ||
+      structured.mission.result?.completedCount !== 1 ||
+      structured.mission.result.totalCount !== 1
     ) {
       throw new Error(
-        `The live Solari Browser source did not complete: ${JSON.stringify(research)}`,
+        `The live Solari Browser mission did not complete: ${JSON.stringify(continuedMission)}`,
       );
     }
   }
@@ -357,7 +411,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real Solari Browser source" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {

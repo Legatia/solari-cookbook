@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 import { getDatabase } from "@/db";
 import {
   auditEvents,
+  agentMissions,
   availabilityWindows,
   hostConnections,
   participantConsents,
@@ -250,6 +251,16 @@ export async function withdrawParticipation(participantId: string) {
       and(
         eq(runtimeLeases.participantId, participantId),
         isNull(runtimeLeases.releasedAt),
+      ),
+    );
+  await database
+    .update(agentMissions)
+    .set({ status: "canceled", canceledAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(agentMissions.participantId, participantId),
+        isNull(agentMissions.completedAt),
+        isNull(agentMissions.canceledAt),
       ),
     );
   if (participant.userId) {

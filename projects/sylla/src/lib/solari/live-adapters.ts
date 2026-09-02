@@ -7,11 +7,14 @@ import {
   directionalEvaluationSchema,
   researchRequestSchema,
   researchResultSchema,
+  repositoryTaskRequestSchema,
+  repositoryTaskResultSchema,
   workspaceManifestSchema,
   workspaceResultSchema,
   type BrowserResearchAdapter,
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
+  type SandboxTaskAdapter,
   type WorkspaceManifest,
   type WorkspaceOpenOptions,
 } from "./contracts";
@@ -341,6 +344,118 @@ export class SolariSandboxEvaluationAdapter
       }
 
       return directionalEvaluationSchema.parse(JSON.parse(result.stdout));
+    } finally {
+      await this.client.kill(sandbox.id);
+    }
+  }
+}
+
+function repositoryUrl(value: string) {
+  const url = assertPublicHttpUrl(value);
+  if (!["github.com", "gitlab.com", "bitbucket.org"].includes(url.hostname)) {
+    throw new Error("Repository missions currently accept public GitHub, GitLab, or Bitbucket URLs.");
+  }
+  url.hash = "";
+  url.search = "";
+  return url.toString();
+}
+
+const repositoryCheckScript = `
+set -u
+if [ -f package.json ]; then
+  if [ -f pnpm-lock.yaml ]; then
+    corepack enable >/dev/null 2>&1 || true
+    echo "SYLLA_PROJECT_TYPE=node"
+    echo "SYLLA_COMMAND=pnpm install --frozen-lockfile && pnpm test"
+    pnpm install --frozen-lockfile && pnpm test
+  elif [ -f yarn.lock ]; then
+    corepack enable >/dev/null 2>&1 || true
+    echo "SYLLA_PROJECT_TYPE=node"
+    echo "SYLLA_COMMAND=yarn install --immutable && yarn test"
+    yarn install --immutable && yarn test
+  else
+    echo "SYLLA_PROJECT_TYPE=node"
+    echo "SYLLA_COMMAND=npm install && npm test"
+    npm install && npm test
+  fi
+elif [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f setup.py ]; then
+  echo "SYLLA_PROJECT_TYPE=python"
+  echo "SYLLA_COMMAND=python -m pytest"
+  python -m pip install -q pytest
+  [ ! -f requirements.txt ] || python -m pip install -q -r requirements.txt
+  python -m pytest
+elif [ -f Cargo.toml ]; then
+  echo "SYLLA_PROJECT_TYPE=rust"
+  echo "SYLLA_COMMAND=cargo test"
+  cargo test
+elif [ -f go.mod ]; then
+  echo "SYLLA_PROJECT_TYPE=go"
+  echo "SYLLA_COMMAND=go test ./..."
+  go test ./...
+else
+  echo "SYLLA_PROJECT_TYPE=unknown"
+  echo "SYLLA_COMMAND=find . -maxdepth 2 -type f"
+  find . -maxdepth 2 -type f | head -200
+fi
+`;
+
+function marker(output: string, name: string) {
+  return output.match(new RegExp(`^${name}=(.+)$`, "m"))?.[1]?.trim();
+}
+
+export class SolariSandboxTaskAdapter implements SandboxTaskAdapter {
+  private readonly client: SandboxClient;
+
+  constructor(options: LiveAdapterOptions) {
+    this.client = new SandboxClient(options);
+  }
+
+  async runRepositoryTask(input: unknown) {
+    const request = repositoryTaskRequestSchema.parse(input);
+    const normalizedUrl = repositoryUrl(request.repositoryUrl);
+    const sandbox = await this.client.create({
+      template: "base",
+      cpu: 1,
+      memMb: 2048,
+      diskGb: 8,
+      timeoutMs: 10 * 60 * 1000,
+      lifecycle: { onTimeout: "kill" },
+      metadata: {
+        product: "sylla",
+        task: "repository-check",
+        participantRef: request.participantRef,
+      },
+    });
+
+    try {
+      await sandbox.connect();
+      await sandbox.git.clone(normalizedUrl, {
+        path: "/tmp/sylla-repository",
+        depth: 1,
+      });
+      const checked = await sandbox.commands.run("sh", {
+        args: ["-c", repositoryCheckScript],
+        cwd: "/tmp/sylla-repository",
+        timeoutMs: 4 * 60 * 1000,
+      });
+      const stdout = checked.stdout.slice(-12_000);
+      const stderr = checked.stderr.slice(-8_000);
+      const projectType = marker(stdout, "SYLLA_PROJECT_TYPE") ?? "unknown";
+      const command = marker(stdout, "SYLLA_COMMAND") ?? "repository inspection";
+      return repositoryTaskResultSchema.parse({
+        provider: "solari",
+        runReference: sandbox.id,
+        repositoryUrl: normalizedUrl,
+        projectType,
+        command,
+        exitCode: checked.exitCode,
+        stdout,
+        stderr,
+        summary:
+          checked.exitCode === 0
+            ? `The isolated ${projectType} repository checks completed successfully.`
+            : `The isolated ${projectType} repository checks exited with code ${checked.exitCode}.`,
+      });
     } finally {
       await this.client.kill(sandbox.id);
     }

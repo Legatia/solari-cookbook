@@ -14,6 +14,7 @@ canonical user-owned Sylla agent
 user-named agent in the participant's existing LLM or future Sylla app
    ↕ active reasoning under the participant's host quota
 OAuth-authenticated Sylla MCP service ─── Neon Postgres (identity, approved state, entitlements)
+   ├─ Mission controller → intent, plan, risk gate, budget, durable progress
    ├─ Solari Browser  → recorded research on approved public URLs
    ├─ Solari Desktop  ↔ persistent, pausable agent home + durable volume
    └─ Solari Sandbox  → directional boundaries and fallback evaluations
@@ -56,16 +57,19 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Per-client host-connection records without exposing Solari credentials or storing plaintext OAuth tokens
 - Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
 - Durable Agent Run, checkpoint, approved fallback scope, budget, reason, and reconnect-handoff records
+- A durable mission controller that turns a plain-language objective into a capability, resource plan, risk level, approval gate, bounded budget, and inspectable step ledger
 - An atomic mock fallback controller that refuses active leases and completes the approved handoff task exactly once under concurrent workers
 - An authenticated scheduled fallback sweep with stale-worker recovery and the same lease exclusion used by host clients
 - A provider-neutral internal-model interface with deterministic default and an optional bounded OpenAI Responses adapter
 - Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
-- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
+- A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, mission start/status/approval/continue/cancel, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
 - Companion-level setup, memory review, `sylla_remember`, `sylla_research`, and `sylla_find_private_introduction` tools that hide lease choreography while retaining the lower-level recovery tools
 - A disabled-by-default developer bearer bridge for local testing without bypassing production OAuth
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route plus MCP run contract that records provider, run reference, extracted evidence, per-source status, checkpoints, and host-to-background handoff
+- Mission-routed Solari execution: public research uses Browser, public repository checks run in a disposable Sandbox, durable workbench requests use Desktop, and private introductions use the bilateral Sandbox boundary
+- Mission-scoped memory lineage, so repeated research adds reviewable proposals without deleting earlier approved memory or replacing the agent's enduring profile
 - Deterministic candidate eligibility that enforces same-event consent, overlapping availability, blocks, prior declines, pair conflicts, and approved shareable context without producing a compatibility score
 - Canonical candidate-pair reservations plus two independently persisted directional evaluations
 - Privacy-preserving MCP pair tools that never return the other participant's identity, private context, rationale, or decline decision
@@ -86,7 +90,13 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 
 The first attachment loop is implemented and verified in mock mode against the configured Neon database. It has also completed a bounded live Solari Browser run against the public Sylla repository: the source title and evidence were extracted, the session was released, and its gzip replay became available. Two live Solari Sandbox jobs have completed a bilateral candidate evaluation with directional privacy boundaries and explicit VM cleanup. A bounded live volume probe also created and deleted a Solari durable volume successfully. Live Desktop creation still returns `FeatureRequiresPlan`, which Solari has identified as an upstream subscription-gate bug rather than an actual product-plan requirement; Sylla therefore implements the complete volume/restore/checkpoint/pause lifecycle while live Desktop verification awaits that fix. Invitation exhaustion, explicit consent, availability, withdrawal, candidate filtering, pair-conflict prevention, bilateral evaluation, canonical identity, first-party OAuth discovery and PKCE exchange, connection revocation, exclusive host leases, durable checkpoints, scheduled fallback scanning, bounded model handoff, stale-worker recovery, trial entitlements, idempotent usage accounting, and checkout continuations are implemented and exercised against Neon. Durable cross-device account login, a real billing provider and verified webhook, live Desktop/snapshot verification, production cron monitoring, and one real internal-model invocation with project credentials still remain before a paid production launch. See the roadmap for the revised implementation order.
 
-The live Sandbox adapter currently runs a deterministic baseline inside a disposable VM. It proves isolation, structured output, and cleanup; it is explicitly not the final personal-agent evaluator.
+The live Sandbox adapter supports the deterministic directional-evaluation baseline and a bounded public-repository check inside a disposable VM. These prove isolation, structured output, and cleanup; they are explicitly not a general shell exposed to the user or the final personal-agent evaluator.
+
+## Mission interface
+
+The normal MCP path is deliberately small: `sylla_start_mission`, `sylla_get_mission`, `sylla_approve_mission`, `sylla_continue_mission`, and `sylla_cancel_mission`. The host describes the participant's objective and explicit public source scope; Sylla classifies it, selects Browser, Sandbox, Desktop, or no runtime, checks consent and credits, persists a step plan, and returns the next safe action. The participant should never need to understand Solari products, lease tokens, VM cleanup, or provider billing.
+
+This is an abstraction over real bounded executors, not a claim that every computer task works today. Public-source research and comparison, meeting preparation, repository checks, workspace lifecycle, and the private-introduction flow are routed now. Consequential web-account missions require explicit mission approval but currently stop after inspection and preparation: no authenticated action is performed until the persistent-profile, takeover, and point-of-action confirmation path is implemented. Desktop routing is implemented but live allocation remains blocked by Solari's acknowledged upstream subscription-gate bug.
 
 ## First-session flow
 
@@ -154,7 +164,7 @@ Browser and Sandbox have been verified with the current development account, and
 
 ## Connect an AI host
 
-The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the private-demo password when Sylla opens its OAuth flow, and approve the relationship. The host first calls `sylla_bootstrap_agent`; if setup is incomplete it calls `sylla_get_setup_guide`, discusses each permission with the participant, and records the explicit answers through `sylla_complete_setup`. Naming, current focus, availability, approved-source research, and memory review can all happen in the conversation. `/app` remains an optional visual control surface for inspecting the same state, managing connections, and using richer controls.
+The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the private-demo password when Sylla opens its OAuth flow, and approve the relationship. The host first calls `sylla_bootstrap_agent`; if setup is incomplete it calls `sylla_get_setup_guide`, discusses each permission with the participant, and records the explicit answers through `sylla_complete_setup`. After that, ordinary work should begin with `sylla_start_mission`; Sylla returns the selected capability, resource plan, approval state, and exact next action. Naming, current focus, availability, approved-source research, memory review, and missions can all happen in the conversation. `/app` remains an optional visual control surface for inspecting the same state, managing connections, and using richer controls.
 
 For local development, the disabled-by-default bearer bridge can exercise MCP without running the browser OAuth flow when all three variables are configured:
 
@@ -164,7 +174,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes conversational setup, observation review, three flagship companion actions, and portable-agent/context/workspace, plan, lease, durable-run, approved-source, Browser execution, pair evaluation, disclosure, introduction, outcome, post-meeting memory review, export/deletion, checkpoint, fallback, and handoff tools for advanced orchestration. Mutating low-level host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, post-meeting memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The preferred MCP contract is the five-tool mission interface. Conversational setup, observation review, three flagship companion actions, and portable-agent/context/workspace, plan, lease, durable-run, approved-source, Browser execution, pair evaluation, disclosure, introduction, outcome, post-meeting memory review, export/deletion, checkpoint, fallback, and handoff tools remain available for advanced orchestration and recovery. Mutating low-level host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, post-meeting memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 

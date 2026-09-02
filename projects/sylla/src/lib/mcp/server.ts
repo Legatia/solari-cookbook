@@ -39,6 +39,16 @@ import {
   getCandidateShortlist,
   reserveCandidatePair,
 } from "@/lib/sylla/matching";
+import { continueMission } from "@/lib/sylla/mission-execution";
+import {
+  approveMission,
+  cancelMission,
+  getMission,
+  startMission,
+  startMissionSchema,
+  type MissionView,
+  type StartMissionInput,
+} from "@/lib/sylla/missions";
 import {
   getOwnIntroductionOutcome,
   listParticipantMemories,
@@ -95,6 +105,27 @@ export type SyllaMcpServices = {
     visibility: "private" | "shareable";
   }) => ReturnType<typeof proposeConversationMemory>;
   getBilling: (participantId: string) => Promise<BillingSummary>;
+  startMission: (
+    participantId: string,
+    clientId: string,
+    input: StartMissionInput,
+  ) => Promise<MissionView>;
+  getMission: (participantId: string, missionId: string) => Promise<MissionView>;
+  approveMission: (
+    participantId: string,
+    missionId: string,
+    confirmation: "I APPROVE THIS MISSION",
+  ) => Promise<MissionView>;
+  continueMission: (
+    participantId: string,
+    clientId: string,
+    missionId: string,
+  ) => Promise<MissionView>;
+  cancelMission: (
+    participantId: string,
+    missionId: string,
+    confirmation: "CANCEL THIS MISSION",
+  ) => Promise<MissionView>;
   acquireLease: (input: {
     participantId: string;
     clientId: string;
@@ -262,6 +293,15 @@ const defaultServices: SyllaMcpServices = {
   loadState: loadSessionState,
   proposeMemory: proposeConversationMemory,
   getBilling: getBillingSummary,
+  startMission: (participantId, clientId, mission) =>
+    startMission({ participantId, clientId, mission }),
+  getMission,
+  approveMission: (participantId, missionId, confirmation) =>
+    approveMission({ participantId, missionId, confirmation }),
+  continueMission: (participantId, clientId, missionId) =>
+    continueMission({ participantId, clientId, missionId }),
+  cancelMission: (participantId, missionId, confirmation) =>
+    cancelMission({ participantId, missionId, confirmation }),
   acquireLease: acquireRuntimeLease,
   heartbeatLease: heartbeatRuntimeLease,
   releaseLease: releaseRuntimeLease,
@@ -411,10 +451,10 @@ export function createSyllaMcpServer(
 ) {
   const { participantId, clientId } = context;
   const server = new McpServer(
-    { name: "sylla", version: "0.3.0" },
+    { name: "sylla", version: "0.4.0" },
     {
       instructions:
-        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent. If setup is incomplete, use sylla_get_setup_guide and conversationally collect each required answer before calling sylla_complete_setup; the web app is optional. Recall approved context with sylla_get_agent_context. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent. If setup is incomplete, use sylla_get_setup_guide and conversationally collect each required answer before calling sylla_complete_setup; the web app is optional. Recall approved context with sylla_get_agent_context. For open-ended work, prefer sylla_start_mission and let Sylla select Browser, Sandbox, Desktop, or no runtime; call sylla_continue_mission only when the returned nextAction says to do so. Keep Solari mechanics invisible to the participant. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools for their exact flagship flows; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
     },
   );
 
@@ -582,6 +622,132 @@ export function createSyllaMcpServer(
         },
       });
     },
+  );
+
+  server.registerTool(
+    "sylla_start_mission",
+    {
+      title: "Start work for me",
+      description:
+        "Turn the participant's natural objective into a durable mission. Sylla automatically selects a product capability, Browser/Sandbox/Desktop resources, a bounded plan, and the required approval level. The participant should describe outcomes, not infrastructure. Include only public URLs they explicitly supplied.",
+      inputSchema: startMissionSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      result({
+        mission: await services.startMission(participantId, clientId, input),
+        abstraction:
+          "The participant manages intention and permission; Sylla manages execution; Solari remains invisible infrastructure.",
+      }),
+  );
+
+  server.registerTool(
+    "sylla_get_mission",
+    {
+      title: "Check my mission",
+      description:
+        "Read a durable mission's objective, capability, plan, resource choice, progress, result, and next action without exposing provider credentials or raw runtime capabilities.",
+      inputSchema: z.object({ missionId: z.uuid() }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ missionId }) =>
+      result({ mission: await services.getMission(participantId, missionId) }),
+  );
+
+  server.registerTool(
+    "sylla_approve_mission",
+    {
+      title: "Approve a consequential mission",
+      description:
+        "Release a mission-level approval gate only after the participant has reviewed the objective, sources, resource plan, risk level, and expected external effect and explicitly approved this specific mission. This never widens its stored scope.",
+      inputSchema: z.object({
+        missionId: z.uuid(),
+        confirmation: z.literal("I APPROVE THIS MISSION"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ missionId, confirmation }) =>
+      result({
+        mission: await services.approveMission(
+          participantId,
+          missionId,
+          confirmation,
+        ),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_continue_mission",
+    {
+      title: "Continue my mission",
+      description:
+        "Execute the next bounded mission stage. Sylla selects and manages the Solari runtime, lease, cost reservation, cleanup, progress records, and safety boundary. Call only when the mission's nextAction says it is ready; never fabricate approval or missing URLs.",
+      inputSchema: z.object({ missionId: z.uuid() }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ missionId }) => {
+      try {
+        return result({
+          mission: await services.continueMission(
+            participantId,
+            clientId,
+            missionId,
+          ),
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_cancel_mission",
+    {
+      title: "Cancel my mission",
+      description:
+        "Stop a mission from continuing. Call only after the participant explicitly asks to cancel this specific mission. Already completed external actions cannot be undone by cancellation.",
+      inputSchema: z.object({
+        missionId: z.uuid(),
+        confirmation: z.literal("CANCEL THIS MISSION"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ missionId, confirmation }) =>
+      result({
+        mission: await services.cancelMission(
+          participantId,
+          missionId,
+          confirmation,
+        ),
+      }),
   );
 
   server.registerTool(

@@ -89,6 +89,14 @@ describe("mock Solari adapters", () => {
       "alice-1",
       "bob-1",
     ]);
+
+    const repositoryTask = await adapters.sandboxTask.runRepositoryTask({
+      participantRef: "participant-a",
+      repositoryUrl: "https://github.com/example/project",
+      objective: "Run the project's tests.",
+    });
+    expect(repositoryTask.provider).toBe("mock");
+    expect(repositoryTask.exitCode).toBe(0);
   });
 
   it("requires a Solari key in live mode", async () => {

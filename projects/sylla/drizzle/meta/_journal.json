@@ -85,6 +85,20 @@
       "when": 1788341151778,
       "tag": "0011_rapid_husk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788369147232,
+      "tag": "0012_common_randall_flagg",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788369413085,
+      "tag": "0013_married_shockwave",
+      "breakpoints": true
     }
   ]
 }

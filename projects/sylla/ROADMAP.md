@@ -37,6 +37,7 @@ This project is the first reference implementation of **portable relationship in
 - Sylla owns a canonical user and personal-agent identity that is independent of every host provider. MCP hosts, the web control center, and a future native Sylla application must all resolve to the same agent.
 - Each activated agent receives a persistent private Desktop home backed by a durable volume and recoverable snapshots. The Desktop is paused between runs rather than treated as disposable or left continuously billable.
 - Core operations must use typed service interfaces exposed through MCP in v1.
+- The default MCP surface is a small mission contract: start, inspect, approve, continue, and cancel. Sylla owns capability classification, Solari resource selection, step persistence, credits, and approval gates; provider-level tools remain an advanced substrate.
 - The connected host model is the default semantic orchestrator while its run lease is active. It observes and directs Solari through MCP using the participant's host-model allowance.
 - Deterministic code handles non-semantic background work. A bounded internal agent is used only after the host lease expires or the participant explicitly requests background continuation.
 - Fallback never expands authority: human approval is still required for memory, disclosure, acceptance, messaging, and other consequential actions.
@@ -65,6 +66,8 @@ The first end-to-end attachment loop now exists in the reference application:
 - The participant can explicitly pause the workbench while preserving its home; a separate withdrawal path destroys the Desktop, retained volume, and materialized artifacts.
 
 This loop has been exercised end to end in mock mode against the configured development database, including refresh persistence and exclusion of a forgotten observation. A bounded live Solari Browser run has also extracted the public Sylla repository, released its session, and produced an available replay. A live Sandbox smoke test ran successfully and was explicitly destroyed. A bounded durable-volume probe succeeded and cleaned up after itself. Desktop creation still returns `Desktop requires a paid plan` before allocation, but Solari has identified that response as an upstream subscription-gate bug rather than a genuine plan requirement. The persistent lifecycle is implemented against the SDK contract; the live Desktop viewer, snapshot, and pause/resume path will be re-verified when that defect is fixed.
+
+The provider abstraction now has a durable mission layer. A host can submit one plain-language objective plus explicit public sources and a maximum credit budget. Sylla classifies the capability and risk, persists an inspectable step plan, requests approval for consequential intent, obtains the exclusive agent lease, and routes to Browser research, disposable Sandbox repository checks, Desktop workspace lifecycle, or the private-introduction pipeline. Mission-scoped lineage prevents a new research task from deleting earlier approved memories. Authenticated web-account actions currently stop after inspection and preparation; the profile, takeover, and point-of-action confirmation executor remains deliberately unimplemented.
 
 The portability foundation is also underway: the database assigns canonical Sylla User and Personal Agent identifiers independently of host providers, records Desktop/volume/snapshot lifecycle metadata, and exposes a stateless Streamable HTTP MCP contract for agent bootstrap, approved-context recall, plan inspection, run leases, durable runs/checkpoints/handoffs, approved-source Browser research, privacy-preserving pair control, directional Sandbox evaluation, bilateral disclosure and introduction control, and workspace inspection/open/checkpoint/pause. Opening creates one durable volume, reconnects or resumes the existing Desktop when present, reconstructs the visible workbench only from approved state, and records a recovery snapshot; pausing checkpoints first and preserves the home for another client or the later native app. Bounded invitations, versioned consent, explicit host-data disclosure, optional background permission, availability windows, audit events, and withdrawal are implemented. Withdrawal releases runtime leases, revokes host connections and first-party OAuth grants, removes the participant from matching, and attempts workspace destruction without making withdrawal contingent on provider cleanup. Candidate retrieval now enforces same-event consent, current intent, overlapping availability, bilateral blocks, prior declines, pair conflicts, and approved shareable context without inventing a compatibility score. Canonical pair reservations feed two separately persisted directional evaluations: each direction may use its owner's approved private context but receives only the candidate's approved shareable envelope, and every rationale must cite authorized observations from both sides. Two live Solari Sandbox VMs completed this bilateral contract and were explicitly destroyed. Mutual recommendation still reveals nothing; each person must next approve a one-to-five-item shareable disclosure envelope under a human-controlled host lease. A proposal shows only that approved anonymous preview, and identity plus the public meeting area become visible only after two private acceptances. The other person's decision is never exposed, and a decline produces the same closed state for both sides. Internal and web leases cannot approve disclosure or acceptance. Exclusive leases bind the authenticated client plus conversation run ID to one agent, store only a capability hash, and support heartbeat, expiry, release, and cross-host handoff. The controller now supports a non-consequential reconnect summary and a second bounded task that resumes only the remaining participant-approved public URLs through Solari Browser. It checkpoints after each source, refuses automatic revisits of completed or ambiguous sources, regenerates only pending memory proposals, and charges each Browser visit through the usage ledger. An authenticated scheduled sweep acquires the same runtime lease as host clients, claims the participant-approved budget, invokes the bounded adapter, writes one auditable handoff, and releases. The deterministic summary default makes no external model call; optional live mode sends only the explicit checkpoint through a strict-schema, non-stored, token- and time-bounded Responses request, then degrades safely on provider failure. Eight-worker summary races, returning-host overlap, model failure, stale-worker recovery without a second charge, a one-source host-to-Browser-worker handoff with zero duplicate visits, a complete invitation-to-withdrawal lifecycle, bilateral live Sandbox evaluation, and the full anonymous-preview-to-mutual-reveal introduction gate have been exercised against Neon. Trial/active entitlements guard billable work through atomic reservations and an idempotent usage ledger; inactive accounts receive an expiring hosted-checkout continuation with no payment data entering MCP. Built-in OAuth 2.1 discovery, dynamic client registration, S256 PKCE, token rotation, session-bound consent, a participant-visible connection/revocation panel, and companion-level MCP actions are implemented and tested against Neon. This is not the full Phase 1 gate: durable cross-device account login and second-client identity linking, a real billing provider and verified webhook, production scheduler monitoring, and a real internal-model invocation with project credentials still remain.
 
@@ -462,23 +465,24 @@ Someone outside the team can understand the experiment, run the project in mock 
 When time is constrained, build one vertical slice in this order:
 
 1. Canonical Sylla user/agent identity and authenticated remote MCP endpoint
-2. Cross-host account linking, entitlement guard, and hosted-checkout continuation
-3. Persistent Desktop-home metadata: VM, durable volume, snapshot, and pause/resume lifecycle
-4. Run lease, checkpoint, and mock host-to-fallback handoff
-5. Seeded event and two participant invitations
-6. Consent, intent, availability, and source submission
-7. One host-directed live Solari Browser exploration
-8. Observation review and deletion
-9. One host-directed live Solari Desktop workspace with deliberate fallback takeover
-10. Evidence board, activity stream, and memory ledger reconstruction
-11. Deterministic shortlist
-12. Two live Solari Sandbox evaluations using the common host/fallback schema
-13. Bilateral human consent
-14. Meeting assignment
-15. Private debrief and proposed-memory review
-16. Repeat-introduction request
-17. Organizer metrics
-18. Reliability and visual polish
+2. Plain-language mission controller with risk, approval, budget, resource routing, and durable steps
+3. Cross-host account linking, entitlement guard, and hosted-checkout continuation
+4. Persistent Desktop-home metadata: VM, durable volume, snapshot, and pause/resume lifecycle
+5. Run lease, checkpoint, and mock host-to-fallback handoff
+6. Seeded event and two participant invitations
+7. Consent, intent, availability, and source submission
+8. One host-directed live Solari Browser exploration
+9. Observation review and deletion
+10. One host-directed live Solari Desktop workspace with deliberate fallback takeover
+11. Evidence board, activity stream, and memory ledger reconstruction
+12. Deterministic shortlist
+13. Two live Solari Sandbox evaluations using the common host/fallback schema
+14. Bilateral human consent
+15. Meeting assignment
+16. Private debrief and proposed-memory review
+17. Repeat-introduction request
+18. Organizer metrics
+19. Reliability and visual polish
 
 Do not build secondary organizer tooling, elaborate animations, bespoke integrations for every host, or additional connection categories before this slice works.
 

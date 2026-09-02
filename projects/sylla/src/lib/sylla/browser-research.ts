@@ -160,6 +160,7 @@ export async function prepareBrowserResearch(input: {
   sources: BrowserResearchSourceInput[];
   backgroundContinuationAllowed: boolean;
   fallbackBudgetCredits: number;
+  profileMode?: "replace" | "preserve";
 }): Promise<BrowserResearchProgress> {
   await requireRuntimeLease(input.participantId, input.authorization);
   await requireParticipationCapability(
@@ -203,27 +204,23 @@ export async function prepareBrowserResearch(input: {
     return existing;
   }
 
-  await database
-    .delete(observations)
-    .where(eq(observations.participantId, input.participantId));
-  await database
-    .delete(approvedSources)
-    .where(eq(approvedSources.participantId, input.participantId));
-  await database
-    .update(participants)
-    .set({
+  if ((input.profileMode ?? "replace") === "replace") {
+    await database
+      .update(participants)
+      .set({
+        agentName: input.agentName,
+        intent: input.focus,
+        status: "onboarding",
+        researchProvider: null,
+        researchRunReference: null,
+        researchCompletedAt: null,
+      })
+      .where(eq(participants.id, input.participantId));
+    await updatePortableAgent(input.participantId, {
       agentName: input.agentName,
-      intent: input.focus,
-      status: "onboarding",
-      researchProvider: null,
-      researchRunReference: null,
-      researchCompletedAt: null,
-    })
-    .where(eq(participants.id, input.participantId));
-  await updatePortableAgent(input.participantId, {
-    agentName: input.agentName,
-    focus: input.focus,
-  });
+      focus: input.focus,
+    });
+  }
   const sourceRows = await database
     .insert(approvedSources)
     .values(
@@ -246,28 +243,37 @@ export async function prepareBrowserResearch(input: {
 
 async function refreshObservationProposals(
   participantId: string,
+  agentRunId: string,
   provider: string,
   runReference: string,
 ) {
   const database = getDatabase();
-  const [participant] = await database
-    .select({ focus: participants.intent })
-    .from(participants)
-    .where(eq(participants.id, participantId))
-    .limit(1);
-  if (!participant?.focus) {
-    throw new BrowserResearchScopeError("The participant research focus is missing.");
-  }
-  const completed = await database
-    .select()
-    .from(approvedSources)
+  const [run] = await database
+    .select({ purpose: agentRuns.purpose, scope: agentRuns.approvedScope })
+    .from(agentRuns)
     .where(
       and(
-        eq(approvedSources.participantId, participantId),
-        eq(approvedSources.researchStatus, "complete"),
+        eq(agentRuns.id, agentRunId),
+        eq(agentRuns.participantId, participantId),
       ),
     )
-    .orderBy(asc(approvedSources.approvedAt), asc(approvedSources.id));
+    .limit(1);
+  if (!run) {
+    throw new BrowserResearchScopeError("The Browser research run is missing.");
+  }
+  const completed = run.scope.evidenceRefs.length
+    ? await database
+        .select()
+        .from(approvedSources)
+        .where(
+          and(
+            eq(approvedSources.participantId, participantId),
+            eq(approvedSources.researchStatus, "complete"),
+            inArray(approvedSources.id, run.scope.evidenceRefs),
+          ),
+        )
+        .orderBy(asc(approvedSources.approvedAt), asc(approvedSources.id))
+    : [];
   const evidence: Evidence[] = completed.map((source) => ({
     sourceId: source.id,
     sourceUrl: source.url,
@@ -280,13 +286,15 @@ async function refreshObservationProposals(
     .where(
       and(
         eq(observations.participantId, participantId),
+        eq(observations.agentRunId, agentRunId),
         eq(observations.status, "pending"),
       ),
     );
-  const drafts = synthesizeObservationDrafts(participant.focus, evidence);
+  const focus = run.purpose.replace(/^Research approved sources for:\s*/i, "");
+  const drafts = synthesizeObservationDrafts(focus, evidence);
   if (drafts.length) {
     await database.insert(observations).values(
-      drafts.map((draft) => ({ ...draft, participantId })),
+      drafts.map((draft) => ({ ...draft, participantId, agentRunId })),
     );
   }
   await database
@@ -384,6 +392,7 @@ async function researchSource(input: {
     await settleBillableOperation(reservation, result.runReference);
     await refreshObservationProposals(
       input.participantId,
+      input.agentRunId,
       result.provider,
       result.runReference,
     );

@@ -5,6 +5,7 @@ import {
   MockBrowserResearchAdapter,
   MockDesktopWorkspaceAdapter,
   MockSandboxEvaluationAdapter,
+  MockSandboxTaskAdapter,
 } from "./mock-adapters";
 
 const blankToUndefined = (value: unknown) =>
@@ -26,6 +27,7 @@ export async function createSolariAdapters(
       browser: new MockBrowserResearchAdapter(),
       desktop: new MockDesktopWorkspaceAdapter(),
       sandbox: new MockSandboxEvaluationAdapter(),
+      sandboxTask: new MockSandboxTaskAdapter(),
     };
   }
 
@@ -41,11 +43,13 @@ export async function createSolariAdapters(
     SolariBrowserResearchAdapter,
     SolariDesktopWorkspaceAdapter,
     SolariSandboxEvaluationAdapter,
+    SolariSandboxTaskAdapter,
   } = await import("./live-adapters");
 
   return {
     browser: new SolariBrowserResearchAdapter(options),
     desktop: new SolariDesktopWorkspaceAdapter(options),
     sandbox: new SolariSandboxEvaluationAdapter(options),
+    sandboxTask: new SolariSandboxTaskAdapter(options),
   };
 }

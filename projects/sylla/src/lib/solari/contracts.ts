@@ -78,6 +78,24 @@ export const directionalEvaluationSchema = z.object({
   evaluator: z.enum(["mock", "sandbox-baseline"]),
 });
 
+export const repositoryTaskRequestSchema = z.object({
+  participantRef: z.string().min(1),
+  repositoryUrl: z.url(),
+  objective: z.string().trim().min(3).max(800),
+});
+
+export const repositoryTaskResultSchema = z.object({
+  provider: z.enum(["mock", "solari"]),
+  runReference: z.string().min(1),
+  repositoryUrl: z.url(),
+  projectType: z.enum(["node", "python", "rust", "go", "unknown"]),
+  command: z.string(),
+  exitCode: z.number().int(),
+  stdout: z.string(),
+  stderr: z.string(),
+  summary: z.string(),
+});
+
 export type ApprovedSource = z.infer<typeof approvedSourceSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type ResearchRequest = z.infer<typeof researchRequestSchema>;
@@ -93,6 +111,12 @@ export type DirectionalEvaluationRequest = z.infer<
 >;
 export type DirectionalEvaluation = z.infer<
   typeof directionalEvaluationSchema
+>;
+export type RepositoryTaskRequest = z.infer<
+  typeof repositoryTaskRequestSchema
+>;
+export type RepositoryTaskResult = z.infer<
+  typeof repositoryTaskResultSchema
 >;
 
 export interface BrowserResearchAdapter {
@@ -117,8 +141,13 @@ export interface SandboxEvaluationAdapter {
   ): Promise<DirectionalEvaluation>;
 }
 
+export interface SandboxTaskAdapter {
+  runRepositoryTask(request: RepositoryTaskRequest): Promise<RepositoryTaskResult>;
+}
+
 export interface SolariAdapters {
   browser: BrowserResearchAdapter;
   desktop: DesktopWorkspaceAdapter;
   sandbox: SandboxEvaluationAdapter;
+  sandboxTask: SandboxTaskAdapter;
 }

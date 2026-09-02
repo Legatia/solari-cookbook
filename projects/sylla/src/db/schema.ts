@@ -608,6 +608,108 @@ export const runtimeLeases = pgTable(
   ],
 );
 
+export const agentMissions = pgTable(
+  "agent_missions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    objective: text("objective").notNull(),
+    requestedOutcome: text("requested_outcome"),
+    capability: text("capability").notNull(),
+    status: text("status").default("ready").notNull(),
+    riskLevel: text("risk_level").default("observe").notNull(),
+    approvalRequired: boolean("approval_required").default(false).notNull(),
+    constraints: jsonb("constraints")
+      .$type<{
+        sourceUrls: Array<{ url: string; label?: string }>;
+        maxCredits: number;
+        backgroundContinuationAllowed: boolean;
+      }>()
+      .notNull(),
+    resourcePlan: jsonb("resource_plan")
+      .$type<{
+        primary: "browser" | "sandbox" | "desktop" | "none";
+        supporting: Array<"browser" | "sandbox" | "desktop">;
+        reason: string;
+      }>()
+      .notNull(),
+    plan: jsonb("plan")
+      .$type<
+        Array<{
+          sequence: number;
+          title: string;
+          resource: "browser" | "sandbox" | "desktop" | "sylla";
+          risk: "observe" | "prepare" | "external_action" | "sensitive" | "destructive";
+        }>
+      >()
+      .notNull(),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    lastError: text("last_error"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("agent_missions_agent_idx").on(table.agentId),
+    index("agent_missions_participant_idx").on(table.participantId),
+    index("agent_missions_status_idx").on(table.status),
+    uniqueIndex("agent_missions_participant_idempotency_unique").on(
+      table.participantId,
+      table.idempotencyKey,
+    ),
+  ],
+);
+
+export const missionSteps = pgTable(
+  "mission_steps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    missionId: uuid("mission_id")
+      .notNull()
+      .references(() => agentMissions.id, { onDelete: "cascade" }),
+    sequence: integer("sequence").notNull(),
+    title: text("title").notNull(),
+    resource: text("resource").notNull(),
+    riskLevel: text("risk_level").notNull(),
+    status: text("status").default("pending").notNull(),
+    input: jsonb("input")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    output: jsonb("output").$type<Record<string, unknown>>(),
+    providerReference: text("provider_reference"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("mission_steps_mission_idx").on(table.missionId),
+    uniqueIndex("mission_steps_mission_sequence_unique").on(
+      table.missionId,
+      table.sequence,
+    ),
+  ],
+);
+
 export const agentRuns = pgTable(
   "agent_runs",
   {
@@ -767,6 +869,9 @@ export const observations = pgTable(
     sourceId: uuid("source_id").references(() => approvedSources.id, {
       onDelete: "set null",
     }),
+    agentRunId: uuid("agent_run_id").references(() => agentRuns.id, {
+      onDelete: "set null",
+    }),
     claim: text("claim").notNull(),
     evidenceExcerpt: text("evidence_excerpt"),
     origin: observationOrigin("origin").notNull(),
@@ -777,7 +882,10 @@ export const observations = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index("observations_participant_idx").on(table.participantId)],
+  (table) => [
+    index("observations_participant_idx").on(table.participantId),
+    index("observations_agent_run_idx").on(table.agentRunId),
+  ],
 );
 
 export const participantBlocks = pgTable(

@@ -58,6 +58,7 @@ The durable system is:
 user-named agent in participant's chosen LLM
         ↕ active reasoning and MCP tool calls
 OAuth-authenticated Sylla MCP service
+        ↕ plain-language mission contract and approval gates
         ↕ canonical agent identity, memory, consent, and billing
 persistent, pausable Solari Desktop home
         ↕ inspectable research and work artifacts
@@ -81,7 +82,9 @@ The portability promise is operational, not branding: approved memory must resol
 
 Sylla is also the customer-facing entitlement and usage boundary. MCP may display plans, estimate an operation, check remaining credits, and initiate a hosted checkout, but payment credentials must never pass through an LLM transcript or MCP tool arguments. A Sylla-controlled billing service and hosted payment page process the transaction; verified webhooks update entitlements before a billable Solari operation may begin. Zero setup means no infrastructure work, not zero authentication, consent, or payment confirmation.
 
-The v1 capability must remain narrowly focused on social discovery rather than pretending to implement Sylla's entire long-term platform. Its job is to let the user's chosen agent understand which human interactions the participant values, research relevant social opportunities, organize evidence, and improve only from memories the participant explicitly approves. Keep the underlying identity, memory, provenance, and run contracts reusable for later non-social capabilities.
+The v1 product should expose one general, plain-language mission contract without pretending every future personal-agent capability is implemented. The initial executors remain bounded: public-source research and comparison, meeting preparation, isolated public-repository checks, durable workspace lifecycle, and evidence-backed social discovery. Social discovery is the flagship proof and the live-pilot focus. Keep identity, memory, provenance, approval, budget, and run contracts reusable as later capabilities are added behind the same mission interface.
+
+Use a two-level MCP hierarchy. The default participant-facing surface contains `start`, `status`, `approve`, `continue`, and `cancel` mission operations. Sylla—not the participant—classifies intent, chooses Browser, Sandbox, Desktop, or deterministic application logic, creates a durable plan, enforces credits and consent, and reports the next safe action. Fine-grained Solari and run-control tools remain an advanced substrate for recovery and host-directed work. A high-level mission may only dispatch to an implemented bounded executor; unsupported or not-yet-safe actions must stop honestly at a user gate rather than imply completion.
 
 ## Competitive boundary
 
@@ -115,6 +118,8 @@ Support three explicit execution modes behind one typed run contract:
 3. **Internal-agent fallback:** a bounded internal agent continues an already-authorized task only when the host orchestration lease is lost, the participant explicitly requests background continuation, or the host cannot complete the task within its active run.
 
 Every long-running task must have an owner lease, heartbeat, checkpoint, idempotency key, approved scope, and budget. One completed MCP request does not by itself mean the host connection was lost. Treat the host as unavailable only after its orchestration lease expires or it explicitly releases the task. The internal agent resumes from the last durable checkpoint and must never race or duplicate work with a returning host.
+
+Every mission must additionally persist its objective, requested outcome, classified capability, resource plan, risk, approval state, ordered steps, provider references, result or failure, and participant-visible next action. Repeated missions append evidence and reviewable memory proposals; they must never erase previously approved memories or silently replace the agent's enduring profile.
 
 Fallback is continuity, not expanded authority. It may continue approved read-only research, evidence organization, candidate filtering, and bounded evaluation. It may not approve a memory, widen source access, disclose information, accept an introduction, message another person, or make a human decision. If fallback reaches such a gate, it pauses and asks the participant through the next available surface.
 
@@ -456,6 +461,7 @@ Use `@solarisdk/sandbox` to:
 - Validate structured output before accepting it.
 - Destroy or safely pause jobs after completion.
 - Prevent accidental state reuse between different participants.
+- Inspect and run declared checks for an explicitly approved public repository inside a disposable microVM, without host credentials or filesystem access outside that VM.
 
 The application—not Solari—enforces which observations are private, shareable, requested for disclosure, and finally disclosed.
 
@@ -543,6 +549,7 @@ Design a minimal relational model around these concepts:
 - Availability window
 - Approved source
 - Browser exploration run
+- Agent mission and ordered mission step
 - Observation
 - Context-model approval
 - Agent workspace

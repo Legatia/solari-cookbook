@@ -7,6 +7,7 @@ import { resolveAuthenticatedPrincipal } from "@/lib/sylla/identity";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const handler = createMcpHandler(
   async ({ authInfo }) => {
