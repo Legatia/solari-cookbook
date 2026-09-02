@@ -59,6 +59,8 @@ const gatePassword = process.env.SYLLA_DEMO_PASSWORD;
 const verifyLiveResearch = process.env.SYLLA_VERIFY_LIVE_RESEARCH === "true";
 const verifyLiveSandboxMission =
   process.env.SYLLA_VERIFY_LIVE_SANDBOX_MISSION === "true";
+const verifyLiveDesktopMission =
+  process.env.SYLLA_VERIFY_LIVE_DESKTOP_MISSION === "true";
 const verifyConversationalSetup =
   process.env.SYLLA_VERIFY_CONVERSATIONAL_SETUP !== "false";
 let cookie: string | null = null;
@@ -453,6 +455,52 @@ try {
     );
   }
 
+  if (verifyLiveDesktopMission) {
+    const startedMission = await callMcp(mcpEndpoint, accessToken, 60, "tools/call", {
+      name: "sylla_start_mission",
+      arguments: {
+        requestId: `live-desktop-mission-${randomBytes(12).toString("base64url")}`,
+        objective: "Open my persistent personal agent workspace.",
+        requestedOutcome: "A private durable workspace I can inspect later",
+        maxCredits: 100,
+      },
+    });
+    const started = startedMission.structuredContent as
+      | {
+          mission?: {
+            id?: string;
+            status?: string;
+            capability?: string;
+            resourcePlan?: { primary?: string };
+          };
+        }
+      | undefined;
+    invariant(started?.mission?.id, "The live Desktop mission did not start.");
+    invariant(started.mission.status === "ready", "The live Desktop mission was not ready.");
+    invariant(
+      started.mission.capability === "maintain_personal_workspace" &&
+        started.mission.resourcePlan?.primary === "desktop",
+      "The workspace objective was not routed to Solari Desktop.",
+    );
+    const continuedMission = await callMcp(mcpEndpoint, accessToken, 61, "tools/call", {
+      name: "sylla_continue_mission",
+      arguments: { missionId: started.mission.id },
+    });
+    const completed = continuedMission.structuredContent as
+      | {
+          mission?: {
+            status?: string;
+            lastError?: string | null;
+            result?: { workspaceStatus?: string };
+          };
+        }
+      | undefined;
+    invariant(
+      completed?.mission?.status === "completed",
+      `The live Solari Desktop mission did not complete: ${completed?.mission?.lastError ?? JSON.stringify(continuedMission)}`,
+    );
+  }
+
   const connection = await json<{ connection: { connected: boolean } }>(
     await fetch(`${baseUrl}/api/mcp/connection`, { headers: { cookie } }),
   );
@@ -478,7 +526,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}${verifyLiveDesktopMission ? ", one real mission-routed Solari Desktop workspace" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {
