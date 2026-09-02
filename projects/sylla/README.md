@@ -51,6 +51,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - A built-in OAuth 2.1 authorization server with dynamic client registration, S256 PKCE, one-time authorization codes, rotating refresh tokens, and hashed opaque-token storage
 - OAuth protected-resource and authorization-server discovery, plus optional issuer-, audience-, expiry-, and scope-bound external JWT validation
 - A participant-visible **Connect your AI** panel with the live MCP URL, setup instructions, connection status, and one-click revocation
+- MCP-first conversational onboarding: the connected host can explain the exact consent boundary, collect explicit answers, name and focus the agent, save availability, and continue into source research without requiring `/app`
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients; the public prototype binds first-party grants to the participant's current Sylla browser session
 - Per-client host-connection records without exposing Solari credentials or storing plaintext OAuth tokens
 - Exclusive, expiring per-agent runtime leases with hashed capabilities, heartbeats, release, and cross-host handoff
@@ -61,7 +62,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
-- Companion-level `sylla_remember`, `sylla_research`, and `sylla_find_private_introduction` tools that hide lease choreography while retaining the lower-level recovery tools
+- Companion-level setup, memory review, `sylla_remember`, `sylla_research`, and `sylla_find_private_introduction` tools that hide lease choreography while retaining the lower-level recovery tools
 - A disabled-by-default developer bearer bridge for local testing without bypassing production OAuth
 - Agent naming, a current personal focus, and one to three participant-approved public sources
 - A working Browser research route plus MCP run contract that records provider, run reference, extracted evidence, per-source status, checkpoints, and host-to-background handoff
@@ -153,7 +154,7 @@ Browser and Sandbox have been verified with the current development account, and
 
 ## Connect an AI host
 
-The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. Open `/app`, enter the private-demo password, and choose **Connect your AI** before or after the short agent setup to copy the endpoint, see active connections, or revoke them. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the demo password when Sylla opens its OAuth flow, and approve the relationship. The host can then recover the same session-bound agent with `sylla_bootstrap_agent`, recall approved context, propose memories, research participant-supplied URLs through Solari Browser, and start the privacy-preserving introduction flow.
+The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the private-demo password when Sylla opens its OAuth flow, and approve the relationship. The host first calls `sylla_bootstrap_agent`; if setup is incomplete it calls `sylla_get_setup_guide`, discusses each permission with the participant, and records the explicit answers through `sylla_complete_setup`. Naming, current focus, availability, approved-source research, and memory review can all happen in the conversation. `/app` remains an optional visual control surface for inspecting the same state, managing connections, and using richer controls.
 
 For local development, the disabled-by-default bearer bridge can exercise MCP without running the browser OAuth flow when all three variables are configured:
 
@@ -163,7 +164,7 @@ SYLLA_MCP_DEV_TOKEN=<local bearer secret>
 SYLLA_MCP_DEV_PARTICIPANT_ID=<existing participant UUID>
 ```
 
-This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes three companion-level tools for ordinary use plus portable-agent/context/workspace, plan, lease, durable-run, approved-source, Browser execution, pair evaluation, disclosure, introduction, outcome, memory review, export/deletion, checkpoint, fallback, and handoff tools for advanced orchestration. Mutating low-level host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
+This temporary bridge binds one bearer token to one existing development participant. It must remain disabled on public deployments. The MCP contract exposes conversational setup, observation review, three flagship companion actions, and portable-agent/context/workspace, plan, lease, durable-run, approved-source, Browser execution, pair evaluation, disclosure, introduction, outcome, post-meeting memory review, export/deletion, checkpoint, fallback, and handoff tools for advanced orchestration. Mutating low-level host tools require the active lease capability; billable operations also require an idempotency key. Disclosure, acceptance, outcome submission, post-meeting memory review, and deletion additionally require a human-controlled host lease, so neither the web worker nor internal fallback can cross those gates. Permanent deletion is not registered unless the token also carries the elevated `sylla:delete` scope. None exposes Solari credentials or stream capabilities.
 
 ## Runtime leases and work credits
 

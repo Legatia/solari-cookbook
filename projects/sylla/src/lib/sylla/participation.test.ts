@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  conversationalSetupSchema,
   PARTICIPATION_POLICY_VERSION,
   participationConsentSchema,
 } from "@/lib/sylla/participation";
@@ -44,6 +45,22 @@ describe("participation consent", () => {
             endsAt: "2026-09-10T17:00:00.000Z",
           },
         ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a complete conversational setup and requires an agent identity", () => {
+    expect(
+      conversationalSetupSchema.safeParse({
+        ...valid,
+        agentName: "Mira",
+        focus: "Help me build more durable human relationships.",
+      }).success,
+    ).toBe(true);
+    expect(
+      conversationalSetupSchema.safeParse({
+        ...valid,
+        focus: "Help me build more durable human relationships.",
       }).success,
     ).toBe(false);
   });

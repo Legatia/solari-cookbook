@@ -11,6 +11,7 @@ import {
   runtimeLeases,
 } from "@/db/schema";
 import { revokeParticipantOAuthTokens } from "@/lib/mcp/first-party-oauth";
+import { updatePortableAgent } from "@/lib/sylla/identity";
 import { loadSessionState, retireParticipantWorkspace } from "@/lib/sylla/session";
 
 export const PARTICIPATION_POLICY_VERSION = "2026-09-01";
@@ -41,6 +42,29 @@ export const participationConsentSchema = z.object({
 export type ParticipationConsentInput = z.infer<
   typeof participationConsentSchema
 >;
+
+export const conversationalSetupSchema = participationConsentSchema.extend({
+  agentName: z.string().trim().min(1).max(40),
+  focus: z.string().trim().min(3).max(280),
+});
+
+export type ConversationalSetupInput = z.infer<
+  typeof conversationalSetupSchema
+>;
+
+export const PARTICIPATION_PERMISSION_COPY = {
+  ageConfirmed: "I confirm that I am at least 18 years old.",
+  publicSourceResearch:
+    "Sylla may visit only the public URLs I explicitly submit.",
+  privateMemoryStorage:
+    "Sylla may store proposed private memories; none become approved until I decide.",
+  matchmaking:
+    "Sylla may use only my approved shareable context to look for introductions.",
+  hostDataBoundary:
+    "I understand my chosen LLM host may retain our conversation under its own terms.",
+  backgroundContinuation:
+    "Optional: Sylla may finish already-approved public-source research after my LLM disconnects. This never permits introductions or disclosures.",
+} as const;
 
 export async function requireParticipationCapability(
   participantId: string,
@@ -173,6 +197,28 @@ export async function acceptParticipationConsent(
     },
   });
   return loadSessionState(participantId);
+}
+
+export async function completeConversationalSetup(
+  participantId: string,
+  rawInput: unknown,
+) {
+  const input = conversationalSetupSchema.parse(rawInput);
+  await updatePortableAgent(participantId, {
+    agentName: input.agentName,
+    focus: input.focus,
+  });
+  return acceptParticipationConsent(participantId, {
+    displayName: input.displayName,
+    policyVersion: input.policyVersion,
+    ageConfirmed: input.ageConfirmed,
+    publicSourceResearch: input.publicSourceResearch,
+    privateMemoryStorage: input.privateMemoryStorage,
+    matchmaking: input.matchmaking,
+    hostDataBoundary: input.hostDataBoundary,
+    backgroundContinuation: input.backgroundContinuation,
+    availability: input.availability,
+  });
 }
 
 export async function withdrawParticipation(participantId: string) {

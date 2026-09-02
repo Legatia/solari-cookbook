@@ -128,6 +128,7 @@ function services(
 ): SyllaMcpServices {
   return {
     bootstrapAgent: vi.fn().mockResolvedValue(state),
+    completeSetup: vi.fn().mockResolvedValue(state),
     loadState: vi.fn().mockResolvedValue(state),
     proposeMemory: vi.fn().mockResolvedValue({
       id: "3295a3c0-a857-4be3-9a03-bd31d3995045",
@@ -267,6 +268,7 @@ function services(
       visibility: "private",
       approvedAt: "2026-09-10T20:05:00.000Z",
     }),
+    reviewObservation: vi.fn().mockResolvedValue(state),
     exportAgent: vi.fn().mockResolvedValue({
       format: "sylla-portable-agent",
       version: 1,
@@ -381,8 +383,11 @@ describe("Sylla MCP server", () => {
       result: {
         tools: expect.arrayContaining([
           expect.objectContaining({ name: "sylla_bootstrap_agent" }),
+          expect.objectContaining({ name: "sylla_get_setup_guide" }),
+          expect.objectContaining({ name: "sylla_complete_setup" }),
           expect.objectContaining({ name: "sylla_get_agent_context" }),
           expect.objectContaining({ name: "sylla_remember" }),
+          expect.objectContaining({ name: "sylla_review_observation" }),
           expect.objectContaining({ name: "sylla_research" }),
           expect.objectContaining({ name: "sylla_find_private_introduction" }),
           expect.objectContaining({ name: "sylla_get_agent_workspace" }),
@@ -603,6 +608,80 @@ describe("Sylla MCP server", () => {
             portable: true,
             workspaceStatus: "paused",
           },
+        },
+      },
+    });
+  });
+
+  it("completes first-time setup entirely through the MCP conversation", async () => {
+    const completeSetup = vi.fn().mockResolvedValue(state);
+    const handler = createTestHandler(services({ completeSetup }));
+    const input = {
+      displayName: "Tobias",
+      agentName: "Mira",
+      focus: "Find thoughtful people at a local event.",
+      policyVersion: "2026-09-01",
+      ageConfirmed: true,
+      publicSourceResearch: true,
+      privateMemoryStorage: true,
+      matchmaking: true,
+      hostDataBoundary: true,
+      backgroundContinuation: false,
+      availability: [
+        {
+          startsAt: "2026-09-10T18:00:00.000Z",
+          endsAt: "2026-09-10T20:00:00.000Z",
+          timezone: "Europe/Warsaw",
+        },
+      ],
+    } as const;
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 302,
+      method: "tools/call",
+      params: { name: "sylla_complete_setup", arguments: input },
+    });
+
+    expect(completeSetup).toHaveBeenCalledWith(state.participantId, input);
+    expect(body).toMatchObject({
+      result: { structuredContent: { setupComplete: true } },
+    });
+  });
+
+  it("reviews a research memory without sending the participant to the web app", async () => {
+    const reviewed = {
+      ...state,
+      observations: state.observations.map((observation) =>
+        observation.id === "50898735-9d42-4367-81cf-0328447d8647"
+          ? { ...observation, status: "confirmed" as const }
+          : observation,
+      ),
+    };
+    const reviewObservation = vi.fn().mockResolvedValue(reviewed);
+    const handler = createTestHandler(services({ reviewObservation }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 303,
+      method: "tools/call",
+      params: {
+        name: "sylla_review_observation",
+        arguments: {
+          observationId: "50898735-9d42-4367-81cf-0328447d8647",
+          decision: "approve",
+        },
+      },
+    });
+
+    expect(reviewObservation).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      observationId: "50898735-9d42-4367-81cf-0328447d8647",
+      decision: "approve",
+    });
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          observation: { status: "confirmed" },
+          pendingCount: 0,
         },
       },
     });

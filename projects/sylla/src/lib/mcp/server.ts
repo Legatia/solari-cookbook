@@ -46,6 +46,13 @@ import {
   structuredOutcomeSchema,
   submitIntroductionOutcome,
 } from "@/lib/sylla/outcomes";
+import { reviewObservation } from "@/lib/sylla/observations";
+import {
+  completeConversationalSetup,
+  PARTICIPATION_PERMISSION_COPY,
+  PARTICIPATION_POLICY_VERSION,
+  type ConversationalSetupInput,
+} from "@/lib/sylla/participation";
 import {
   buildPortableAgentExport,
   deletePortableAgent,
@@ -76,6 +83,10 @@ export type SyllaMcpServices = {
   bootstrapAgent: (
     participantId: string,
     input: BootstrapInput,
+  ) => Promise<SyllaSessionState>;
+  completeSetup: (
+    participantId: string,
+    input: ConversationalSetupInput,
   ) => Promise<SyllaSessionState>;
   loadState: (participantId: string) => Promise<SyllaSessionState>;
   proposeMemory: (input: {
@@ -181,6 +192,13 @@ export type SyllaMcpServices = {
     decision: "approve" | "edit" | "forget";
     editedSummary?: string;
   }) => ReturnType<typeof reviewPersonalMemory>;
+  reviewObservation: (input: {
+    participantId: string;
+    observationId: string;
+    decision: "approve" | "edit" | "set_visibility" | "forget";
+    editedClaim?: string;
+    visibility?: "private" | "shareable";
+  }) => ReturnType<typeof reviewObservation>;
   exportAgent: (
     participantId: string,
   ) => ReturnType<typeof buildPortableAgentExport>;
@@ -240,6 +258,7 @@ const defaultServices: SyllaMcpServices = {
     await updatePortableAgent(participantId, input);
     return loadSessionState(participantId);
   },
+  completeSetup: completeConversationalSetup,
   loadState: loadSessionState,
   proposeMemory: proposeConversationMemory,
   getBilling: getBillingSummary,
@@ -290,6 +309,7 @@ const defaultServices: SyllaMcpServices = {
   getOwnOutcome: getOwnIntroductionOutcome,
   listPersonalMemories: listParticipantMemories,
   reviewMemory: reviewPersonalMemory,
+  reviewObservation,
   exportAgent: buildPortableAgentExport,
   deleteAgent: deletePortableAgent,
   startRun: startAgentRun,
@@ -391,10 +411,10 @@ export function createSyllaMcpServer(
 ) {
   const { participantId, clientId } = context;
   const server = new McpServer(
-    { name: "sylla", version: "0.2.0" },
+    { name: "sylla", version: "0.3.0" },
     {
       instructions:
-        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent and recall approved context with sylla_get_agent_context. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent. If setup is incomplete, use sylla_get_setup_guide and conversationally collect each required answer before calling sylla_complete_setup; the web app is optional. Recall approved context with sylla_get_agent_context. Speak naturally and concisely; do not turn private conversation into a report. Use sylla_remember only when the user explicitly asks you to remember something, and tell them the memory remains a proposal until they approve it. Prefer the high-level sylla_research and sylla_find_private_introduction tools; the lower-level lease and checkpoint tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
     },
   );
 
@@ -417,7 +437,110 @@ export function createSyllaMcpServer(
     },
     async (input) => {
       const state = await services.bootstrapAgent(participantId, input);
-      return result({ agent: portableAgent(state) });
+      return result({
+        agent: portableAgent(state),
+        setupRequired: state.stage === "consent",
+        nextStep:
+          state.stage === "consent"
+            ? "Use sylla_get_setup_guide and complete setup conversationally. The participant does not need to open the web app."
+            : state.stage === "new"
+              ? "The agent is configured. Ask for one to three public sources, then use sylla_research."
+              : "Recall approved context with sylla_get_agent_context.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_get_setup_guide",
+    {
+      title: "See what my agent still needs",
+      description:
+        "Return the caller's current setup state, exact permission statements, and missing information. Use this to onboard the participant naturally in chat without sending them to the Sylla web app.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      const state = await services.loadState(participantId);
+      return result({
+        agent: portableAgent(state),
+        setupComplete: state.stage !== "consent" && state.stage !== "withdrawn",
+        current: {
+          displayName: state.participation.displayName,
+          availability: state.participation.availability,
+          consentedAt: state.participation.consentedAt,
+          backgroundContinuationAllowed:
+            state.participation.backgroundContinuationAllowed,
+        },
+        required: {
+          displayName: "How other people may know the participant",
+          agentName: "The participant's own name for their personal agent",
+          focus: "What the agent should understand or help with now",
+          availability:
+            "One to five future windows when a private introduction could happen, including timezone",
+          policyVersion: PARTICIPATION_POLICY_VERSION,
+          permissions: PARTICIPATION_PERMISSION_COPY,
+        },
+        consentRule:
+          "Read or faithfully summarize every permission and obtain an explicit answer to each. Never infer consent from profile data, previous conversation, or a generic desire to use Sylla.",
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_complete_setup",
+    {
+      title: "Complete my Sylla setup in this conversation",
+      description:
+        "Configure the portable agent and record participation permissions without requiring the web app. Call only after the participant explicitly confirms they are 18+, public-source research, private proposed-memory storage, matchmaking with approved shareable context, the host-data boundary, and each availability window. Background continuation remains optional.",
+      inputSchema: z.object({
+        displayName: z.string().trim().min(1).max(80),
+        agentName: z.string().trim().min(1).max(40),
+        focus: z.string().trim().min(3).max(280),
+        policyVersion: z.literal(PARTICIPATION_POLICY_VERSION),
+        ageConfirmed: z.literal(true),
+        publicSourceResearch: z.literal(true),
+        privateMemoryStorage: z.literal(true),
+        matchmaking: z.literal(true),
+        hostDataBoundary: z.literal(true),
+        backgroundContinuation: z.boolean().default(false),
+        availability: z
+          .array(
+            z
+              .object({
+                startsAt: z.iso.datetime(),
+                endsAt: z.iso.datetime(),
+                timezone: z.string().trim().min(1).max(80),
+              })
+              .refine(
+                (window) =>
+                  new Date(window.endsAt) > new Date(window.startsAt),
+                "Availability must end after it starts.",
+              ),
+          )
+          .min(1)
+          .max(5),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) => {
+      const state = await services.completeSetup(participantId, input);
+      return result({
+        agent: portableAgent(state),
+        participation: state.participation,
+        setupComplete: true,
+        nextStep:
+          "Continue naturally. Ask whether the participant wants to share one to three public URLs for evidence-backed research; this is optional and can happen later.",
+      });
     },
   );
 
@@ -488,6 +611,45 @@ export function createSyllaMcpServer(
         nextStep:
           "Tell the participant this is waiting for their approval in Sylla Memory.",
       }),
+  );
+
+  server.registerTool(
+    "sylla_review_observation",
+    {
+      title: "Review one of my Sylla memory proposals",
+      description:
+        "Approve, correct, change the privacy of, or forget one research or conversation memory. Call only for a specific memory the participant has just reviewed and explicitly chosen. Approval makes pending memory available to future agent reasoning; shareable memory may be used in private matching.",
+      inputSchema: z.object({
+        observationId: z.uuid(),
+        decision: z.enum(["approve", "edit", "set_visibility", "forget"]),
+        editedClaim: z.string().trim().min(3).max(600).optional(),
+        visibility: z.enum(["private", "shareable"]).optional(),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ observationId, decision, editedClaim, visibility }) => {
+      const state = await services.reviewObservation({
+        participantId,
+        observationId,
+        decision,
+        editedClaim,
+        visibility,
+      });
+      return result({
+        agent: portableAgent(state),
+        observation:
+          state.observations.find((item) => item.id === observationId) ?? null,
+        forgotten: decision === "forget",
+        pendingCount: state.observations.filter(
+          (item) => item.status === "pending",
+        ).length,
+      });
+    },
   );
 
   server.registerTool(
