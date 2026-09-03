@@ -186,14 +186,16 @@ export async function acceptParticipationConsent(
   await database
     .delete(availabilityWindows)
     .where(eq(availabilityWindows.participantId, participantId));
-  await database.insert(availabilityWindows).values(
-    input.availability.map((window) => ({
-      participantId,
-      startsAt: new Date(window.startsAt),
-      endsAt: new Date(window.endsAt),
-      timezone: window.timezone,
-    })),
-  );
+  if (input.availability.length > 0) {
+    await database.insert(availabilityWindows).values(
+      input.availability.map((window) => ({
+        participantId,
+        startsAt: new Date(window.startsAt),
+        endsAt: new Date(window.endsAt),
+        timezone: window.timezone,
+      })),
+    );
+  }
   await database
     .update(participants)
     .set({

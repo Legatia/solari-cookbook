@@ -71,20 +71,14 @@ async function main() {
       ageConfirmed: true,
       publicSourceResearch: true,
       privateMemoryStorage: true,
-      matchmaking: true,
+      matchmaking: false,
       hostDataBoundary: true,
       backgroundContinuation: true,
-      availability: [
-        {
-          startsAt: "2026-09-10T18:00:00.000Z",
-          endsAt: "2026-09-10T20:00:00.000Z",
-          timezone: "Europe/Warsaw",
-        },
-      ],
+      availability: [],
     });
     assert.equal(consented.stage, "new");
     assert.equal(consented.participation.policyVersion, PARTICIPATION_POLICY_VERSION);
-    assert.equal(consented.participation.availability.length, 1);
+    assert.equal(consented.participation.availability.length, 0);
     assert.equal(consented.participation.backgroundContinuationAllowed, true);
 
     const [identity] = await database
@@ -158,7 +152,7 @@ async function main() {
         verified: true,
         singleUseInvitationEnforced: true,
         explicitPolicyVersion: PARTICIPATION_POLICY_VERSION,
-        availabilityPersisted: true,
+        matchmakingOptionalWithoutAvailability: true,
         withdrawalReleasedLease: true,
         withdrawalRevokedHost: true,
         auditActions: auditRows.map((row) => row.action).sort(),

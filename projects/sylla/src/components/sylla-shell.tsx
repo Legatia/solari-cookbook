@@ -16,6 +16,7 @@ import {
   CirclePause,
   CirclePlay,
   Copy,
+  Database,
   ExternalLink,
   Eye,
   EyeOff,
@@ -26,6 +27,7 @@ import {
   Pencil,
   Plug,
   Plus,
+  KeyRound,
   RefreshCw,
   Send,
   ShieldCheck,
@@ -37,14 +39,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   SyllaObservation,
+  SyllaPersonalMemory,
   SyllaSessionState,
 } from "@/lib/sylla/contracts";
 import { cn } from "@/lib/utils";
 
-type View = "conversation" | "connections" | "workspace" | "memory";
+type View = "overview" | "connections" | "workspace" | "memory" | "account";
 type SourceDraft = { url: string; label: string };
 type ApiResponse = {
   state?: SyllaSessionState;
@@ -69,10 +73,11 @@ class SyllaApiError extends Error {
 }
 
 const navigation = [
-  { id: "conversation" as const, label: "Conversation", icon: Sparkles },
-  { id: "connections" as const, label: "Connect your AI", icon: Plug },
-  { id: "workspace" as const, label: "Workspace", icon: Monitor },
-  { id: "memory" as const, label: "Memory", icon: Brain },
+  { id: "overview" as const, label: "Overview", icon: Sparkles },
+  { id: "memory" as const, label: "What Sylla knows", icon: Brain },
+  { id: "connections" as const, label: "Connected AI", icon: Plug },
+  { id: "workspace" as const, label: "Agent computer", icon: Monitor },
+  { id: "account" as const, label: "Account & privacy", icon: KeyRound },
 ];
 
 const researchSteps = [
@@ -277,6 +282,12 @@ function ConsentScreen({
           >
             <Plug className="size-3.5" /> Connect your AI first
           </button>
+          <a
+            href="/login"
+            className="ml-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+          >
+            <KeyRound className="size-3.5" /> I already have an agent
+          </a>
           <p className="mt-3 max-w-xs text-[10px] leading-5 text-stone-600">
             Your AI can meet the agent now. Private actions unlock only after you choose the permissions here.
           </p>
@@ -774,6 +785,163 @@ function ObservationCard({
   );
 }
 
+function PersonalMemoryCard({
+  memory,
+  onChange,
+}: {
+  memory: SyllaPersonalMemory;
+  onChange: (next: SyllaSessionState) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [summary, setSummary] = useState(memory.summary);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function mutate(body: object) {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await api(`/api/personal-memories/${memory.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      if (payload.state) onChange(payload.state);
+      setEditing(false);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Relationship memory could not be changed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article
+      className={cn(
+        "rounded-2xl border p-5 sm:p-6",
+        memory.status === "proposed"
+          ? "border-amber-200/15 bg-amber-50/[0.025]"
+          : "border-white/[0.09] bg-white/[0.025]",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge
+          variant="outline"
+          className="border-white/10 bg-white/[0.025] text-[9px] uppercase tracking-[0.12em] text-stone-400"
+        >
+          {memory.source === "introduction_debrief"
+            ? "After a meeting"
+            : "Told to Sylla"}
+        </Badge>
+        <Badge
+          className={cn(
+            "text-[9px] uppercase tracking-[0.1em]",
+            memory.visibility === "private"
+              ? "bg-stone-200/[0.06] text-stone-500"
+              : "bg-lime-200/[0.08] text-lime-100",
+          )}
+        >
+          {memory.visibility}
+        </Badge>
+        <span className="text-[9px] uppercase tracking-[0.1em] text-stone-600">
+          {memory.status}
+        </span>
+      </div>
+
+      {editing ? (
+        <div className="mt-4">
+          <Textarea
+            value={summary}
+            maxLength={280}
+            onChange={(event) => setSummary(event.target.value)}
+            className="min-h-24 border-white/10 bg-black/20 text-sm leading-6 text-stone-200 focus-visible:ring-0"
+          />
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                mutate({ decision: "edit", editedSummary: summary })
+              }
+              className="rounded-full bg-lime-200 text-[10px] text-stone-950"
+            >
+              Save correction
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditing(false);
+                setSummary(memory.summary);
+              }}
+              className="text-[10px] text-stone-500"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 max-w-2xl font-heading text-xl leading-7 text-stone-200">
+          {memory.summary}
+        </p>
+      )}
+
+      {error && <p className="mt-3 text-xs text-red-300/80">{error}</p>}
+
+      {!editing && (
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-4">
+          {memory.status === "proposed" && (
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => mutate({ decision: "approve" })}
+              className="h-8 rounded-full bg-lime-200 px-3 text-[10px] text-stone-950"
+            >
+              <Check /> Keep
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => setEditing(true)}
+            className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+          >
+            <Pencil /> Correct
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() =>
+              mutate({
+                visibility:
+                  memory.visibility === "private" ? "shareable" : "private",
+              })
+            }
+            className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+          >
+            {memory.visibility === "private" ? <Eye /> : <EyeOff />}
+            {memory.visibility === "private" ? "Make shareable" : "Make private"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => mutate({ decision: "forget" })}
+            className="ml-auto h-8 text-[10px] text-stone-600 hover:text-red-300"
+          >
+            <Trash2 /> Forget
+          </Button>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function ConversationView({
   state,
   onChange,
@@ -911,6 +1079,12 @@ function MemoryView({
 }) {
   const pending = state.observations.filter((item) => item.status === "pending");
   const kept = state.observations.filter((item) => item.status !== "pending");
+  const proposedPersonal = state.personalMemories.filter(
+    (item) => item.status === "proposed",
+  );
+  const keptPersonal = state.personalMemories.filter(
+    (item) => item.status !== "proposed",
+  );
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
@@ -925,8 +1099,8 @@ function MemoryView({
             </h1>
           </div>
           <div className="flex gap-5 text-xs text-stone-500">
-            <span><b className="mr-1 font-heading text-xl text-stone-200">{kept.length}</b> kept</span>
-            <span><b className="mr-1 font-heading text-xl text-amber-200/70">{pending.length}</b> pending</span>
+            <span><b className="mr-1 font-heading text-xl text-stone-200">{kept.length + keptPersonal.length}</b> kept</span>
+            <span><b className="mr-1 font-heading text-xl text-amber-200/70">{pending.length + proposedPersonal.length}</b> pending</span>
           </div>
         </div>
 
@@ -969,6 +1143,35 @@ function MemoryView({
             )}
           </div>
         </div>
+
+        {state.personalMemories.length > 0 && (
+          <div className="mt-10 border-t border-white/[0.08] pt-10">
+            <div className="mb-3 flex items-end justify-between gap-5">
+              <div>
+                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+                  Relationship memory
+                </p>
+                <p className="mt-2 max-w-xl text-xs leading-5 text-stone-600">
+                  Things you deliberately told your agent to keep, including
+                  distilled reflections after an introduction. Raw debriefs are
+                  never stored here.
+                </p>
+              </div>
+              <span className="text-[10px] text-stone-600">
+                {state.personalMemories.length} total
+              </span>
+            </div>
+            <div className="space-y-3">
+              {state.personalMemories.map((memory) => (
+                <PersonalMemoryCard
+                  key={memory.id}
+                  memory={memory}
+                  onChange={onChange}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1203,7 +1406,12 @@ function WorkspaceView({
 }
 
 function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openWorkspace: () => void }) {
-  const approved = state.observations.filter((item) => item.status !== "pending").length;
+  const approved =
+    state.observations.filter((item) => item.status !== "pending").length +
+    state.personalMemories.filter((item) => item.status !== "proposed").length;
+  const pending =
+    state.observations.filter((item) => item.status === "pending").length +
+    state.personalMemories.filter((item) => item.status === "proposed").length;
   return (
     <aside className="hidden w-72 shrink-0 flex-col border-l border-white/[0.07] bg-black/10 p-5 xl:flex">
       <div className="flex items-center justify-between">
@@ -1219,7 +1427,7 @@ function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openW
         {[
           [Globe2, "Browser", `${state.sources.length} approved sources read`],
           [Monitor, "Desktop", state.workspace?.status === "ready" ? "Workspace synchronized" : "Ready on demand"],
-          [Brain, "Memory", `${approved} approved · ${state.observations.length - approved} pending`],
+          [Brain, "Memory", `${approved} approved · ${pending} pending`],
         ].map(([Icon, label, detail]) => {
           const RuntimeIcon = Icon as typeof Globe2;
           return (
@@ -1388,12 +1596,154 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
   );
 }
 
+function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
+  const approvedObservations = state.observations.filter(
+    (item) => item.status !== "pending",
+  ).length;
+  const pendingObservations = state.observations.length - approvedObservations;
+  const approvedPersonal = state.personalMemories.filter(
+    (item) => item.status !== "proposed",
+  ).length;
+  const permissionRows = [
+    [
+      "Public-source research",
+      state.participation.permissions.publicSourceResearch,
+      "Only links you deliberately provide",
+    ],
+    [
+      "Reviewable personal memory",
+      state.participation.permissions.privateMemoryStorage,
+      "New memories begin as proposals",
+    ],
+    [
+      "Private introductions",
+      state.participation.permissions.matchmaking,
+      "Only approved shareable context",
+    ],
+    [
+      "Background continuation",
+      state.participation.permissions.backgroundContinuation,
+      "Only already-approved public research",
+    ],
+  ] as const;
+
+  return (
+    <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
+      <div className="mx-auto max-w-5xl animate-rise">
+        <div className="grid gap-8 border-b border-white/[0.08] pb-9 lg:grid-cols-[1fr_0.72fr] lg:items-end">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
+              Account & privacy
+            </p>
+            <h1 className="mt-3 max-w-3xl font-heading text-5xl leading-[0.92] tracking-[-0.045em] text-stone-100 sm:text-6xl">
+              Everything Sylla holds about you.
+            </h1>
+          </div>
+          <p className="text-sm leading-7 text-stone-500">
+            This is the control surface for your portable agent—not a second
+            chat app. See the data, its origin, its permissions, and the way back
+            into the same agent.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            [Database, approvedObservations + approvedPersonal, "approved memories"],
+            [Sparkles, pendingObservations, "memory proposals"],
+            [Globe2, state.sources.length, "source records"],
+            [Monitor, state.workspace ? 1 : 0, "agent workspace"],
+          ].map(([Icon, value, label]) => {
+            const ItemIcon = Icon as typeof Database;
+            return (
+              <div
+                key={label as string}
+                className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5"
+              >
+                <ItemIcon className="size-4 text-lime-200/60" />
+                <p className="mt-5 font-heading text-4xl italic text-stone-100">
+                  {value as ReactNode}
+                </p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+                  {label as ReactNode}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+              Current permissions
+            </p>
+            <div className="mt-6 divide-y divide-white/[0.07]">
+              {permissionRows.map(([label, enabled, detail]) => (
+                <div key={label} className="flex items-start gap-4 py-4 first:pt-0">
+                  <span
+                    className={cn(
+                      "mt-1 size-2 shrink-0 rounded-full",
+                      enabled ? "bg-lime-200" : "bg-stone-700",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs text-stone-300">{label}</p>
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-stone-600">
+                        {enabled ? "On" : "Off"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[10px] leading-4 text-stone-600">
+                      {detail}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 border-t border-white/[0.07] pt-5 text-[10px] leading-5 text-stone-600">
+              Your current chat host&apos;s retention policy remains separate.
+              Sylla stores no complete host transcript and no raw meeting debrief.
+            </p>
+          </div>
+
+          <PasskeyAccountPanel />
+        </div>
+
+        <div className="mt-6 rounded-[2rem] border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+          <div className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr]">
+            <div>
+              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+                Portable identity
+              </p>
+              <p className="mt-3 font-heading text-3xl italic text-stone-100">
+                {state.agentName}
+              </p>
+              <p className="mt-2 text-[10px] text-stone-600">
+                Agent reference · {state.identity.agentId.slice(0, 8)}
+              </p>
+            </div>
+            <div className="border-l border-white/[0.07] pl-6">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+                What it is trying to understand now
+              </p>
+              <p className="mt-3 max-w-2xl font-heading text-xl italic leading-7 text-stone-300">
+                {state.focus}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AppShell({ initialState }: { initialState: SyllaSessionState }) {
   const [state, setState] = useState(initialState);
-  const [view, setView] = useState<View>(state.stage === "review" ? "memory" : "conversation");
+  const [view, setView] = useState<View>(state.stage === "review" ? "memory" : "overview");
   const [paused, setPaused] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
-  const pending = state.observations.filter((item) => item.status === "pending").length;
+  const pending =
+    state.observations.filter((item) => item.status === "pending").length +
+    state.personalMemories.filter((item) => item.status === "proposed").length;
 
   async function withdraw() {
     if (!window.confirm(`Withdraw from ${state.event.name}? This immediately removes you from matching and releases active access.`)) return;
@@ -1493,7 +1843,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          {view === "conversation" && (
+          {view === "overview" && (
             <ConversationView state={state} onChange={setState} openMemory={() => setView("memory")} openWorkspace={() => setView("workspace")} />
           )}
           {view === "connections" && <ConnectionsView agentName={state.agentName} />}
@@ -1503,6 +1853,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
           {view === "workspace" && (
             <WorkspaceView state={state} onChange={setState} streamUrl={streamUrl} onStream={setStreamUrl} />
           )}
+          {view === "account" && <AccountPrivacyView state={state} />}
           <RuntimeRail state={state} openWorkspace={() => setView("workspace")} />
         </div>
       </div>

@@ -30,6 +30,13 @@ const state: SyllaSessionState = {
     policyVersion: "2026-09-01",
     consentedAt: "2026-09-01T10:00:00.000Z",
     backgroundContinuationAllowed: true,
+    permissions: {
+      publicSourceResearch: true,
+      privateMemoryStorage: true,
+      matchmaking: true,
+      hostDataBoundary: true,
+      backgroundContinuation: true,
+    },
     availability: [
       {
         id: "ec8772bf-91c2-4c4b-8e4a-b4e49bce0be9",

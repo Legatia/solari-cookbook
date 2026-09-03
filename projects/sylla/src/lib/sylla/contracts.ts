@@ -25,6 +25,24 @@ export const observationUpdateSchema = z
     "At least one observation field must change.",
   );
 
+export const personalMemoryUpdateSchema = z
+  .object({
+    decision: z.enum(["approve", "edit", "forget"]).optional(),
+    editedSummary: z.string().trim().min(3).max(280).optional(),
+    visibility: z.enum(["private", "shareable"]).optional(),
+  })
+  .refine(
+    (value) => value.decision !== undefined || value.visibility !== undefined,
+    "Choose how this memory should change.",
+  )
+  .refine(
+    (value) =>
+      value.decision === "edit"
+        ? value.editedSummary !== undefined
+        : value.editedSummary === undefined,
+    "Only a correction may include replacement text.",
+  );
+
 export type SyllaSource = {
   id: string;
   url: string;
@@ -89,6 +107,13 @@ export type SyllaSessionState = {
     policyVersion: string | null;
     consentedAt: string | null;
     backgroundContinuationAllowed: boolean;
+    permissions: {
+      publicSourceResearch: boolean;
+      privateMemoryStorage: boolean;
+      matchmaking: boolean;
+      hostDataBoundary: boolean;
+      backgroundContinuation: boolean;
+    };
     availability: Array<{
       id: string;
       startsAt: string;

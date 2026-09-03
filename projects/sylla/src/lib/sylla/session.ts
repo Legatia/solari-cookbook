@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getDatabase } from "@/db";
@@ -13,13 +13,14 @@ import {
   participantConsents,
   participants,
   personalMemories,
+  userSessions,
   workspaceArtifacts,
 } from "@/db/schema";
 import { createSolariAdapters } from "@/lib/solari";
 import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 
-const SESSION_COOKIE = "sylla_session";
+export const SESSION_COOKIE = "sylla_session";
 const DEMO_EVENT_SLUG = "sylla-first-session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -68,6 +69,36 @@ export async function resolveParticipant(request: NextRequest) {
   const existingToken = validToken(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (existingToken) {
+    const [userSession] = await database
+      .select()
+      .from(userSessions)
+      .where(
+        and(
+          eq(userSessions.tokenHash, hashToken(existingToken)),
+          isNull(userSessions.revokedAt),
+          gt(userSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+
+    if (userSession) {
+      const [participant] = await database
+        .select()
+        .from(participants)
+        .where(eq(participants.id, userSession.participantId))
+        .limit(1);
+      if (participant) {
+        await Promise.all([
+          ensurePortableIdentity(participant.id),
+          database
+            .update(userSessions)
+            .set({ lastUsedAt: new Date() })
+            .where(eq(userSessions.id, userSession.id)),
+        ]);
+        return { participant, newToken: null };
+      }
+    }
+
     const [participant] = await database
       .select()
       .from(participants)
@@ -98,6 +129,53 @@ export async function resolveParticipant(request: NextRequest) {
   await ensurePortableIdentity(participant.id);
 
   return { participant, newToken };
+}
+
+export async function createUserSession(userId: string) {
+  const database = getDatabase();
+  const [participant] = await database
+    .select()
+    .from(participants)
+    .where(
+      and(
+        eq(participants.userId, userId),
+        isNull(participants.withdrawnAt),
+      ),
+    )
+    .orderBy(desc(participants.createdAt))
+    .limit(1);
+  if (!participant) {
+    throw new Error("This passkey is not linked to an active Sylla agent.");
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  await database.insert(userSessions).values({
+    userId,
+    participantId: participant.id,
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1_000),
+  });
+  return { participant, token };
+}
+
+export async function revokeBrowserSession(request: NextRequest) {
+  const token = validToken(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!token) return;
+  await getDatabase()
+    .update(userSessions)
+    .set({ revokedAt: new Date() })
+    .where(eq(userSessions.tokenHash, hashToken(token)));
+}
+
+export function clearSessionCookie<T extends NextResponse>(response: T) {
+  response.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    expires: new Date(0),
+    path: "/",
+  });
+  return response;
 }
 
 export function attachSessionCookie<T extends NextResponse>(
@@ -258,6 +336,13 @@ export async function loadSessionState(
       consentedAt: consent?.acceptedAt.toISOString() ?? null,
       backgroundContinuationAllowed:
         consent?.backgroundContinuation ?? false,
+      permissions: {
+        publicSourceResearch: consent?.publicSourceResearch ?? false,
+        privateMemoryStorage: consent?.privateMemoryStorage ?? false,
+        matchmaking: consent?.matchmaking ?? false,
+        hostDataBoundary: consent?.hostDataBoundary ?? false,
+        backgroundContinuation: consent?.backgroundContinuation ?? false,
+      },
       availability: availability.map((window) => ({
         id: window.id,
         startsAt: window.startsAt.toISOString(),

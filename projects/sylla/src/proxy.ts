@@ -30,5 +30,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/join/:path*", "/checkout/:path*", "/api/:path*", "/oauth/authorize"],
+  matcher: ["/app/:path*", "/login/:path*", "/join/:path*", "/checkout/:path*", "/api/:path*", "/oauth/authorize"],
 };

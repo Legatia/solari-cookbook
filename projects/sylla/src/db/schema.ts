@@ -150,6 +150,57 @@ export const syllaUsers = pgTable("sylla_users", {
     .notNull(),
 });
 
+export const passkeyCredentials = pgTable(
+  "passkey_credentials",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    credentialId: text("credential_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    counter: integer("counter").default(0).notNull(),
+    transports: jsonb("transports").$type<string[]>().default([]).notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("passkey_credentials_user_idx").on(table.userId),
+    uniqueIndex("passkey_credentials_credential_unique").on(
+      table.credentialId,
+    ),
+  ],
+);
+
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("user_sessions_user_idx").on(table.userId),
+    index("user_sessions_participant_idx").on(table.participantId),
+    uniqueIndex("user_sessions_token_unique").on(table.tokenHash),
+  ],
+);
+
 export const personalAgents = pgTable(
   "personal_agents",
   {
