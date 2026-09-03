@@ -268,14 +268,16 @@ export function MarketingLanding() {
       <section className="relative mx-auto grid max-w-[92rem] gap-14 px-5 pb-24 pt-14 sm:px-9 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-20 lg:px-14 lg:pb-32 lg:pt-24">
         <div className="relative z-10 max-w-4xl">
           <div className="marketing-rise flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-lime-200/65">
-            <span className="h-px w-9 bg-lime-200/40" /> MCP first · intimate by permission · portable by design
+            <span className="h-px w-9 bg-lime-200/40" /> Private by permission · portable by design
           </div>
           <h1 className="marketing-rise mt-8 font-heading text-[clamp(4rem,9.4vw,9.2rem)] font-normal leading-[0.78] tracking-[-0.075em]" style={{ animationDelay: "100ms" }}>
-            An agent that knows you.
-            <span className="mt-3 block italic text-lime-200">Because you let it.</span>
+            The intimate agent.
+            <span className="mt-3 block italic text-lime-200">Yours, not theirs.</span>
           </h1>
           <p className="marketing-rise mt-10 max-w-2xl text-base leading-8 text-stone-400 sm:text-lg sm:leading-9" style={{ animationDelay: "220ms" }}>
-            Sylla is the private relationship layer behind the AI you already talk to—an agent that remembers the shape of your life and speaks with you like someone who knows you. When everyone has one, those agents form a parallel society that can discover people and possibilities their humans would never find alone.
+            Sylla is the private layer behind the AI you already talk to. Your agent
+            remembers what you let it, and comes with you when the model changes.
+            When everyone has one, agents can find people their humans never would.
           </p>
           <div className="marketing-rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "320ms" }}>
             <a

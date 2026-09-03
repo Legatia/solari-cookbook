@@ -19,7 +19,7 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
-  title: "Sylla — an agent that knows you because you let it",
+  title: "Sylla — the intimate agent",
   description:
     "An intimate personal agent that follows you across AI models through MCP and privately introduces people worth knowing.",
 };

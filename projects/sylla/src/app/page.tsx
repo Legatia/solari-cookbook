@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { MarketingLanding } from "@/components/marketing-landing";
 
 export const metadata: Metadata = {
-  title: "Sylla — an agent that knows you because you let it",
+  title: "Sylla — the intimate agent",
   description:
-    "An intimate personal agent that follows you across AI models through MCP, builds trust through permissioned memory, and privately introduces people worth knowing.",
+    "A personal agent that is yours, not the model's. It remembers what you let it, comes with you across AI models, and privately introduces people worth knowing.",
 };
 
 export default function Home() {
