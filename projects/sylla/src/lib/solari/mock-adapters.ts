@@ -78,6 +78,8 @@ export class MockBrowserComputerAdapter implements BrowserComputerAdapter {
       profileSaved: true,
     });
   }
+
+  async deleteProfile() {}
 }
 
 export class MockDesktopWorkspaceAdapter implements DesktopWorkspaceAdapter {

@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 import { getConversationProfile } from "@/lib/sylla/conversation";
+import { retireAgentBrowserProfile } from "@/lib/sylla/computer-use";
 import {
   requireHumanHostLease,
   type RuntimeLeaseAuthorization,
@@ -169,6 +170,7 @@ export async function deletePortableAgent(input: {
     input.participantId,
   );
 
+  await retireAgentBrowserProfile({ participantId: input.participantId });
   for (const ownedParticipantId of participantIds) {
     await retireParticipantWorkspace(ownedParticipantId);
   }

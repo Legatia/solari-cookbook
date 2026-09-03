@@ -193,6 +193,7 @@ export interface BrowserResearchAdapter {
 
 export interface BrowserComputerAdapter {
   operate(request: BrowserComputerRequest): Promise<BrowserComputerResult>;
+  deleteProfile(profileId: string): Promise<void>;
 }
 
 export interface DesktopWorkspaceAdapter {

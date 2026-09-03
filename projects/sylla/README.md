@@ -81,7 +81,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Privacy-filtered introduction proposals that expose neither identity nor meeting details until both participants independently accept, and turn every decline into the same non-identifying closed state
 - Strict structured meeting outcomes that reject raw debrief fields, never return the other participant's answers, and accept at most three already-distilled private memory proposals
 - Human-host-only Keep/Edit/Forget review for post-introduction memory; only approved or edited memory enters portable context and the reconstructible Desktop workbench
-- Versioned cross-event agent export plus explicit irreversible account deletion, both free of provider credentials, Desktop capabilities, raw debriefs, and other-participant outcomes
+- Versioned cross-event agent export plus explicit irreversible account deletion, both free of provider credentials, Desktop capabilities, raw debriefs, and other-participant outcomes; deletion destroys the provider-side Browser profile as well as Desktop resources
 - Organizer aggregates suppressed below eight participants and coarsened below three observations, with no participant identifiers or private context
 - A functional memory ledger with evidence-aware Keep, Correct, Private/Shareable, and Forget controls
 - Private follow-up reflections that return as proposed memory rather than being silently persisted as truth

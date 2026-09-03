@@ -312,3 +312,17 @@ export async function operateInteractiveBrowserMission(input: {
     }
   }
 }
+
+export async function retireAgentBrowserProfile(input: {
+  participantId: string;
+  adapter?: BrowserComputerAdapter;
+}) {
+  const profile = await getBrowserProfile(input.participantId);
+  if (!profile) return false;
+  const adapter = input.adapter ?? (await createSolariAdapters()).browserComputer;
+  await adapter.deleteProfile(profile.providerProfileId);
+  await getDatabase()
+    .delete(agentBrowserProfiles)
+    .where(eq(agentBrowserProfiles.id, profile.id));
+  return true;
+}

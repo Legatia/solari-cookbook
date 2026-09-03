@@ -270,6 +270,15 @@ async function annotateBrowserControls(page: {
 export class SolariBrowserComputerAdapter implements BrowserComputerAdapter {
   constructor(private readonly options: LiveAdapterOptions) {}
 
+  async deleteProfile(profileId: string) {
+    const client = new Solari(this.options);
+    try {
+      await client.profiles.delete(profileId);
+    } finally {
+      await client.close();
+    }
+  }
+
   async operate(input: unknown) {
     const request = browserComputerRequestSchema.parse(input);
     const allowedOrigins = new Set(
