@@ -16,6 +16,7 @@
     "db:studio": "drizzle-kit studio",
     "verify:handoff": "tsx scripts/verify-run-handoff.ts",
     "verify:browser": "tsx scripts/verify-browser-handoff.ts",
+    "verify:computer-live": "tsx scripts/verify-live-computer-use.ts",
     "verify:participation": "tsx scripts/verify-participation.ts",
     "verify:matching": "tsx scripts/verify-matching.ts",
     "verify:introduction": "tsx scripts/verify-introduction.ts",

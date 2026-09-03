@@ -234,6 +234,7 @@ try {
     "sylla_get_mission",
     "sylla_approve_mission",
     "sylla_continue_mission",
+    "sylla_act_on_web",
     "sylla_cancel_mission",
     "sylla_remember",
     "sylla_review_observation",

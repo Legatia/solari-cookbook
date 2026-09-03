@@ -710,6 +710,41 @@ export const agentMissions = pgTable(
   ],
 );
 
+export const agentBrowserProfiles = pgTable(
+  "agent_browser_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => personalAgents.id, { onDelete: "cascade" }),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    provider: text("provider").default("solari").notNull(),
+    providerProfileId: text("provider_profile_id").notNull(),
+    currentUrl: text("current_url"),
+    allowedOrigins: jsonb("allowed_origins").$type<string[]>().default([]).notNull(),
+    status: text("status").default("ready").notNull(),
+    actionCount: integer("action_count").default(0).notNull(),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("agent_browser_profiles_agent_unique").on(table.agentId),
+    uniqueIndex("agent_browser_profiles_provider_profile_unique").on(
+      table.providerProfileId,
+    ),
+    index("agent_browser_profiles_participant_idx").on(table.participantId),
+  ],
+);
+
 export const missionSteps = pgTable(
   "mission_steps",
   {

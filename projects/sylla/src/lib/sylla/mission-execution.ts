@@ -10,6 +10,7 @@ import {
   prepareBrowserResearch,
   researchNextBrowserSource,
 } from "@/lib/sylla/browser-research";
+import { prepareInteractiveBrowserMission } from "@/lib/sylla/computer-use";
 import {
   acquireRuntimeLease,
   releaseRuntimeLease,
@@ -46,6 +47,13 @@ async function executeBrowserMission(
   lease: RuntimeLeaseAuthorization,
 ) {
   const accountOperation = mission.capability === "operate_web_account";
+  if (accountOperation) {
+    return prepareInteractiveBrowserMission({
+      participantId,
+      mission,
+      authorization: lease,
+    });
+  }
   const estimatedCredits =
     mission.constraints.sourceUrls.length * OPERATION_CREDITS.browser_source;
   if (estimatedCredits > mission.constraints.maxCredits) {
@@ -115,33 +123,6 @@ async function executeBrowserMission(
     },
     providerReference: progress.run.id,
   });
-  if (accountOperation) {
-    await markMissionStep({
-      participantId,
-      missionId: mission.id,
-      sequence: 2,
-      status: "completed",
-      output: {
-        preparedOnly: true,
-        externalActionPerformed: false,
-        reason:
-          "Sylla inspected the approved source but the persistent authenticated-browser action runner is not enabled yet.",
-      },
-    });
-    return completeMission({
-      participantId,
-      missionId: mission.id,
-      result: {
-        capability: mission.capability,
-        preparedOnly: true,
-        externalActionPerformed: false,
-        sources: progress.sources,
-        nextApproval:
-          "The final authenticated action remains blocked until Sylla's persistent Browser profile runner is enabled.",
-      },
-      waitingForUser: true,
-    });
-  }
   await markMissionStep({
     participantId,
     missionId: mission.id,

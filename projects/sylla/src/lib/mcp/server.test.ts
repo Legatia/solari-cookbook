@@ -254,6 +254,21 @@ function services(
       nextAction: "Report the result naturally.",
       completedAt: "2026-09-02T10:02:00.000Z",
     }),
+    operateBrowser: vi.fn().mockResolvedValue({
+      ...mission,
+      capability: "operate_web_account",
+      status: "waiting_for_user",
+      result: {
+        interactive: true,
+        observation: {
+          url: "https://example.com/account",
+          title: "Account",
+          text: "Account settings",
+          controls: [],
+        },
+      },
+      nextAction: "Use sylla_act_on_web.",
+    }),
     cancelMission: vi.fn().mockResolvedValue({
       ...mission,
       status: "canceled",
@@ -525,6 +540,7 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_get_mission" }),
           expect.objectContaining({ name: "sylla_approve_mission" }),
           expect.objectContaining({ name: "sylla_continue_mission" }),
+          expect.objectContaining({ name: "sylla_act_on_web" }),
           expect.objectContaining({ name: "sylla_cancel_mission" }),
           expect.objectContaining({ name: "sylla_remember" }),
           expect.objectContaining({ name: "sylla_review_observation" }),
@@ -965,6 +981,47 @@ describe("Sylla MCP server", () => {
       mission.id,
     );
     expect(continued).toMatchObject({
+      result: {
+        structuredContent: { mission: { status: "completed" } },
+      },
+    });
+  });
+
+  it("lets the connected host continue an approved web task through referenced controls", async () => {
+    const operateBrowser = vi.fn().mockResolvedValue({
+      ...mission,
+      capability: "operate_web_account" as const,
+      status: "completed" as const,
+      result: { interactive: true, summary: "The form was submitted." },
+      completedAt: "2026-09-02T10:03:00.000Z",
+    });
+    const handler = createTestHandler(services({ operateBrowser }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 308,
+      method: "tools/call",
+      params: {
+        name: "sylla_act_on_web",
+        arguments: {
+          missionId: mission.id,
+          requestId: "web-action-0001",
+          actions: [{ type: "click", ref: "e1" }],
+          done: true,
+          summary: "The form was submitted.",
+        },
+      },
+    });
+
+    expect(operateBrowser).toHaveBeenCalledWith(
+      state.participantId,
+      clientId,
+      expect.objectContaining({
+        missionId: mission.id,
+        actions: [{ type: "click", ref: "e1" }],
+        done: true,
+      }),
+    );
+    expect(body).toMatchObject({
       result: {
         structuredContent: { mission: { status: "completed" } },
       },

@@ -25,6 +25,71 @@ export const researchResultSchema = z.object({
   evidence: z.array(evidenceSchema),
 });
 
+export const browserComputerActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("navigate"), url: z.url() }),
+  z.object({ type: z.literal("click"), ref: z.string().min(1).max(40) }),
+  z.object({
+    type: z.literal("fill"),
+    ref: z.string().min(1).max(40),
+    value: z.string().max(4_000),
+  }),
+  z.object({
+    type: z.literal("press"),
+    ref: z.string().min(1).max(40).optional(),
+    key: z.string().min(1).max(40),
+  }),
+  z.object({
+    type: z.literal("select"),
+    ref: z.string().min(1).max(40),
+    value: z.string().max(500),
+  }),
+  z.object({ type: z.literal("check"), ref: z.string().min(1).max(40) }),
+  z.object({ type: z.literal("back") }),
+  z.object({
+    type: z.literal("wait"),
+    milliseconds: z.number().int().min(100).max(5_000),
+  }),
+]);
+
+export const browserComputerRequestSchema = z.object({
+  participantRef: z.string().min(1),
+  profileId: z.string().min(1).optional(),
+  startUrl: z.url(),
+  allowedOrigins: z.array(z.url()).min(1).max(6),
+  actions: z.array(browserComputerActionSchema).max(12),
+});
+
+const browserControlSchema = z.object({
+  ref: z.string().min(1),
+  role: z.string().min(1),
+  text: z.string(),
+  href: z.string().optional(),
+  inputType: z.string().optional(),
+  placeholder: z.string().optional(),
+  disabled: z.boolean(),
+  sensitive: z.boolean(),
+});
+
+export const browserComputerResultSchema = z.object({
+  provider: z.enum(["mock", "solari"]),
+  runReference: z.string().min(1),
+  profileId: z.string().min(1),
+  page: z.object({
+    url: z.url(),
+    title: z.string(),
+    text: z.string(),
+    controls: z.array(browserControlSchema),
+  }),
+  humanCheckpoint: z
+    .object({
+      required: z.boolean(),
+      reason: z.string().nullable(),
+    })
+    .nullable(),
+  actionsCompleted: z.number().int().nonnegative(),
+  profileSaved: z.boolean(),
+});
+
 export const workspaceManifestSchema = z.object({
   participantRef: z.string().min(1),
   agentName: z.string().min(1),
@@ -100,6 +165,9 @@ export type ApprovedSource = z.infer<typeof approvedSourceSchema>;
 export type Evidence = z.infer<typeof evidenceSchema>;
 export type ResearchRequest = z.infer<typeof researchRequestSchema>;
 export type ResearchResult = z.infer<typeof researchResultSchema>;
+export type BrowserComputerAction = z.infer<typeof browserComputerActionSchema>;
+export type BrowserComputerRequest = z.infer<typeof browserComputerRequestSchema>;
+export type BrowserComputerResult = z.infer<typeof browserComputerResultSchema>;
 export type WorkspaceManifest = z.infer<typeof workspaceManifestSchema>;
 export type WorkspaceResult = z.infer<typeof workspaceResultSchema>;
 export type WorkspaceOpenOptions = {
@@ -121,6 +189,10 @@ export type RepositoryTaskResult = z.infer<
 
 export interface BrowserResearchAdapter {
   research(request: ResearchRequest): Promise<ResearchResult>;
+}
+
+export interface BrowserComputerAdapter {
+  operate(request: BrowserComputerRequest): Promise<BrowserComputerResult>;
 }
 
 export interface DesktopWorkspaceAdapter {
@@ -147,6 +219,7 @@ export interface SandboxTaskAdapter {
 
 export interface SolariAdapters {
   browser: BrowserResearchAdapter;
+  browserComputer: BrowserComputerAdapter;
   desktop: DesktopWorkspaceAdapter;
   sandbox: SandboxEvaluationAdapter;
   sandboxTask: SandboxTaskAdapter;

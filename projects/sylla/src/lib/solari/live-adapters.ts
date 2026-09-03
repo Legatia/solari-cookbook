@@ -1,10 +1,12 @@
-import { Solari } from "@solarisdk/browser";
+import { Solari, SolariError } from "@solarisdk/browser";
 import { DesktopClient } from "@solarisdk/desktop";
 import { SandboxClient } from "@solarisdk/sandbox";
 
 import {
   directionalEvaluationRequestSchema,
   directionalEvaluationSchema,
+  browserComputerRequestSchema,
+  browserComputerResultSchema,
   researchRequestSchema,
   researchResultSchema,
   repositoryTaskRequestSchema,
@@ -12,6 +14,7 @@ import {
   workspaceManifestSchema,
   workspaceResultSchema,
   type BrowserResearchAdapter,
+  type BrowserComputerAdapter,
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
   type SandboxTaskAdapter,
@@ -173,6 +176,250 @@ export class SolariBrowserResearchAdapter implements BrowserResearchAdapter {
       });
     } finally {
       await browser.close();
+      await client.close();
+    }
+  }
+}
+
+function allowedBrowserOrigin(url: string, allowedOrigins: Set<string>) {
+  const parsed = assertPublicHttpUrl(url);
+  if (!allowedOrigins.has(parsed.origin)) {
+    throw new Error(
+      `The browser moved to ${parsed.origin}, which is outside this mission's approved origins.`,
+    );
+  }
+  return parsed;
+}
+
+async function annotateBrowserControls(page: {
+  locator(selector: string): {
+    evaluateAll<T>(callback: (elements: Element[]) => T): Promise<T>;
+  };
+}) {
+  return page
+    .locator(
+      "a,button,input,textarea,select,[role='button'],[role='link'],[contenteditable='true']",
+    )
+    .evaluateAll((elements) =>
+      elements
+        .filter(
+          (element) =>
+            element.getClientRects().length > 0 &&
+            element.getAttribute("aria-hidden") !== "true" &&
+            !(
+              element instanceof HTMLInputElement &&
+              element.type.toLowerCase() === "hidden"
+            ),
+        )
+        .slice(0, 80)
+        .map((element, index) => {
+        const ref = `e${index + 1}`;
+        element.setAttribute("data-sylla-ref", ref);
+        const input = element instanceof HTMLInputElement ? element : null;
+        const autocomplete = input?.autocomplete?.toLowerCase() ?? "";
+        const inputType = input?.type?.toLowerCase();
+        const sensitiveHint = [
+          input?.name,
+          input?.id,
+          input?.placeholder,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const sensitive =
+          inputType === "password" ||
+          autocomplete.includes("password") ||
+          autocomplete === "one-time-code" ||
+          autocomplete.startsWith("cc-") ||
+          /\b(otp|one.?time|verification.?code|card.?number|cvc|cvv|security.?code)\b/i.test(
+            sensitiveHint,
+          );
+        const role =
+          element.getAttribute("role") ||
+          (element.tagName === "A"
+            ? "link"
+            : element.tagName === "BUTTON"
+              ? "button"
+              : element.tagName.toLowerCase());
+        const text =
+          element.getAttribute("aria-label") ||
+          element.textContent?.replace(/\s+/g, " ").trim() ||
+          input?.name ||
+          "";
+        return {
+          ref,
+          role,
+          text: text.slice(0, 240),
+          ...(element instanceof HTMLAnchorElement && element.href
+            ? { href: element.href }
+            : {}),
+          ...(inputType ? { inputType } : {}),
+          ...(input?.placeholder ? { placeholder: input.placeholder.slice(0, 160) } : {}),
+          disabled:
+            (element instanceof HTMLButtonElement ||
+              element instanceof HTMLInputElement ||
+              element instanceof HTMLSelectElement ||
+              element instanceof HTMLTextAreaElement) &&
+            element.disabled,
+          sensitive,
+        };
+        }),
+    );
+}
+
+export class SolariBrowserComputerAdapter implements BrowserComputerAdapter {
+  constructor(private readonly options: LiveAdapterOptions) {}
+
+  async operate(input: unknown) {
+    const request = browserComputerRequestSchema.parse(input);
+    const allowedOrigins = new Set(
+      request.allowedOrigins.map((value) => assertPublicHttpUrl(value).origin),
+    );
+    const startUrl = allowedBrowserOrigin(request.startUrl, allowedOrigins);
+    const client = new Solari(this.options);
+    const profile = request.profileId
+      ? { id: request.profileId }
+      : await client.profiles.create({
+          name: `sylla-${request.participantRef.slice(0, 8)}`,
+        });
+    let browser;
+    try {
+      browser = await client.launch({
+        profileId: profile.id,
+        recording: true,
+        stealth: true,
+        captcha: true,
+        retries: 1,
+        probe: true,
+      });
+    } catch (error) {
+      if (!(error instanceof SolariError) || error.code !== "FeatureRequiresPlan") {
+        throw error;
+      }
+      browser = await client.launch({
+        profileId: profile.id,
+        recording: true,
+        retries: 1,
+        probe: true,
+      });
+    }
+    const context = browser.contexts()[0] ?? (await browser.newContext());
+    const page = context.pages()[0] ?? (await context.newPage());
+    let actionsCompleted = 0;
+    let humanCheckpoint: { required: boolean; reason: string | null } | null = null;
+
+    try {
+      await page.goto(startUrl.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000,
+      });
+
+      for (const action of request.actions) {
+        const availableControls = await annotateBrowserControls(page);
+        if (availableControls.some((control) => control.sensitive)) {
+          humanCheckpoint = {
+            required: true,
+            reason:
+              "This page requires a password, one-time code, or payment credential. Sylla will not send secrets through the host model.",
+          };
+          break;
+        }
+        if (action.type === "navigate") {
+          const url = allowedBrowserOrigin(action.url, allowedOrigins);
+          await page.goto(url.toString(), {
+            waitUntil: "domcontentloaded",
+            timeout: 30_000,
+          });
+        } else if (action.type === "back") {
+          await page.goBack({ waitUntil: "domcontentloaded", timeout: 30_000 });
+        } else if (action.type === "wait") {
+          await page.waitForTimeout(action.milliseconds);
+        } else {
+          await annotateBrowserControls(page);
+          const locator = page.locator(`[data-sylla-ref="${action.ref}"]`);
+          if ((await locator.count()) !== 1) {
+            throw new Error(`Browser control ${action.ref} is no longer available.`);
+          }
+          if (action.type === "fill") {
+            const [inputType, autocomplete, name, id, placeholder] = await Promise.all([
+              locator.getAttribute("type"),
+              locator.getAttribute("autocomplete"),
+              locator.getAttribute("name"),
+              locator.getAttribute("id"),
+              locator.getAttribute("placeholder"),
+            ]);
+            const sensitiveHint = [name, id, placeholder]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+            if (
+              inputType?.toLowerCase() === "password" ||
+              autocomplete?.toLowerCase().includes("password") ||
+              autocomplete?.toLowerCase() === "one-time-code" ||
+              autocomplete?.toLowerCase().startsWith("cc-") ||
+              /\b(otp|one.?time|verification.?code|card.?number|cvc|cvv|security.?code)\b/i.test(
+                sensitiveHint,
+              )
+            ) {
+              humanCheckpoint = {
+                required: true,
+                reason:
+                  "A password, one-time code, or payment credential is required. Sylla will not send secrets through the host model.",
+              };
+              break;
+            }
+            await locator.fill(action.value, { timeout: 15_000 });
+          } else if (action.type === "click") {
+            const href = await locator.getAttribute("href");
+            if (href) {
+              allowedBrowserOrigin(new URL(href, page.url()).toString(), allowedOrigins);
+            }
+            await locator.click({ timeout: 15_000 });
+          } else if (action.type === "press") {
+            await locator.press(action.key, { timeout: 15_000 });
+          } else if (action.type === "select") {
+            await locator.selectOption(action.value, { timeout: 15_000 });
+          } else if (action.type === "check") {
+            await locator.check({ timeout: 15_000 });
+          }
+        }
+
+        actionsCompleted += 1;
+        await page.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => undefined);
+        allowedBrowserOrigin(page.url(), allowedOrigins);
+      }
+
+      const controls = await annotateBrowserControls(page);
+      if (!humanCheckpoint && controls.some((control) => control.sensitive)) {
+        humanCheckpoint = {
+          required: true,
+          reason:
+            "This page contains a password, one-time-code, or payment-credential field. The connected host can continue after a secure human-authentication path is available.",
+        };
+      }
+      const [title, bodyText, storageState] = await Promise.all([
+        page.title(),
+        page.locator("body").innerText({ timeout: 15_000 }).catch(() => ""),
+        context.storageState(),
+      ]);
+      await client.profiles.save(profile.id, storageState);
+
+      return browserComputerResultSchema.parse({
+        provider: "solari",
+        runReference: browser.id,
+        profileId: profile.id,
+        page: {
+          url: allowedBrowserOrigin(page.url(), allowedOrigins).toString(),
+          title,
+          text: excerpt(bodyText, 6_000),
+          controls,
+        },
+        humanCheckpoint,
+        actionsCompleted,
+        profileSaved: true,
+      });
+    } finally {
+      await browser.close().catch(() => undefined);
       await client.close();
     }
   }

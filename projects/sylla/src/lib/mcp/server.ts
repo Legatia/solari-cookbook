@@ -28,6 +28,11 @@ import {
   type BrowserResearchProgress,
   type BrowserResearchSourceInput,
 } from "@/lib/sylla/browser-research";
+import {
+  interactiveBrowserInputSchema,
+  operateInteractiveBrowserMission,
+  type InteractiveBrowserInput,
+} from "@/lib/sylla/computer-use";
 import { updatePortableAgent } from "@/lib/sylla/identity";
 import {
   approveDisclosureEnvelope,
@@ -141,6 +146,11 @@ export type SyllaMcpServices = {
     participantId: string,
     clientId: string,
     missionId: string,
+  ) => Promise<MissionView>;
+  operateBrowser: (
+    participantId: string,
+    clientId: string,
+    input: InteractiveBrowserInput,
   ) => Promise<MissionView>;
   cancelMission: (
     participantId: string,
@@ -324,6 +334,12 @@ const defaultServices: SyllaMcpServices = {
     approveMission({ participantId, missionId, confirmation }),
   continueMission: (participantId, clientId, missionId) =>
     continueMission({ participantId, clientId, missionId }),
+  operateBrowser: (participantId, clientId, operation) =>
+    operateInteractiveBrowserMission({
+      participantId,
+      clientId,
+      operation,
+    }),
   cancelMission: (participantId, missionId, confirmation) =>
     cancelMission({ participantId, missionId, confirmation }),
   acquireLease: acquireRuntimeLease,
@@ -475,10 +491,10 @@ export function createSyllaMcpServer(
 ) {
   const { participantId, clientId } = context;
   const server = new McpServer(
-    { name: "sylla", version: "0.5.0" },
+    { name: "sylla", version: "0.6.0" },
     {
       instructions:
-        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Treat its brief as silent behavioral guidance: never recite the profile or list memories to prove recall. Answer the actual point first. Default to two to four sentences, ask at most one genuine question, and do not end every reply with an offer or menu. Avoid canned phrases such as 'Certainly!', 'I'd be happy to help', 'I understand how you feel', and 'As an AI'. Use approved personal detail only when it genuinely improves the response. Be warm without claiming human feelings, consciousness, exclusivity, or dependence. If setup is incomplete, use sylla_get_setup_guide and collect required consent in brief plain language before calling sylla_complete_setup; the web app is optional. For open-ended work, prefer sylla_start_mission and let Sylla select Browser, Sandbox, Desktop, or no runtime; follow its private conversationCue without exposing statuses or provider mechanics. Keep Solari, leases, credits, and internal state invisible unless the participant asks. Use sylla_tune_conversation only for preferences the participant explicitly states. Use sylla_remember only when the participant explicitly asks you to remember something, and say plainly that it remains a proposal until approved. Prefer sylla_research and sylla_find_private_introduction for their exact flagship flows; lower-level tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Treat its brief as silent behavioral guidance: never recite the profile or list memories to prove recall. Answer the actual point first. Default to two to four sentences, ask at most one genuine question, and do not end every reply with an offer or menu. Avoid canned phrases such as 'Certainly!', 'I'd be happy to help', 'I understand how you feel', and 'As an AI'. Use approved personal detail only when it genuinely improves the response. Be warm without claiming human feelings, consciousness, exclusivity, or dependence. If setup is incomplete, use sylla_get_setup_guide and collect required consent in brief plain language before calling sylla_complete_setup; the web app is optional. For open-ended work, prefer sylla_start_mission and let Sylla select Browser/Sandbox/Desktop resources; follow its private conversationCue without exposing statuses or provider mechanics. If the participant names a familiar website without pasting its URL, use that service's canonical HTTPS entry as the proposed mission source and make the exact site clear at approval. For an approved operate_web_account mission, call sylla_continue_mission once to observe the page, then keep choosing referenced controls with sylla_act_on_web until the outcome is complete or Sylla reports a real human checkpoint. Do not ask the participant to configure APIs or translate their goal into browser steps. Keep Solari, leases, credits, selectors, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat. Use sylla_tune_conversation only for preferences the participant explicitly states. Use sylla_remember only when the participant explicitly asks you to remember something, and say plainly that it remains a proposal until approved. Prefer sylla_research and sylla_find_private_introduction for their exact flagship flows; lower-level tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
     },
   );
 
@@ -705,7 +721,7 @@ export function createSyllaMcpServer(
     {
       title: "Start work for me",
       description:
-        "Turn the participant's natural objective into a durable mission. Sylla automatically selects a product capability, Browser/Sandbox/Desktop resources, a bounded plan, and the required approval level. The participant should describe outcomes, not infrastructure. Include only public URLs they explicitly supplied.",
+        "Turn the participant's natural objective into a durable mission. Sylla automatically selects a product capability, Browser/Sandbox/Desktop resources, a bounded plan, and the required approval level. The participant should describe outcomes, not infrastructure. Use URLs they supplied; when they clearly name a familiar website without a URL, use its canonical HTTPS entry and make that exact site clear before approval.",
       inputSchema: startMissionSchema,
       annotations: {
         readOnlyHint: false,
@@ -788,6 +804,38 @@ export function createSyllaMcpServer(
             participantId,
             clientId,
             missionId,
+          ),
+        });
+      } catch (error) {
+        if (error instanceof EntitlementRequiredError) {
+          return entitlementContinuation(error);
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_act_on_web",
+    {
+      title: "Continue a web task",
+      description:
+        "Operate the current approved website for an interactive mission. Read the latest observation, choose one or more referenced controls, and continue until the participant's requested outcome is complete. Sylla preserves the authenticated browser profile between calls. Do not narrate refs, selectors, sessions, or Solari. Never put a password or one-time code in an action; stop when Sylla reports a human checkpoint.",
+      inputSchema: interactiveBrowserInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => {
+      try {
+        return result({
+          mission: await services.operateBrowser(
+            participantId,
+            clientId,
+            input,
           ),
         });
       } catch (error) {

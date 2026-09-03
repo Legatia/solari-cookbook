@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SolariAdapters } from "./contracts";
 import {
   MockBrowserResearchAdapter,
+  MockBrowserComputerAdapter,
   MockDesktopWorkspaceAdapter,
   MockSandboxEvaluationAdapter,
   MockSandboxTaskAdapter,
@@ -25,6 +26,7 @@ export async function createSolariAdapters(
   if (environment.INTEGRATION_MODE === "mock") {
     return {
       browser: new MockBrowserResearchAdapter(),
+      browserComputer: new MockBrowserComputerAdapter(),
       desktop: new MockDesktopWorkspaceAdapter(),
       sandbox: new MockSandboxEvaluationAdapter(),
       sandboxTask: new MockSandboxTaskAdapter(),
@@ -41,6 +43,7 @@ export async function createSolariAdapters(
   };
   const {
     SolariBrowserResearchAdapter,
+    SolariBrowserComputerAdapter,
     SolariDesktopWorkspaceAdapter,
     SolariSandboxEvaluationAdapter,
     SolariSandboxTaskAdapter,
@@ -48,6 +51,7 @@ export async function createSolariAdapters(
 
   return {
     browser: new SolariBrowserResearchAdapter(options),
+    browserComputer: new SolariBrowserComputerAdapter(options),
     desktop: new SolariDesktopWorkspaceAdapter(options),
     sandbox: new SolariSandboxEvaluationAdapter(options),
     sandboxTask: new SolariSandboxTaskAdapter(options),

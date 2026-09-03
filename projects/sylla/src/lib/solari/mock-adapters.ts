@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import {
   directionalEvaluationRequestSchema,
   directionalEvaluationSchema,
+  browserComputerRequestSchema,
+  browserComputerResultSchema,
   researchRequestSchema,
   researchResultSchema,
   repositoryTaskRequestSchema,
@@ -10,6 +12,7 @@ import {
   workspaceManifestSchema,
   workspaceResultSchema,
   type BrowserResearchAdapter,
+  type BrowserComputerAdapter,
   type DesktopWorkspaceAdapter,
   type SandboxEvaluationAdapter,
   type SandboxTaskAdapter,
@@ -37,6 +40,42 @@ export class MockBrowserResearchAdapter implements BrowserResearchAdapter {
       provider: "mock",
       runReference: `browser-mock-${randomUUID()}`,
       evidence,
+    });
+  }
+}
+
+export class MockBrowserComputerAdapter implements BrowserComputerAdapter {
+  async operate(input: unknown) {
+    const request = browserComputerRequestSchema.parse(input);
+    const finalNavigation = [...request.actions]
+      .reverse()
+      .find((action) => action.type === "navigate");
+    const url =
+      finalNavigation?.type === "navigate"
+        ? assertPublicHttpUrl(finalNavigation.url).toString()
+        : assertPublicHttpUrl(request.startUrl).toString();
+
+    return browserComputerResultSchema.parse({
+      provider: "mock",
+      runReference: `browser-computer-mock-${randomUUID()}`,
+      profileId: request.profileId ?? `browser-profile-mock-${randomUUID()}`,
+      page: {
+        url,
+        title: "Mock interactive page",
+        text: "Mock page ready for the connected host.",
+        controls: [
+          {
+            ref: "e1",
+            role: "button",
+            text: "Continue",
+            disabled: false,
+            sensitive: false,
+          },
+        ],
+      },
+      humanCheckpoint: null,
+      actionsCompleted: request.actions.length,
+      profileSaved: true,
     });
   }
 }

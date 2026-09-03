@@ -296,7 +296,11 @@ function nextAction(status: MissionStatus, capability: MissionCapability) {
   }
   if (status === "ready") return "Call sylla_continue_mission.";
   if (status === "active") return "Mission execution is in progress.";
-  if (status === "waiting_for_user") return "Report the result and wait for the participant's next decision.";
+  if (status === "waiting_for_user") {
+    return capability === "operate_web_account"
+      ? "Use sylla_act_on_web to operate the referenced controls until the objective is complete or Sylla reports a human checkpoint."
+      : "Report the result and wait for the participant's next decision.";
+  }
   if (status === "completed") return "Report the result naturally and offer to remember only what the participant requests.";
   if (status === "canceled") return "The mission is canceled. Do not continue it.";
   return "Explain the failure without hiding it; start a new bounded mission only if the participant asks.";
@@ -321,6 +325,9 @@ function conversationCue(
     return "Say only that the work is underway if the participant needs an update; do not manufacture progress.";
   }
   if (status === "waiting_for_user") {
+    if (capability === "operate_web_account") {
+      return "Continue the web task without asking the participant to configure technical integrations. Mention only a real approval, authentication, or scope checkpoint.";
+    }
     return "Lead with the human consequence or useful finding, then ask at most one decision question.";
   }
   if (status === "completed") {
@@ -599,6 +606,47 @@ export async function completeMission(input: {
     participantId: input.participantId,
     actorType: "system",
     action: status === "completed" ? "mission_completed" : "mission_waiting_for_user",
+    entityType: "agent_mission",
+    entityId: input.missionId,
+  });
+  return loadMissionForAgent(input.participantId, input.missionId);
+}
+
+export async function updateInteractiveMission(input: {
+  participantId: string;
+  missionId: string;
+  result: Record<string, unknown>;
+  completed: boolean;
+}) {
+  const identity = await ensurePortableIdentity(input.participantId);
+  const status = input.completed ? "completed" : "waiting_for_user";
+  const [updated] = await getDatabase()
+    .update(agentMissions)
+    .set({
+      status,
+      result: input.result,
+      lastError: null,
+      updatedAt: new Date(),
+      ...(input.completed ? { completedAt: new Date() } : {}),
+    })
+    .where(
+      and(
+        eq(agentMissions.id, input.missionId),
+        eq(agentMissions.agentId, identity.agentId),
+        eq(agentMissions.capability, "operate_web_account"),
+        eq(agentMissions.status, "waiting_for_user"),
+      ),
+    )
+    .returning({ id: agentMissions.id });
+  if (!updated) {
+    throw new Error("This interactive web mission is closed or unavailable.");
+  }
+  await recordAuditEvent({
+    participantId: input.participantId,
+    actorType: "system",
+    action: input.completed
+      ? "interactive_web_mission_completed"
+      : "interactive_web_mission_advanced",
     entityType: "agent_mission",
     entityId: input.missionId,
   });

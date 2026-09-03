@@ -23,6 +23,16 @@ describe("mock Solari adapters", () => {
     expect(research.provider).toBe("mock");
     expect(research.evidence).toHaveLength(1);
 
+    const computer = await adapters.browserComputer.operate({
+      participantRef: "participant-a",
+      startUrl: "https://example.com/account",
+      allowedOrigins: ["https://example.com"],
+      actions: [{ type: "click", ref: "e1" }],
+    });
+    expect(computer.provider).toBe("mock");
+    expect(computer.profileSaved).toBe(true);
+    expect(computer.actionsCompleted).toBe(1);
+
     const volumeId = await adapters.desktop.createVolume("participant-a");
     const workspace = await adapters.desktop.provision({
       participantRef: "participant-a",

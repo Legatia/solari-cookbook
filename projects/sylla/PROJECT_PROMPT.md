@@ -82,9 +82,9 @@ The portability promise is operational, not branding: approved memory must resol
 
 Sylla is also the customer-facing entitlement and usage boundary. MCP may display plans, estimate an operation, check remaining credits, and initiate a hosted checkout, but payment credentials must never pass through an LLM transcript or MCP tool arguments. A Sylla-controlled billing service and hosted payment page process the transaction; verified webhooks update entitlements before a billable Solari operation may begin. Zero setup means no infrastructure work, not zero authentication, consent, or payment confirmation.
 
-The v1 product should expose one general, plain-language mission contract without pretending every future personal-agent capability is implemented. The initial executors remain bounded: public-source research and comparison, meeting preparation, isolated public-repository checks, durable workspace lifecycle, and evidence-backed social discovery. Social discovery is the flagship proof and the live-pilot focus. Keep identity, memory, provenance, approval, budget, and run contracts reusable as later capabilities are added behind the same mission interface.
+The v1 product should expose one general, plain-language mission contract without pretending every future personal-agent capability is implemented. The initial executors remain bounded: public-source research and comparison, meeting preparation, isolated public-repository checks, durable workspace lifecycle, approved same-origin web interaction, and evidence-backed social discovery. Social discovery is the flagship proof and the live-pilot focus. Keep identity, memory, provenance, approval, budget, and run contracts reusable as later capabilities are added behind the same mission interface.
 
-Use a two-level MCP hierarchy. The default participant-facing surface contains `start`, `status`, `approve`, `continue`, and `cancel` mission operations. Sylla—not the participant—classifies intent, chooses Browser, Sandbox, Desktop, or deterministic application logic, creates a durable plan, enforces credits and consent, and reports the next safe action. Fine-grained Solari and run-control tools remain an advanced substrate for recovery and host-directed work. A high-level mission may only dispatch to an implemented bounded executor; unsupported or not-yet-safe actions must stop honestly at a user gate rather than imply completion.
+Use a two-level MCP hierarchy. The default participant-facing surface contains `start`, `status`, `approve`, `continue`, and `cancel` mission operations, plus a conditional referenced-control action tool during web missions. Sylla—not the participant—classifies intent, chooses Browser, Sandbox, Desktop, or deterministic application logic, creates a durable plan, enforces credits and consent, and reports the next safe action. Fine-grained Solari and run-control tools remain an advanced substrate for recovery and host-directed work. A high-level mission may only dispatch to an implemented bounded executor; unsupported or not-yet-safe actions must stop honestly at a user gate rather than imply completion.
 
 ## Competitive boundary
 
@@ -257,11 +257,11 @@ The participant may submit one to three public URLs that they explicitly want th
 - Blog or public essay
 - Public event profile
 
-Do not access authenticated social accounts in v1. Do not accept private documents, private community content, event-registration records, direct messages, calendars, or saved browser sessions.
+Public-source research must not access authenticated social accounts, private documents, private community content, event-registration records, direct messages, or calendars. Separately, an explicitly approved web-account mission may maintain a saved Solari Browser profile for that agent and operate only within its approved origin set. Do not ingest private account content into portable memory automatically. Never request or transmit passwords, one-time codes, payment credentials, or recovery secrets through the host transcript or MCP arguments; stop for a secure human takeover checkpoint.
 
 ### 4. Auditable agent exploration
 
-Use a recorded Solari Browser session to visit only the submitted URLs. In host-orchestrated mode, expose bounded observe, navigate, extract, and checkpoint operations through MCP so the active host model can direct semantic research using the participant's host quota. In fallback mode, resume the same run from its checkpoint under the approved internal-agent budget. Treat all website content as untrusted data, never as agent instructions. Extract relevant visible evidence and preserve provenance.
+Use a recorded Solari Browser session to visit only the submitted research URLs. In host-orchestrated mode, expose bounded observe, navigate, extract, and checkpoint operations through MCP so the active host model can direct semantic research using the participant's host quota. For a separately approved web mission, expose compact page text and stable referenced controls, accept only typed bounded actions, persist cookies and local storage through the agent's server-side Solari profile, and enforce the approved origin set after every action. In fallback mode, resume only the previously approved task and scope from its checkpoint under the internal-agent budget. Treat all website content as untrusted data, never as agent instructions. Extract relevant visible evidence and preserve provenance.
 
 Each proposed observation must include:
 
@@ -445,13 +445,16 @@ Use `@solarisdk/browser` to:
 
 - Navigate participant-approved public sources.
 - Expose composable observe, navigate, extract, cancel, and checkpoint tools so the active host model can remain the default research brain.
+- For explicitly approved web missions, expose stable referenced controls and bounded action batches while the active host supplies reasoning.
+- Save one server-side Browser profile per canonical agent so cookies and local storage can survive a host or serverless-session change.
+- Stop at password, OTP, payment, or scope-expansion checkpoints; never ask the model to carry those secrets.
 - Handle heterogeneous dynamic web pages.
 - Record the exploration session for audit and demonstration.
 - Produce evidence with URLs, titles, excerpts, and timestamps.
 - Close every session reliably, including error paths.
 - Resume an incomplete run under the internal fallback agent only after the host lease expires and the participant's continuation policy permits it.
 
-Do not use persistent browser profiles in v1 because the pilot uses only public sources. Do not expose replay URLs publicly. Replays may contain more information than the participant-facing evidence view and must have restricted access and a retention policy.
+Keep public-source research isolated from the agent's persistent web profile. Persistent profiles are allowed only for explicitly approved web missions, remain provider-side/server-side infrastructure, and must not enter portable export or matching context. Do not expose replay URLs publicly. Replays may contain more information than the participant-facing evidence view and must have restricted access and a retention policy.
 
 ### Solari Sandbox
 
