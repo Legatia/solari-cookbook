@@ -348,7 +348,23 @@ try {
       name: "sylla_get_setup_guide",
       arguments: {},
     });
-    invariant(guide.structuredContent, "The conversational setup guide was empty.");
+    const guideContent = guide.structuredContent as
+      | {
+          onboarding?: {
+            mode?: string;
+            opening?: string;
+            responseContract?: { questionsPerReply?: number };
+            fallback?: { url?: string };
+          };
+        }
+      | undefined;
+    invariant(
+      guideContent?.onboarding?.mode === "conversation_first" &&
+        guideContent.onboarding.opening?.includes("worth keeping") &&
+        guideContent.onboarding.responseContract?.questionsPerReply === 1 &&
+        guideContent.onboarding.fallback?.url === `${baseUrl}/app`,
+      "The conversational setup guide did not return its natural onboarding contract.",
+    );
 
     const startsAt = new Date(Date.now() + 60 * 60 * 1_000);
     const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1_000);
@@ -586,7 +602,7 @@ try {
   invariant(rejected.status === 401, "The revoked MCP token was still accepted.");
 
   console.log(
-    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, private conversation briefing and tuning, durable mission lifecycle${verifyConversationalSetup ? ", conversational setup and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}${verifyLiveDesktopMission ? ", one real mission-routed Solari Desktop workspace" : ""}, connection visibility, and revocation.`,
+    `Verified live Sylla OAuth and authenticated MCP at ${mcpEndpoint}: ${tools.length} tools, agent bootstrap/context, private conversation briefing and tuning, durable mission lifecycle${verifyConversationalSetup ? ", conversation-first setup with web fallback and memory review" : ""}${verifyLiveResearch ? ", one real mission-routed Solari Browser source" : ""}${verifyLiveSandboxMission ? ", one real mission-routed Solari Sandbox repository check" : ""}${verifyLiveDesktopMission ? ", one real mission-routed Solari Desktop workspace" : ""}, connection visibility, and revocation.`,
   );
 } finally {
   if (cookie && accessToken) {
