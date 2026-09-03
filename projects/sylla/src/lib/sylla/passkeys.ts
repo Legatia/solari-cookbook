@@ -169,7 +169,7 @@ export async function registerPasskey(input: {
   });
   if (!verification.verified) throw new Error("The passkey could not be verified.");
   const { credential } = verification.registrationInfo;
-  await database
+  const [created] = await database
     .insert(passkeyCredentials)
     .values({
       userId: identity.userId,
@@ -180,17 +180,11 @@ export async function registerPasskey(input: {
       deviceType: verification.registrationInfo.credentialDeviceType,
       backedUp: verification.registrationInfo.credentialBackedUp,
     })
-    .onConflictDoUpdate({
-      target: passkeyCredentials.credentialId,
-      set: {
-        publicKey: Buffer.from(credential.publicKey).toString("base64url"),
-        counter: credential.counter,
-        transports:
-          input.response.response.transports ?? credential.transports ?? [],
-        deviceType: verification.registrationInfo.credentialDeviceType,
-        backedUp: verification.registrationInfo.credentialBackedUp,
-      },
-    });
+    .onConflictDoNothing({ target: passkeyCredentials.credentialId })
+    .returning({ id: passkeyCredentials.id });
+  if (!created) {
+    throw new Error("That passkey is already connected to a Sylla account.");
+  }
   return passkeyStatus(input.participantId);
 }
 
@@ -268,4 +262,3 @@ export async function passkeyStatus(participantId: string) {
     })),
   };
 }
-
