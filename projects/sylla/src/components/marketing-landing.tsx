@@ -107,12 +107,16 @@ function AgentRoom() {
       <div className="mt-7 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
           <div className="flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.16em] text-stone-600">
-            <ShieldCheck className="size-3 text-lime-200/65" /> Memory proposal
+            <ShieldCheck className="size-3 text-lime-200/65" /> Waiting for you
           </div>
           <p className="mt-3 text-xs leading-5 text-stone-400">Prefers one-on-one connection after a first meeting.</p>
+          <p className="mt-2 font-mono text-[8px] uppercase tracking-[0.15em] text-lime-200/50">
+            I&rsquo;m guessing this
+          </p>
           <div className="mt-3 flex gap-2 font-mono text-[8px] uppercase tracking-[0.14em]">
-            <span className="rounded-full bg-lime-200 px-2.5 py-1 text-[#151a13]">Approve</span>
-            <span className="rounded-full border border-white/10 px-2.5 py-1 text-stone-600">Edit</span>
+            <span className="rounded-full bg-lime-200 px-2.5 py-1 text-[#151a13]">Keep</span>
+            <span className="rounded-full border border-white/10 px-2.5 py-1 text-stone-600">Not quite</span>
+            <span className="rounded-full border border-white/10 px-2.5 py-1 text-stone-600">Forget</span>
           </div>
         </div>
         <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
@@ -140,7 +144,7 @@ function IntroductionInstrument() {
           <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-stone-500">
             Private introduction · 01
           </p>
-          <p className="mt-1.5 text-xs text-stone-300">Four gates. One human possibility.</p>
+          <p className="mt-1.5 text-xs text-stone-300">Nobody is named until you both say yes.</p>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-lime-200/15 bg-lime-200/[0.04] px-3 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-lime-200/70">
           <span className="size-1.5 rounded-full bg-lime-200" /> Live hypothesis
@@ -148,18 +152,18 @@ function IntroductionInstrument() {
       </div>
 
       <div className="relative mt-9 grid grid-cols-[1fr_4rem_1fr] items-center gap-y-12 sm:grid-cols-[1fr_7rem_1fr]">
-        <ConsentNode label="Your agent" detail="recommends" side="left" delay="300ms" />
+        <ConsentNode label="Your agent" detail="sees a reason" side="left" delay="300ms" />
         <SignalLine delay="700ms" />
-        <ConsentNode label="Their agent" detail="recommends" side="right" delay="500ms" />
+        <ConsentNode label="Their agent" detail="may agree too" side="right" delay="500ms" />
 
-        <ConsentNode label="You" detail="accept privately" side="left" delay="900ms" />
+        <ConsentNode label="You" detail="say yes privately" side="left" delay="900ms" />
         <div className="relative flex items-center">
           <SignalLine delay="1300ms" />
           <span className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-lime-200/20 bg-[#0b0f0c]">
             <Sparkles className="size-4 text-lime-200" strokeWidth={1.5} />
           </span>
         </div>
-        <ConsentNode label="They" detail="accept privately" side="right" delay="1100ms" />
+        <ConsentNode label="They" detail="say yes privately" side="right" delay="1100ms" />
       </div>
 
       <div className="mt-12 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
@@ -169,9 +173,9 @@ function IntroductionInstrument() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-xs font-medium text-stone-200">Identity stays sealed</p>
+              <p className="text-xs font-medium text-stone-200">Names stay sealed</p>
               <p className="font-mono text-[8px] uppercase tracking-[0.17em] text-lime-200/60">
-                4 / 4 required
+                until both say yes
               </p>
             </div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
@@ -214,7 +218,7 @@ const solariSurfaces = [
   {
     name: "Desktop",
     label: "Home",
-    body: "A persistent, inspectable workbench for the rich context that should never be flattened into a chat reply.",
+    body: "A private room of its own, where the working-out lives instead of being flattened into a chat reply. Yours to walk into whenever you want to see more.",
   },
   {
     name: "Sandbox",
@@ -227,7 +231,7 @@ const trustPoints = [
   {
     Icon: Eye,
     title: "Inspectable",
-    body: "Every belief has a source, a confidence level, and a visible history.",
+    body: "Everything it thinks it knows says where it came from—what you told it, what it read, and what it is only guessing.",
   },
   {
     Icon: LockKeyhole,
@@ -248,15 +252,16 @@ export function MarketingLanding() {
         <Wordmark />
         <div className="hidden items-center gap-8 text-[11px] text-stone-500 md:flex">
           <a href="#relationship" className="transition-colors hover:text-stone-100">The relationship</a>
-          <a href="#mcp" className="transition-colors hover:text-stone-100">MCP first</a>
+          <a href="#mcp" className="transition-colors hover:text-stone-100">How it starts</a>
           <a href="#introductions" className="transition-colors hover:text-stone-100">Introductions</a>
           <a href="#trust" className="transition-colors hover:text-stone-100">Trust</a>
+          <a href="#solari" className="transition-colors hover:text-stone-100">Where it works</a>
         </div>
         <Link
           href="/app"
           className="group inline-flex h-9 items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-300 transition hover:border-lime-200/25 hover:text-lime-200"
         >
-          Open prototype <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          Private preview <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </Link>
       </nav>
 
@@ -292,6 +297,7 @@ export function MarketingLanding() {
             <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You name it</span>
             <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You teach it</span>
             <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You take it with you</span>
+            <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You can walk away with it</span>
           </div>
         </div>
 
@@ -329,6 +335,7 @@ export function MarketingLanding() {
               { Icon: MessagesSquare, title: "Conversation, not a report", body: "It asks, listens, follows up, and leaves the essay on the desktop for when you want to go deeper." },
               { Icon: Fingerprint, title: "Intimacy you can inspect", body: "Memory is proposed, sourced, editable, and approved by you. Knowing you never means quietly claiming you." },
               { Icon: Globe2, title: "One relationship across models", body: "The expensive intelligence can come from whichever model is best. The personal continuity belongs to your agent." },
+              { Icon: Sparkles, title: "Start from your own history", body: "Hand over the download your old platforms already owe you, and your agent begins knowing you—as drafts you read, keep, or throw away. It never goes looking for anyone else." },
             ].map(({ Icon, title, body }) => (
               <div key={title} className="group grid gap-5 border-b border-white/10 py-8 sm:grid-cols-[4rem_1fr_1fr] sm:items-start sm:gap-8">
                 <span className="grid size-9 place-items-center rounded-full border border-white/10 text-lime-200/60"><Icon className="size-4" strokeWidth={1.4} /></span>
@@ -347,7 +354,7 @@ export function MarketingLanding() {
               <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-black/45">MCP first · native app later</p>
               <h2 className="mt-5 font-heading text-[clamp(3.8rem,7vw,7.8rem)] leading-[0.84] tracking-[-0.065em]">No new app habit <em>required.</em></h2>
             </div>
-            <p className="max-w-xl text-base leading-8 text-black/55">Connect Sylla to an MCP-compatible AI you already use. Its model powers the active conversation; Sylla supplies the personal agent, permissions, portable memory, and tools. If the host disappears, a bounded internal agent can preserve continuity until you return.</p>
+            <p className="max-w-xl text-base leading-8 text-black/55">Connect Sylla to an AI you already use. Its model powers the conversation; Sylla supplies the agent, the permissions, the memory that stays yours, and somewhere to work. Close that chat mid-task and Sylla holds your place—finishing only what you already approved, and nothing more.</p>
           </div>
 
           <div className="mt-16 grid overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#ecffbd] lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
@@ -375,8 +382,9 @@ export function MarketingLanding() {
           </div>
           <p className="mt-8 font-mono text-[9px] uppercase tracking-[0.22em] text-lime-200/60">The flagship use case</p>
           <h2 className="mt-5 font-heading text-5xl leading-[0.9] tracking-[-0.055em] sm:text-7xl">Every person has an agent. <em className="text-stone-500">The agents meet first.</em></h2>
-          <p className="mt-8 max-w-xl text-base leading-8 text-stone-400">A parallel society can search for human possibilities without turning people into a public marketplace. Your agent knows your inner context. Their agent knows theirs. They can privately ask whether two lives might fit—before either identity is exposed.</p>
-          <p className="mt-5 max-w-xl text-sm leading-7 text-stone-600">Private introductions are Sylla’s first proof: not the whole product, but the clearest demonstration of why a deeply personal agent becomes more valuable when everyone has one.</p>
+          <p className="mt-8 max-w-xl text-base leading-8 text-stone-400">A parallel society can look for human possibilities without turning people into a public marketplace. Your agent knows your inner context. Their agent knows theirs. They can privately ask whether two lives might fit—before either name is spoken.</p>
+          <p className="mt-6 max-w-xl text-sm leading-7 text-stone-500">Sometimes both agents arrive at the same idea on their own, which is worth knowing. Sometimes only one of them does, and that is enough to ask. Either way it takes two people saying yes, separately, before anyone is introduced—and a no simply closes, quietly, for both of you.</p>
+          <p className="mt-5 max-w-xl text-sm leading-7 text-stone-600">It happens inside a real gathering you chose to join, among people who also opted in. Private introductions are Sylla’s first proof: not the whole product, but the clearest reason a deeply personal agent becomes more valuable when everyone has one.</p>
         </div>
         <IntroductionInstrument />
       </section>
@@ -434,10 +442,14 @@ export function MarketingLanding() {
             <h2 className="mt-5 font-heading text-[clamp(4rem,9vw,9rem)] leading-[0.8] tracking-[-0.075em]">Keep the agent.<br /><em>Change everything else.</em></h2>
           </div>
           <div className="max-w-sm">
-            <p className="text-sm leading-7 text-black/60">Start inside the AI you already use. Let Sylla earn context over time. When the agent is ready to move into a native app, your relationship moves with it.</p>
+            <p className="text-sm leading-7 text-black/60">Start inside the AI you already use. Let Sylla earn context slowly. When the agent moves into an app of its own, the relationship moves with it.</p>
             <Link href="/app" className="group mt-7 inline-flex h-12 items-center gap-3 rounded-full bg-[#111610] px-6 text-xs font-semibold text-lime-200">
-              See the Sylla prototype <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              Enter the private preview <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </Link>
+            <p className="mt-4 text-xs leading-6 text-black/45">
+              Early access is invite-only while the first gathering runs. You&rsquo;ll
+              need a password or an invitation to get in.
+            </p>
           </div>
         </div>
         <div className="pointer-events-none absolute -right-28 -top-28 size-[28rem] rounded-full border border-black/10" />
