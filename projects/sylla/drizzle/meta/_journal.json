@@ -120,6 +120,41 @@
       "when": 1788427824754,
       "tag": "0016_burly_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788434244674,
+      "tag": "0017_sour_nick_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788448577162,
+      "tag": "0018_many_stepford_cuckoos",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788449646409,
+      "tag": "0019_bright_hellcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788450634622,
+      "tag": "0020_careless_trish_tilby",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788451235940,
+      "tag": "0021_cute_nekra",
+      "breakpoints": true
     }
   ]
 }

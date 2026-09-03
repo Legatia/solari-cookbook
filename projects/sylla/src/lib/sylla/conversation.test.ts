@@ -13,18 +13,27 @@ describe("Sylla conversation layer", () => {
         id: "recent-unrelated",
         text: "Prefers quiet software meetups.",
         kind: "approved_observation",
+        origin: "observed",
+        source: "github.com",
+        spokenAs: null,
         timestamp: 3,
       },
       {
         id: "older-relevant",
         text: "Has been curious about learning pottery in a small class.",
         kind: "approved_observation",
+        origin: "inferred",
+        source: "example.com",
+        spokenAs: "Say this as your own guess.",
         timestamp: 1,
       },
       {
         id: "relationship-memory",
         text: "Felt most comfortable when a host introduced the group slowly.",
         kind: "approved_relationship_memory",
+        origin: "distilled",
+        source: null,
+        spokenAs: null,
         timestamp: 2,
       },
     ]);
@@ -32,6 +41,11 @@ describe("Sylla conversation layer", () => {
     expect(ranked[0]?.id).toBe("older-relevant");
     expect(ranked).toHaveLength(3);
     expect(ranked[0]).not.toHaveProperty("timestamp");
+    // Provenance has to survive ranking, or the agent cannot speak an
+    // inference as a guess or point at where a claim came from.
+    expect(ranked[0]?.origin).toBe("inferred");
+    expect(ranked[0]?.spokenAs).toBeTruthy();
+    expect(ranked[0]?.source).toBe("example.com");
   });
 
   it("accepts explicit voice preferences but rejects an empty inferred update", () => {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
+import { DeviceLoginPanel } from "@/components/device-login";
 import { PasskeyLoginButton } from "@/components/passkey-controls";
 
 export const metadata: Metadata = {
@@ -35,8 +36,9 @@ export default function LoginPage() {
           hosts are waiting behind your passkey.
         </p>
 
-        <div className="mt-9">
+        <div className="mt-9 space-y-3">
           <PasskeyLoginButton />
+          <DeviceLoginPanel />
         </div>
         <p className="mt-7 border-t border-white/[0.07] pt-5 text-[10px] leading-5 text-stone-600">
           New here? Connect Sylla from your AI or open a valid invitation first.

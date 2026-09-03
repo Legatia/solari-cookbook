@@ -16,6 +16,20 @@ import type {
 } from "@/lib/solari/contracts";
 import { createSolariAdapters } from "@/lib/solari/factory";
 import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
+
+/**
+ * An imported archive has no page to visit. Reaching this with one means a
+ * caller mixed the two source kinds, so fail loudly rather than send null
+ * into the Browser.
+ */
+function researchableUrl(source: { url: string | null; kind: string }) {
+  if (source.kind !== "url" || !source.url) {
+    throw new BrowserResearchScopeError(
+      "That source is an imported archive, not a page Sylla can research.",
+    );
+  }
+  return source.url;
+}
 import {
   releaseBillableOperation,
   reserveBillableOperation,
@@ -128,7 +142,11 @@ async function loadProgress(
         )
         .orderBy(asc(approvedSources.approvedAt), asc(approvedSources.id))
     : [];
-  const sources = sourceRows.map((source) => ({
+  const sources = sourceRows
+    .filter((source): source is typeof source & { url: string } =>
+      source.kind === "url" && Boolean(source.url),
+    )
+    .map((source) => ({
     id: source.id,
     url: source.url,
     label: source.label,
@@ -274,7 +292,9 @@ async function refreshObservationProposals(
         )
         .orderBy(asc(approvedSources.approvedAt), asc(approvedSources.id))
     : [];
-  const evidence: Evidence[] = completed.map((source) => ({
+  const evidence: Evidence[] = completed
+    .filter((source): source is typeof source & { url: string } => Boolean(source.url))
+    .map((source) => ({
     sourceId: source.id,
     sourceUrl: source.url,
     sourceTitle: source.extractedTitle ?? source.label ?? new URL(source.url).hostname,
@@ -375,7 +395,7 @@ async function researchSource(input: {
     const result = await input.adapter.research({
       participantRef: input.participantId,
       sources: [
-        { id: source.id, url: source.url, label: source.label ?? undefined },
+        { id: source.id, url: researchableUrl(source), label: source.label ?? undefined },
       ],
     });
     const evidence = result.evidence.find((item) => item.sourceId === source.id);

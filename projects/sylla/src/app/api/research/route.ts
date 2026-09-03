@@ -88,9 +88,11 @@ export async function POST(request: NextRequest) {
     try {
       const result = await adapters.browser.research({
         participantRef: participant.id,
-        sources: sourceRows.map((source) => ({
+        // These rows were just inserted from `uniqueSources`, so every url is
+        // present; the column is nullable only for imported archives.
+        sources: sourceRows.map((source, index) => ({
           id: source.id,
-          url: source.url,
+          url: source.url ?? uniqueSources[index].url,
           label: source.label ?? undefined,
         })),
       });

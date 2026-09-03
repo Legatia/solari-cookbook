@@ -4,11 +4,13 @@ import * as z from "zod/v4";
 import { getDatabase } from "@/db";
 import {
   agentConversationProfiles,
+  approvedSources,
   observations,
   participants,
   personalAgents,
   personalMemories,
 } from "@/db/schema";
+import { controlRoomUrl } from "@/lib/sylla/control-room";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 import { recordAuditEvent } from "@/lib/sylla/participation";
 
@@ -63,7 +65,15 @@ export type ConversationBrief = {
       id: string;
       text: string;
       kind: "approved_observation" | "approved_relationship_memory";
+      /** How Sylla came to hold this, so the agent can speak at the right confidence. */
+      origin: "told_to_me" | "observed" | "inferred" | "distilled";
+      /** Host only, never the full URL: enough to say "your GitHub page". */
+      source: string | null;
+      /** Prefix an inference with this instead of asserting it as fact. */
+      spokenAs: string | null;
     }>;
+    /** Where the participant can read the evidence behind any of the above. */
+    evidenceAt: string;
   };
   voice: ConversationProfileView;
   responseContract: {
@@ -85,6 +95,33 @@ export type ConversationBrief = {
 type RankedMemory = ConversationBrief["relationship"]["relevantMemories"][number] & {
   timestamp: number;
 };
+
+function sourceHost(url: string | null) {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * An inference is Sylla's guess, not something the participant said. Marking it
+ * in the payload is more reliable than a standing instruction to hedge, and it
+ * gives the participant something concrete to correct.
+ */
+function spokenAs(
+  origin: ConversationBrief["relationship"]["relevantMemories"][number]["origin"],
+  confidence: string | null,
+) {
+  if (origin === "inferred") {
+    return "Say this as your own guess and invite a correction; never assert it as something they told you.";
+  }
+  if (confidence === "low") {
+    return "Hold this loosely and check it rather than relying on it.";
+  }
+  return null;
+}
 
 const STOP_WORDS = new Set([
   "about",
@@ -147,6 +184,9 @@ export function rankApprovedMemories(
       id: memory.id,
       text: memory.text,
       kind: memory.kind,
+      origin: memory.origin,
+      source: memory.source,
+      spokenAs: memory.spokenAs,
     }));
 }
 
@@ -287,8 +327,12 @@ export async function prepareConversationBrief(
           id: observations.id,
           text: observations.claim,
           observedAt: observations.observedAt,
+          origin: observations.origin,
+          confidence: observations.confidence,
+          sourceUrl: approvedSources.url,
         })
         .from(observations)
+        .leftJoin(approvedSources, eq(observations.sourceId, approvedSources.id))
         .where(
           and(
             inArray(observations.participantId, participantIds),
@@ -316,12 +360,20 @@ export async function prepareConversationBrief(
       id: memory.id,
       text: memory.text,
       kind: "approved_observation" as const,
+      origin: memory.origin,
+      source: sourceHost(memory.sourceUrl),
+      spokenAs: spokenAs(memory.origin, memory.confidence),
       timestamp: memory.observedAt.getTime(),
     })),
     ...approvedRelationshipMemories.map((memory) => ({
       id: memory.id,
       text: memory.text,
       kind: "approved_relationship_memory" as const,
+      // Distilled from an introduction the participant already reviewed, so it
+      // has no external source to point at.
+      origin: "distilled" as const,
+      source: null,
+      spokenAs: null,
       timestamp: memory.createdAt.getTime(),
     })),
   ];
@@ -338,6 +390,7 @@ export async function prepareConversationBrief(
         memoryCount >= 6 ? "established" : memoryCount >= 2 ? "familiar" : "new",
       approvedMemoryCount: memoryCount,
       relevantMemories: rankApprovedMemories(input.currentTopic, ranked),
+      evidenceAt: controlRoomUrl("memory"),
     },
     voice,
     responseContract: {
@@ -345,7 +398,7 @@ export async function prepareConversationBrief(
       tone: toneGuidance(voice),
       shape: responseShape(voice.responseLength),
       memoryUse:
-        "Use a relevant memory quietly when it improves the response. Never list memories, prove recall, or force a personal reference.",
+        "Use a relevant memory quietly when it improves the response. Never list memories, prove recall, or force a personal reference. Respect each memory's spokenAs, and name its source only when it makes the reply more useful. If the participant wants the evidence behind something, offer evidenceAt rather than reciting it.",
       questions:
         "Ask at most one genuine question. Do not end every reply with an offer, menu, or 'Would you like me to…?'.",
       honesty:

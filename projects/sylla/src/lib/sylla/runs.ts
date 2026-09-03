@@ -9,6 +9,7 @@ import {
   runHandoffs,
 } from "@/db/schema";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
+import { resolveParticipantModelAdapter } from "@/lib/sylla/model-keys";
 import {
   createConfiguredInternalModelAdapter,
   createDeterministicInternalModelAdapter,
@@ -691,7 +692,10 @@ export async function sweepFallbackRuns(input: {
   const database = getDatabase();
   const limit = Math.min(20, Math.max(1, Math.round(input.limit ?? 10)));
   const staleBefore = new Date(Date.now() - STALE_FALLBACK_MS);
-  const adapter = input.adapter ?? createConfiguredInternalModelAdapter();
+  // A caller-supplied adapter (tests, verify scripts) wins. Otherwise each run
+  // is resolved per participant: their own key first, since Sylla has no
+  // billing yet and they are the one whose work is waiting.
+  const explicitAdapter = input.adapter;
   const candidates = await database.execute<{
     agent_run_id: string;
     participant_id: string;
@@ -730,6 +734,12 @@ export async function sweepFallbackRuns(input: {
 
   for (const candidate of candidates.rows) {
     try {
+      const adapter =
+        explicitAdapter ??
+        (await resolveParticipantModelAdapter(
+          candidate.participant_id,
+          createConfiguredInternalModelAdapter,
+        ));
       const processed = await processFallbackRun({
         participantId: candidate.participant_id,
         agentRunId: candidate.agent_run_id,

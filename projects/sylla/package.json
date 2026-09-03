@@ -22,6 +22,10 @@
     "verify:introduction": "tsx scripts/verify-introduction.ts",
     "verify:outcome": "tsx scripts/verify-introduction.ts",
     "verify:portability": "tsx scripts/verify-portability.ts",
+    "verify:device-login": "tsx scripts/verify-device-login.ts",
+    "verify:data-import": "tsx scripts/verify-data-import.ts",
+    "verify:one-sided": "tsx scripts/verify-one-sided-introduction.ts",
+    "verify:model-key": "tsx scripts/verify-model-key.ts",
     "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },

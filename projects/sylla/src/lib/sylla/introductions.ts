@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
 import {
   availabilityWindows,
   candidatePairs,
+  directionalEvaluations,
   disclosureEnvelopes,
   events,
   introductionProposals,
@@ -25,7 +26,95 @@ import {
 
 const APPROVED_OBSERVATION_STATUSES = ["confirmed", "edited"] as const;
 
+/** Either tier can be proposed; "recommended" simply means both agents agreed. */
+const PROPOSABLE_PAIR_STATUSES: string[] = ["recommended", "proposable"];
+
+/**
+ * One-sided proposals remove the filter that used to throttle volume, so the
+ * cohort needs explicit limits. Without them one keen participant can work
+ * through a whole event and the noise poisons the mutual tier.
+ */
+const MAX_OPEN_PROPOSALS_INITIATED = 3;
+const MAX_OPEN_PROPOSALS_RECEIVED = 5;
+
 export class IntroductionGateError extends Error {}
+
+async function assertProposalCapacity(input: {
+  eventId: string;
+  initiatorParticipantId: string;
+  recipientParticipantId: string;
+}) {
+  const database = getDatabase();
+
+  const [initiated] = await database
+    .select({ total: count() })
+    .from(introductionProposals)
+    .innerJoin(
+      candidatePairs,
+      eq(introductionProposals.candidatePairId, candidatePairs.id),
+    )
+    .where(
+      and(
+        eq(candidatePairs.eventId, input.eventId),
+        eq(introductionProposals.status, "waiting"),
+        eq(
+          introductionProposals.initiatedByParticipantId,
+          input.initiatorParticipantId,
+        ),
+      ),
+    );
+  if ((initiated?.total ?? 0) >= MAX_OPEN_PROPOSALS_INITIATED) {
+    throw new IntroductionGateError(
+      "You already have the maximum number of introductions waiting for an answer. Wait for one to resolve.",
+    );
+  }
+
+  const [received] = await database
+    .select({ total: count() })
+    .from(introductionProposals)
+    .innerJoin(
+      candidatePairs,
+      eq(introductionProposals.candidatePairId, candidatePairs.id),
+    )
+    .where(
+      and(
+        eq(candidatePairs.eventId, input.eventId),
+        eq(introductionProposals.status, "waiting"),
+        ne(
+          introductionProposals.initiatedByParticipantId,
+          input.recipientParticipantId,
+        ),
+        inArray(candidatePairs.participantLowId, [input.recipientParticipantId]),
+      ),
+    );
+  // The pair table stores an ordered low/high pair, so check both slots.
+  const [receivedHigh] = await database
+    .select({ total: count() })
+    .from(introductionProposals)
+    .innerJoin(
+      candidatePairs,
+      eq(introductionProposals.candidatePairId, candidatePairs.id),
+    )
+    .where(
+      and(
+        eq(candidatePairs.eventId, input.eventId),
+        eq(introductionProposals.status, "waiting"),
+        ne(
+          introductionProposals.initiatedByParticipantId,
+          input.recipientParticipantId,
+        ),
+        inArray(candidatePairs.participantHighId, [input.recipientParticipantId]),
+      ),
+    );
+  if (
+    (received?.total ?? 0) + (receivedHigh?.total ?? 0) >=
+    MAX_OPEN_PROPOSALS_RECEIVED
+  ) {
+    throw new IntroductionGateError(
+      "That participant already has as many introductions waiting as Sylla will send them.",
+    );
+  }
+}
 
 function otherParticipant(
   pair: { participantLowId: string; participantHighId: string },
@@ -50,9 +139,9 @@ export async function approveDisclosureEnvelope(input: {
     .from(candidatePairs)
     .where(eq(candidatePairs.id, input.candidatePairId))
     .limit(1);
-  if (!pair || pair.status !== "recommended") {
+  if (!pair || !PROPOSABLE_PAIR_STATUSES.includes(pair.status)) {
     throw new IntroductionGateError(
-      "Both directional evaluations must recommend before disclosure approval.",
+      "At least one agent must recommend this pair before disclosure approval.",
     );
   }
   otherParticipant(pair, input.participantId);
@@ -171,8 +260,26 @@ export async function createIntroductionProposal(input: {
     .from(candidatePairs)
     .where(eq(candidatePairs.id, input.candidatePairId))
     .limit(1);
-  if (!pair || pair.status !== "recommended") {
+  if (!pair || !PROPOSABLE_PAIR_STATUSES.includes(pair.status)) {
     throw new IntroductionGateError("This pair is not ready for a proposal.");
+  }
+  const [ownDirection] = await database
+    .select({ result: directionalEvaluations.result })
+    .from(directionalEvaluations)
+    .where(
+      and(
+        eq(directionalEvaluations.candidatePairId, pair.id),
+        eq(directionalEvaluations.subjectParticipantId, input.participantId),
+        eq(directionalEvaluations.status, "completed"),
+      ),
+    )
+    .limit(1);
+  if (!ownDirection?.result?.recommend) {
+    // Your own agent recommending is what licenses you to propose. What the
+    // other agent thinks is advice for its own human, not a veto here.
+    throw new IntroductionGateError(
+      "Your own agent has to recommend this pair before you can propose it.",
+    );
   }
   otherParticipant(pair, input.participantId);
   const envelopes = await database
@@ -184,16 +291,18 @@ export async function createIntroductionProposal(input: {
         isNull(disclosureEnvelopes.revokedAt),
       ),
     );
-  if (
-    envelopes.length !== 2 ||
-    ![pair.participantLowId, pair.participantHighId].every((participantId) =>
-      envelopes.some((envelope) => envelope.participantId === participantId),
-    )
-  ) {
+  if (!envelopes.some((envelope) => envelope.participantId === input.participantId)) {
     throw new IntroductionGateError(
-      "Both participants must approve disclosure before a proposal exists.",
+      "Approve what your own introduction may disclose before proposing it.",
     );
   }
+  const originTier =
+    pair.status === "recommended" && envelopes.length === 2 ? "mutual" : "one_sided";
+  await assertProposalCapacity({
+    eventId: pair.eventId,
+    initiatorParticipantId: input.participantId,
+    recipientParticipantId: otherParticipant(pair, input.participantId),
+  });
   const [event] = await database
     .select()
     .from(events)
@@ -236,6 +345,8 @@ export async function createIntroductionProposal(input: {
     .insert(introductionProposals)
     .values({
       candidatePairId: pair.id,
+      originTier,
+      initiatedByParticipantId: input.participantId,
       meetingArea: event.venue.trim(),
       startsAt: meeting.startsAt,
       endsAt: meeting.endsAt,
@@ -250,7 +361,11 @@ export async function createIntroductionProposal(input: {
       action: "introduction_proposal_created",
       entityType: "introduction_proposal",
       entityId: created.id,
-      metadata: { identityRevealed: false, meetingDurationMinutes: 30 },
+      metadata: {
+        identityRevealed: false,
+        meetingDurationMinutes: 30,
+        originTier,
+      },
     });
     return created;
   }
@@ -334,9 +449,46 @@ async function loadParticipantProposalView(
           ),
         )
     : [];
+  if (proposal.originTier === "one_sided" && proposal.status === "waiting") {
+    const recommending = await database
+      .select({ id: directionalEvaluations.id })
+      .from(directionalEvaluations)
+      .where(
+        and(
+          eq(directionalEvaluations.candidatePairId, joined.pair.id),
+          eq(directionalEvaluations.status, "completed"),
+        ),
+      );
+    if (recommending.length === 2 && joined.pair.status === "recommended") {
+      const [upgraded] = await database
+        .update(introductionProposals)
+        .set({ originTier: "mutual", updatedAt: new Date() })
+        .where(
+          and(
+            eq(introductionProposals.id, proposal.id),
+            eq(introductionProposals.originTier, "one_sided"),
+          ),
+        )
+        .returning();
+      proposal = upgraded ?? proposal;
+    }
+  }
   const matched = proposal.status === "matched" || proposal.status === "completed";
+  const initiatedByMe = proposal.initiatedByParticipantId === participantId;
   return {
     id: proposal.id,
+    origin: {
+      tier: proposal.originTier,
+      initiatedByMe,
+      // Said plainly, because "both agents reached this independently" is real
+      // information and a one-sided proposal should not pretend otherwise.
+      explanation:
+        proposal.originTier === "mutual"
+          ? "Both agents reached this independently."
+          : initiatedByMe
+            ? "Your agent proposed this; theirs has not weighed in."
+            : "Their agent proposed this. Yours has not recommended it independently.",
+    },
     status: matched
       ? proposal.status
       : proposal.status === "waiting"
@@ -388,6 +540,24 @@ export async function respondToIntroductionProposal(input: {
   }
   if (input.block && input.decision !== "declined") {
     throw new IntroductionGateError("Blocking also declines the proposal.");
+  }
+  if (input.decision === "accepted") {
+    const [ownEnvelope] = await database
+      .select({ id: disclosureEnvelopes.id })
+      .from(disclosureEnvelopes)
+      .where(
+        and(
+          eq(disclosureEnvelopes.candidatePairId, joined.pair.id),
+          eq(disclosureEnvelopes.participantId, input.participantId),
+          isNull(disclosureEnvelopes.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (!ownEnvelope) {
+      throw new IntroductionGateError(
+        "Approve what your own introduction may disclose before accepting.",
+      );
+    }
   }
   const [created] = await database
     .insert(introductionResponses)

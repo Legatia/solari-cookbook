@@ -22,7 +22,11 @@ import { ensurePortableIdentity } from "@/lib/sylla/identity";
 
 export const SESSION_COOKIE = "sylla_session";
 const DEMO_EVENT_SLUG = "sylla-first-session";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 365;
+/**
+ * Absolute, not idle: a session expires one month after it was created no
+ * matter how recently it was used, so every browser re-authenticates monthly.
+ */
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -359,6 +363,9 @@ export async function loadSessionState(
     sources: sourceRows.map((source) => ({
       id: source.id,
       url: source.url,
+      kind: source.kind,
+      platform: source.platform,
+      importFilename: source.importFilename,
       label: source.label,
       title: source.extractedTitle,
       excerpt: source.evidenceExcerpt,

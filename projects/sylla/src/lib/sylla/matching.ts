@@ -408,7 +408,9 @@ export async function evaluatePairDirection(input: {
   if (!pair || ![pair.participantLowId, pair.participantHighId].includes(input.subjectParticipantId)) {
     throw new MatchingEligibilityError("Candidate pair not found for this participant.");
   }
-  if (!["shortlisted", "evaluating"].includes(pair.status)) {
+  // `proposable` stays open: the second agent may still weigh in, either to
+  // advise its own human about an incoming proposal or to upgrade it to mutual.
+  if (!["shortlisted", "evaluating", "proposable"].includes(pair.status)) {
     throw new MatchingEligibilityError("This pair is no longer open for evaluation.");
   }
   const candidateParticipantId =
@@ -520,11 +522,15 @@ export async function evaluatePairDirection(input: {
           eq(directionalEvaluations.status, "completed"),
         ),
       );
-    const pairStatus = directions.some((direction) => !direction.result?.recommend)
-      ? "rejected"
-      : directions.length === 2
+    const recommending = directions.filter((direction) => direction.result?.recommend);
+    const pairStatus =
+      recommending.length === 2
         ? "recommended"
-        : "evaluating";
+        : recommending.length === 1
+          ? "proposable"
+          : directions.length
+            ? "rejected"
+            : "evaluating";
     await database
       .update(candidatePairs)
       .set({ status: pairStatus, updatedAt: new Date() })
@@ -595,10 +601,15 @@ export async function getCandidatePairForParticipant(
     status:
       pair.status === "recommended"
         ? "recommended"
-        : pair.status === "rejected" || pair.status === "canceled" || pair.status === "expired"
-          ? "closed"
-          : "evaluating",
-    readyForProposal: pair.status === "recommended",
+        : pair.status === "proposable"
+          ? "one_sided"
+          : pair.status === "rejected" || pair.status === "canceled" || pair.status === "expired"
+            ? "closed"
+            : "evaluating",
+    // Either tier can be proposed; the tier only changes what the recipient
+    // is told about how the proposal arose.
+    readyForProposal:
+      pair.status === "recommended" || pair.status === "proposable",
     evaluations: evaluations.map((item) => ({
       directionOwnedByCaller: item.subjectParticipantId === participantId,
       status:

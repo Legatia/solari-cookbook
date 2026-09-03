@@ -45,7 +45,11 @@ export const personalMemoryUpdateSchema = z
 
 export type SyllaSource = {
   id: string;
-  url: string;
+  /** Null for an imported archive: the participant supplied the file itself. */
+  url: string | null;
+  kind: "url" | "import";
+  platform: string | null;
+  importFilename: string | null;
   label: string | null;
   title: string | null;
   excerpt: string | null;

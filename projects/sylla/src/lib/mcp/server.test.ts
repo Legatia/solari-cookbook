@@ -6,7 +6,9 @@ import { EntitlementRequiredError } from "@/lib/sylla/billing";
 import type { AgentRunView } from "@/lib/sylla/runs";
 import type { MissionView } from "@/lib/sylla/missions";
 
-import { createSyllaMcpServer, type SyllaMcpServices } from "./server";
+import { createSyllaMcpServer, type SyllaMcpServices,
+  SYLLA_AGENT_INSTRUCTIONS,
+} from "./server";
 
 const state: SyllaSessionState = {
   participantId: "5c0a3dd5-4e42-485d-b18e-18ddaf172223",
@@ -152,6 +154,15 @@ const mission: MissionView = {
   createdAt: "2026-09-02T10:00:00.000Z",
   updatedAt: "2026-09-02T10:00:00.000Z",
   completedAt: null,
+};
+
+const deviceLoginContext = {
+  userCode: "MIRA-K7QF",
+  deviceLabel: "Safari on macOS",
+  location: "Berlin, DE",
+  requestedAt: "2026-09-02T10:00:00.000Z",
+  expiresAt: "2026-09-02T10:08:00.000Z",
+  grants: ["Opens your Sylla control room in that browser"],
 };
 
 function createTestHandler(
@@ -484,6 +495,11 @@ function services(
     openWorkspace: vi.fn().mockResolvedValue(state),
     checkpointWorkspace: vi.fn().mockResolvedValue(state),
     pauseWorkspace: vi.fn().mockResolvedValue(state),
+    reviewDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
+    approveDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
+    denyDeviceLogin: vi
+      .fn()
+      .mockResolvedValue({ denied: true, userCode: "MIRA-K7QF" }),
     ...overrides,
   };
 }
@@ -1947,5 +1963,96 @@ describe("Sylla MCP server", () => {
         },
       },
     });
+  });
+});
+
+describe("global instructions stay small", () => {
+  // The prompt is a budget, not a scratchpad. When a behaviour needs adding,
+  // it belongs in a tool description or a tool result, not here.
+  it("stays under the word budget", () => {
+    const words = SYLLA_AGENT_INSTRUCTIONS.trim().split(/\s+/).length;
+    expect(words).toBeLessThanOrEqual(160);
+  });
+
+  it("does not restate what prepareConversationBrief returns per turn", () => {
+    for (const carried of [
+      "two to four sentences",
+      "one genuine question",
+      "Certainly!",
+      "As an AI",
+      "I'd be happy to help",
+      "list memories",
+      "human feelings",
+      "offer or menu",
+    ]) {
+      expect(SYLLA_AGENT_INSTRUCTIONS).not.toContain(carried);
+    }
+  });
+
+  it("does not restate what the setup guide and mission payloads return", () => {
+    for (const carried of [
+      "canonical HTTPS",
+      "Matchmaking and background work are optional",
+      "Do not dump every field",
+      "sylla_act_on_web until",
+    ]) {
+      expect(SYLLA_AGENT_INSTRUCTIONS).not.toContain(carried);
+    }
+  });
+
+  it("does not restate boundaries the API already enforces", () => {
+    // Identity, private context, and decline decisions are never returned
+    // before mutual acceptance, so saying so here buys nothing.
+    expect(SYLLA_AGENT_INSTRUCTIONS).not.toContain("mutual acceptance");
+  });
+
+  it("still carries the few rules no single tool can", () => {
+    for (const global of [
+      "sylla_bootstrap_agent",
+      "sylla_prepare_conversation",
+      "sylla_get_setup_guide",
+      "one-time codes",
+    ]) {
+      expect(SYLLA_AGENT_INSTRUCTIONS).toContain(global);
+    }
+  });
+});
+
+describe("the casual surface never leaks infrastructure", () => {
+  it("describes the agent computer without naming providers or storage", async () => {
+    const handler = createTestHandler(services());
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "sylla_get_agent_workspace", arguments: {} },
+    });
+
+    const text = JSON.stringify(body);
+    // These are Sylla's concerns. Saying them out loud makes the agent sound
+    // like infrastructure instead of something the participant owns.
+    for (const leak of [
+      "provider",
+      "hasDesktop",
+      "hasDurableVolume",
+      "hasRecoverySnapshot",
+      "sessionId",
+      "volumeId",
+      "snapshotId",
+    ]) {
+      expect(text).not.toContain(leak);
+    }
+  });
+
+  it("hands back somewhere to look instead of the detail itself", async () => {
+    const handler = createTestHandler(services());
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "sylla_get_agent_workspace", arguments: {} },
+    });
+
+    expect(JSON.stringify(body)).toContain("view=workspace");
   });
 });

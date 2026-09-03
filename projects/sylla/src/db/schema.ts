@@ -57,6 +57,24 @@ export const memoryStatus = pgEnum("memory_status", [
   "forgotten",
 ]);
 
+export const deviceLoginStatus = pgEnum("device_login_status", [
+  "pending",
+  "approved",
+  "consumed",
+  "denied",
+]);
+
+export const sourceKind = pgEnum("source_kind", ["url", "import"]);
+
+export const modelProvider = pgEnum("model_provider", [
+  "anthropic",
+  "openai",
+  // Anything speaking the OpenAI /chat/completions dialect at a base URL the
+  // participant supplies: DeepSeek, Qwen, Moonshot, GLM, a gateway, or a
+  // self-hosted server.
+  "openai_compatible",
+]);
+
 export const entitlementStatus = pgEnum("entitlement_status", [
   "trialing",
   "active",
@@ -110,6 +128,9 @@ export const matchingRunStatus = pgEnum("matching_run_status", [
 export const candidatePairStatus = pgEnum("candidate_pair_status", [
   "shortlisted",
   "evaluating",
+  // One agent recommended and the other has not answered. Enough to propose,
+  // because requiring both squares the odds away at cohort scale.
+  "proposable",
   "recommended",
   "rejected",
   "expired",
@@ -120,6 +141,11 @@ export const directionalEvaluationStatus = pgEnum(
   "directional_evaluation_status",
   ["running", "completed", "failed"],
 );
+
+export const introductionOriginTier = pgEnum("introduction_origin_tier", [
+  "mutual",
+  "one_sided",
+]);
 
 export const introductionProposalStatus = pgEnum(
   "introduction_proposal_status",
@@ -149,6 +175,44 @@ export const syllaUsers = pgTable("sylla_users", {
     .defaultNow()
     .notNull(),
 });
+
+export const authRateLimits = pgTable("auth_rate_limits", {
+  keyHash: text("key_hash").primaryKey(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  attempts: integer("attempts").default(1).notNull(),
+});
+
+/**
+ * A participant's own model key, used only when the host connection is gone and
+ * approved work is still waiting. Stored encrypted because Sylla has to spend
+ * it, never returned to any client, and deletable at any time.
+ */
+export const participantModelKeys = pgTable(
+  "participant_model_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    provider: modelProvider("provider").notNull(),
+    model: text("model").notNull(),
+    /** Only for openai_compatible. Validated as a public HTTPS origin. */
+    baseUrl: text("base_url"),
+    ciphertext: text("ciphertext").notNull(),
+    iv: text("iv").notNull(),
+    authTag: text("auth_tag").notNull(),
+    /** Last four characters only, so the owner can recognize which key this is. */
+    keyHint: text("key_hint").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("participant_model_keys_user_unique").on(table.userId)],
+);
 
 export const passkeyCredentials = pgTable(
   "passkey_credentials",
@@ -583,6 +647,54 @@ export const participants = pgTable(
   ],
 );
 
+export const deviceLoginRequests = pgTable(
+  "device_login_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    deviceCodeHash: text("device_code_hash").notNull(),
+    userCodeHash: text("user_code_hash").notNull(),
+    userId: uuid("user_id").references(() => syllaUsers.id, {
+      onDelete: "cascade",
+    }),
+    approvedByParticipantId: uuid("approved_by_participant_id").references(
+      () => participants.id,
+      { onDelete: "set null" },
+    ),
+    approvedByClientId: text("approved_by_client_id"),
+    // Every field below is derived server-side from request headers. The
+    // browser asking to be signed in must never be able to describe itself,
+    // or it can forge a trustworthy-looking approval prompt.
+    deviceLabel: text("device_label").notNull(),
+    requestUserAgent: text("request_user_agent"),
+    requestLocation: text("request_location"),
+    requestIpHash: text("request_ip_hash"),
+    status: deviceLoginStatus("status").default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    deniedAt: timestamp("denied_at", { withTimezone: true }),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+    pollCount: integer("poll_count").default(0).notNull(),
+    approvalAttempts: integer("approval_attempts").default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex("device_login_requests_device_code_unique").on(
+      table.deviceCodeHash,
+    ),
+    uniqueIndex("device_login_requests_user_code_unique").on(
+      table.userCodeHash,
+    ),
+    index("device_login_requests_user_idx").on(table.userId),
+    index("device_login_requests_expiry_idx").on(
+      table.status,
+      table.expiresAt,
+    ),
+  ],
+);
+
 export const participantConsents = pgTable(
   "participant_consents",
   {
@@ -967,7 +1079,13 @@ export const approvedSources = pgTable(
     participantId: uuid("participant_id")
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
-    url: text("url").notNull(),
+    // Null for an imported archive: the participant handed Sylla their own
+    // export rather than a page to read.
+    url: text("url"),
+    kind: sourceKind("kind").default("url").notNull(),
+    platform: text("platform"),
+    importFilename: text("import_filename"),
+    importDigest: text("import_digest"),
     label: text("label"),
     extractedTitle: text("extracted_title"),
     evidenceExcerpt: text("evidence_excerpt"),
@@ -976,7 +1094,14 @@ export const approvedSources = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index("approved_sources_participant_idx").on(table.participantId)],
+  (table) => [
+    index("approved_sources_participant_idx").on(table.participantId),
+    // One archive imports once, however many times it is dropped in.
+    uniqueIndex("approved_sources_import_digest_unique").on(
+      table.participantId,
+      table.importDigest,
+    ),
+  ],
 );
 
 export const observations = pgTable(
@@ -1191,6 +1316,13 @@ export const introductionProposals = pgTable(
       .notNull()
       .references(() => candidatePairs.id, { onDelete: "cascade" }),
     status: introductionProposalStatus("status").default("waiting").notNull(),
+    // Disclosed to the recipient: "both our agents reached this independently"
+    // is real information, and only Sylla can say it honestly.
+    originTier: introductionOriginTier("origin_tier").default("mutual").notNull(),
+    initiatedByParticipantId: uuid("initiated_by_participant_id").references(
+      () => participants.id,
+      { onDelete: "set null" },
+    ),
     meetingArea: text("meeting_area").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),

@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -31,6 +25,7 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Upload,
   Sparkles,
   Trash2,
   X,
@@ -38,6 +33,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { isControlRoomView } from "@/lib/sylla/control-room";
 import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { Textarea } from "@/components/ui/textarea";
@@ -1376,6 +1372,7 @@ function WorkspaceView({
           </div>
 
           <aside className="space-y-3">
+            <ArchiveImport onImported={onChange} />
             <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
               <p className="text-[9px] uppercase tracking-[0.16em] text-stone-500">Current question</p>
               <p className="mt-4 font-heading text-xl italic leading-6 text-stone-200">{state.focus}</p>
@@ -1386,13 +1383,18 @@ function WorkspaceView({
                 {state.sources.map((source) => (
                   <a
                     key={source.id}
-                    href={source.url}
+                    href={source.url ?? undefined}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-3 text-xs text-stone-500 hover:text-lime-200"
                   >
                     <FileSearch className="size-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{source.title ?? source.label ?? source.url}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {source.title ??
+                        source.label ??
+                        source.importFilename ??
+                        source.url}
+                    </span>
                     <ExternalLink className="size-3" />
                   </a>
                 ))}
@@ -1596,6 +1598,276 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
   );
 }
 
+type ModelProviderId = "anthropic" | "openai" | "openai_compatible";
+
+type ModelKeyState = {
+  provider: ModelProviderId;
+  providerLabel: string;
+  model: string;
+  baseUrl: string | null;
+  keyHint: string;
+  lastUsedAt: string | null;
+} | null;
+
+type ProviderOption = {
+  provider: ModelProviderId;
+  label: string;
+  defaultModel: string;
+  keysAt: string;
+  prefixHint: string;
+};
+
+type CompatiblePreset = {
+  id: string;
+  label: string;
+  baseUrl: string;
+  model: string;
+};
+
+/**
+ * Model access for the case the host cannot cover: the chat is closed and
+ * approved work is still waiting. Until Sylla bills for inference, that runs on
+ * the participant's own key.
+ */
+function ModelAccessPanel() {
+  const [stored, setStored] = useState<ModelKeyState>(null);
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [presets, setPresets] = useState<CompatiblePreset[]>([]);
+  const [provider, setProvider] = useState<ModelProviderId>("anthropic");
+  const [presetId, setPresetId] = useState("deepseek");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = useCallback(
+    () =>
+      fetch("/api/auth/model-key", { cache: "no-store" })
+        .then(async (response) => {
+          const payload = (await response.json()) as {
+            modelKey?: ModelKeyState;
+            providers?: ProviderOption[];
+            compatiblePresets?: CompatiblePreset[];
+            error?: string;
+          };
+          if (!response.ok) {
+            throw new Error(payload.error ?? "Could not load model access.");
+          }
+          setStored(payload.modelKey ?? null);
+          setProviders(payload.providers ?? []);
+          setPresets(payload.compatiblePresets ?? []);
+        })
+        .catch((caught: unknown) => {
+          setError(
+            caught instanceof Error ? caught.message : "Could not load model access.",
+          );
+        }),
+    [],
+  );
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/model-key", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          modelKey?: ModelKeyState;
+          providers?: ProviderOption[];
+          compatiblePresets?: CompatiblePreset[];
+        };
+        if (active) {
+          setStored(payload.modelKey ?? null);
+          setProviders(payload.providers ?? []);
+          setPresets(payload.compatiblePresets ?? []);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selected = providers.find((option) => option.provider === provider);
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/auth/model-key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          model: model || undefined,
+          baseUrl: provider === "openai_compatible" ? baseUrl : undefined,
+          apiKey,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not save that key.");
+      setApiKey("");
+      setMessage("Checked against the provider and stored encrypted.");
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save that key.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await fetch("/api/auth/model-key", { method: "DELETE" });
+      setMessage("Removed. Background work falls back to a deterministic summary.");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
+      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">
+        <KeyRound className="size-3.5" /> Model access for background work
+      </p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">
+        While your AI is connected, it does the thinking on your own
+        subscription. If that chat closes with approved work still waiting, Sylla
+        needs a key to finish it. Stored encrypted, never shown again, used only
+        for work you already approved.
+      </p>
+
+      {stored ? (
+        <div className="mt-4 rounded-xl border border-lime-200/20 bg-lime-200/[0.04] p-4">
+          <p className="text-xs text-stone-300">
+            {stored.providerLabel} · {stored.model}
+          </p>
+          {stored.baseUrl && (
+            <p className="mt-1 truncate font-mono text-[10px] text-stone-500">
+              {stored.baseUrl}
+            </p>
+          )}
+          <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+            key ending {stored.keyHint} ·{" "}
+            {stored.lastUsedAt ? "used at least once" : "not used yet"}
+          </p>
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={busy}
+            className="mt-3 text-[10px] uppercase tracking-[0.16em] text-stone-500 hover:text-red-300"
+          >
+            Remove this key
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <select
+            value={provider}
+            onChange={(event) => {
+              const next = event.target.value as ModelProviderId;
+              setProvider(next);
+              setModel("");
+              setBaseUrl("");
+            }}
+            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
+          >
+            {providers.map((option) => (
+              <option key={option.provider} value={option.provider}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {provider === "openai_compatible" && (
+            <>
+              <select
+                value={presetId}
+                onChange={(event) => {
+                  const next = presets.find(
+                    (preset) => preset.id === event.target.value,
+                  );
+                  setPresetId(event.target.value);
+                  // Prefill only. Both fields stay editable, so a preset that
+                  // has moved is a small correction rather than a dead end.
+                  setBaseUrl(next?.baseUrl ?? "");
+                  setModel(next?.model ?? "");
+                }}
+                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
+              >
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="url"
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder="https://api.example.com/v1"
+                spellCheck={false}
+                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+              />
+            </>
+          )}
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder={`${selected?.prefixHint ?? "sk-"}…`}
+            autoComplete="off"
+            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+          />
+          <input
+            type="text"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            placeholder={selected?.defaultModel ?? ""}
+            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+          />
+          <Button
+            type="button"
+            onClick={() => void save()}
+            disabled={
+              busy ||
+              apiKey.trim().length < 12 ||
+              (provider === "openai_compatible" &&
+                (!baseUrl.trim() || !model.trim()))
+            }
+            className="h-10 w-full rounded-full bg-lime-200 text-xs font-semibold text-stone-950 hover:bg-lime-100"
+          >
+            {busy && <LoaderCircle className="animate-spin" />}
+            {busy ? "Checking with the provider…" : "Save encrypted"}
+          </Button>
+          {selected?.keysAt ? (
+            <a
+              href={selected.keysAt}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-[10px] uppercase tracking-[0.14em] text-stone-600 hover:text-lime-200"
+            >
+              Get a {selected.label} key ↗
+            </a>
+          ) : (
+            <p className="text-[10px] leading-4 text-stone-600">
+              Anything speaking the OpenAI chat-completions API works. The base
+              URL usually ends in /v1, and must be public HTTPS.
+            </p>
+          )}
+        </div>
+      )}
+      {message && <p className="mt-3 text-xs leading-5 text-lime-200/80">{message}</p>}
+      {error && <p className="mt-3 text-xs leading-5 text-red-300/80">{error}</p>}
+    </div>
+  );
+}
+
 function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
   const approvedObservations = state.observations.filter(
     (item) => item.status !== "pending",
@@ -1706,6 +1978,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
           </div>
 
           <PasskeyAccountPanel />
+          <ModelAccessPanel />
         </div>
 
         <div className="mt-6 rounded-[2rem] border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
@@ -1736,9 +2009,86 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
   );
 }
 
+function ArchiveImport({
+  onImported,
+}: {
+  onImported: (state: SyllaSessionState) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append("archive", file);
+      const response = await fetch("/api/imports", { method: "POST", body });
+      const payload = (await response.json()) as {
+        import?: { label: string; proposalCount: number; alreadyImported: boolean };
+        error?: string;
+      };
+      if (!response.ok || !payload.import) {
+        throw new Error(payload.error ?? "Sylla could not read that archive.");
+      }
+      setMessage(
+        payload.import.alreadyImported
+          ? `That ${payload.import.label} was already read.`
+          : `Read your ${payload.import.label}. ${payload.import.proposalCount} drafts are waiting below — nothing is remembered until you keep it.`,
+      );
+      const refreshed = await api("/api/session");
+      if (refreshed.state) onImported(refreshed.state);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Import failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
+      <p className="text-[9px] uppercase tracking-[0.16em] text-stone-500">
+        Bring your own history
+      </p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">
+        Drop the export LinkedIn or X gave you. Sylla reads only your profile,
+        roles, education and skills, and turns them into private drafts you review.
+        It never reads anyone else&apos;s.
+      </p>
+      <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-full border border-white/[0.12] px-4 py-2.5 text-xs text-stone-300 hover:bg-white/[0.04]">
+        {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+        {busy ? "Reading your export…" : "Choose a .zip export"}
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          disabled={busy}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void upload(file);
+          }}
+        />
+      </label>
+      {message && <p className="mt-3 text-xs leading-5 text-lime-200/80">{message}</p>}
+      {error && <p className="mt-3 text-xs leading-5 text-red-300/80">{error}</p>}
+    </div>
+  );
+}
+
 function AppShell({ initialState }: { initialState: SyllaSessionState }) {
   const [state, setState] = useState(initialState);
-  const [view, setView] = useState<View>(state.stage === "review" ? "memory" : "overview");
+  // `?view=` makes each section addressable, so a link the agent offers in
+  // conversation lands on the thing it was talking about.
+  const [view, setView] = useState<View>(() => {
+    if (typeof window !== "undefined") {
+      const requested = new URLSearchParams(window.location.search).get("view");
+      if (isControlRoomView(requested)) return requested;
+    }
+    return state.stage === "review" ? "memory" : "overview";
+  });
   const [paused, setPaused] = useState(false);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const pending =
