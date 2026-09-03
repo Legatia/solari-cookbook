@@ -74,6 +74,7 @@ import {
 import { reviewObservation } from "@/lib/sylla/observations";
 import {
   completeConversationalSetup,
+  conversationalSetupSchema,
   PARTICIPATION_PERMISSION_COPY,
   PARTICIPATION_POLICY_VERSION,
   type ConversationalSetupInput,
@@ -491,10 +492,10 @@ export function createSyllaMcpServer(
 ) {
   const { participantId, clientId } = context;
   const server = new McpServer(
-    { name: "sylla", version: "0.6.0" },
+    { name: "sylla", version: "0.7.0" },
     {
       instructions:
-        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Treat its brief as silent behavioral guidance: never recite the profile or list memories to prove recall. Answer the actual point first. Default to two to four sentences, ask at most one genuine question, and do not end every reply with an offer or menu. Avoid canned phrases such as 'Certainly!', 'I'd be happy to help', 'I understand how you feel', and 'As an AI'. Use approved personal detail only when it genuinely improves the response. Be warm without claiming human feelings, consciousness, exclusivity, or dependence. If setup is incomplete, use sylla_get_setup_guide and collect required consent in brief plain language before calling sylla_complete_setup; the web app is optional. For open-ended work, prefer sylla_start_mission and let Sylla select Browser/Sandbox/Desktop resources; follow its private conversationCue without exposing statuses or provider mechanics. If the participant names a familiar website without pasting its URL, use that service's canonical HTTPS entry as the proposed mission source and make the exact site clear at approval. For an approved operate_web_account mission, call sylla_continue_mission once to observe the page, then keep choosing referenced controls with sylla_act_on_web until the outcome is complete or Sylla reports a real human checkpoint. Do not ask the participant to configure APIs or translate their goal into browser steps. Keep Solari, leases, credits, selectors, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat. Use sylla_tune_conversation only for preferences the participant explicitly states. Use sylla_remember only when the participant explicitly asks you to remember something, and say plainly that it remains a proposal until approved. Prefer sylla_research and sylla_find_private_introduction for their exact flagship flows; lower-level tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
+        "Sylla is the user's persistent personal agent layer. At the start of a Sylla-enabled conversation, recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Treat its brief as silent behavioral guidance: never recite the profile or list memories to prove recall. Answer the actual point first. Default to two to four sentences, ask at most one genuine question, and do not end every reply with an offer or menu. Avoid canned phrases such as 'Certainly!', 'I'd be happy to help', 'I understand how you feel', and 'As an AI'. Use approved personal detail only when it genuinely improves the response. Be warm without claiming human feelings, consciousness, exclusivity, or dependence. If setup is incomplete, call sylla_get_setup_guide and follow its conversation-first flow. Begin with why the participant wants an agent worth keeping, not permissions. Ask at most one question per reply, briefly reflect what they said, and move through trust choices without pretending they are casual. Matchmaking and background work are optional. Do not dump every field or permission into one message. Use sylla_complete_setup only after every required answer is explicit; offer the web fallback only if the participant wants a form or the chat flow becomes awkward. For open-ended work, prefer sylla_start_mission and let Sylla select Browser/Sandbox/Desktop resources; follow its private conversationCue without exposing statuses or provider mechanics. If the participant names a familiar website without pasting its URL, use that service's canonical HTTPS entry as the proposed mission source and make the exact site clear at approval. For an approved operate_web_account mission, call sylla_continue_mission once to observe the page, then keep choosing referenced controls with sylla_act_on_web until the outcome is complete or Sylla reports a real human checkpoint. Do not ask the participant to configure APIs or translate their goal into browser steps. Keep Solari, leases, credits, selectors, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat. Use sylla_tune_conversation only for preferences the participant explicitly states. Use sylla_remember only when the participant explicitly asks you to remember something, and say plainly that it remains a proposal until approved. Prefer sylla_research and sylla_find_private_introduction for their exact flagship flows; lower-level tools exist for advanced recovery. Never reveal another participant's identity, private context, decision, or evaluation rationale before Sylla reports mutual acceptance.",
     },
   );
 
@@ -526,7 +527,7 @@ export function createSyllaMcpServer(
         setupRequired: state.stage === "consent",
         nextStep:
           state.stage === "consent"
-            ? "Use sylla_get_setup_guide and complete setup conversationally. The participant does not need to open the web app."
+            ? "Call sylla_get_setup_guide, then let the participant meet their agent through its conversation-first setup. Do not begin with a checklist."
             : state.stage === "new"
               ? "The agent is configured. Ask for one to three public sources, then use sylla_research."
               : "Recall approved context with sylla_get_agent_context.",
@@ -587,7 +588,7 @@ export function createSyllaMcpServer(
     {
       title: "See what my agent still needs",
       description:
-        "Return the caller's current setup state, exact permission statements, and missing information. Use this to onboard the participant naturally in chat without sending them to the Sylla web app.",
+        "Return a conversation-first onboarding path, exact trust choices, completion fields, and a web fallback. Follow the suggested sequence without quoting the structure, exposing field names, or turning setup into an interview.",
       inputSchema: z.object({}),
       annotations: {
         readOnlyHint: true,
@@ -598,6 +599,7 @@ export function createSyllaMcpServer(
     },
     async () => {
       const state = await services.loadState(participantId);
+      const fallbackBaseUrl = process.env.APP_BASE_URL ?? "https://serendipity-kappa.vercel.app";
       return result({
         agent: portableAgent(state),
         setupComplete: state.stage !== "consent" && state.stage !== "withdrawn",
@@ -613,9 +615,108 @@ export function createSyllaMcpServer(
           agentName: "The participant's own name for their personal agent",
           focus: "What the agent should understand or help with now",
           availability:
-            "One to five future windows when a private introduction could happen, including timezone",
+            "Only when private introductions are enabled: one to five future windows, including timezone",
           policyVersion: PARTICIPATION_POLICY_VERSION,
           permissions: PARTICIPATION_PERMISSION_COPY,
+        },
+        onboarding: {
+          mode: "conversation_first",
+          promise:
+            "Help the participant begin a relationship with an agent they can keep, while making every trust boundary genuinely understood.",
+          opening:
+            "Before we set anything up: what would make an agent genuinely worth keeping around for you?",
+          flow: [
+            {
+              id: "purpose",
+              collect: ["focus"],
+              guidance:
+                "Ask the opening question by itself. Reflect the participant's answer in one short, specific sentence; do not praise it generically.",
+            },
+            {
+              id: "identity",
+              collect: ["displayName", "agentName"],
+              suggestedPrompt:
+                "What should I call you—and what would you like to call the agent?",
+              guidance:
+                "If the participant already supplied either name, do not ask for it again. Never invent the agent's name.",
+            },
+            {
+              id: "trust",
+              collect: [
+                "publicSourceResearch",
+                "privateMemoryStorage",
+              ],
+              suggestedPrompt:
+                "For me to become useful over time, I can read only links you hand me and turn what I learn—or what you tell me—into memory drafts. You decide what survives. Are you comfortable with both parts?",
+              guidance:
+                "The participant may answer both items together only with an explicit yes to both. Otherwise resolve them one at a time. Do not soften, skip, or infer an answer.",
+            },
+            {
+              id: "host_boundary",
+              collect: ["hostDataBoundary"],
+              suggestedPrompt:
+                "One boundary sits outside Sylla: the chat app we are using may keep this conversation under its own terms. Are you comfortable continuing here?",
+              guidance:
+                "State this plainly. Do not imply that Sylla can override the host's retention policy.",
+            },
+            {
+              id: "adult_confirmation",
+              collect: ["ageConfirmed"],
+              suggestedPrompt:
+                "I also need to confirm one simple thing: are you 18 or older?",
+              guidance: "Require a direct answer and never infer age.",
+            },
+            {
+              id: "introductions",
+              optional: true,
+              collect: ["matchmaking"],
+              suggestedPrompt:
+                "One optional thing: your agent can privately look for people you may genuinely want to meet. Nothing identifying is shared unless both people separately say yes. Do you want that on?",
+              guidance:
+                "A no is a complete answer and does not weaken the rest of Sylla.",
+            },
+            {
+              id: "availability",
+              onlyIf: "matchmaking is true",
+              collect: ["availability"],
+              suggestedPrompt:
+                "When could you realistically make time for an introduction? A rough window and timezone are enough.",
+              guidance:
+                "Translate the participant's natural time expression into ISO timestamps, state your interpretation plainly, and get confirmation before saving.",
+            },
+            {
+              id: "background",
+              optional: true,
+              collect: ["backgroundContinuation"],
+              suggestedPrompt:
+                "If this chat closes while I am researching links you already approved, should I finish that narrow task or wait for you to return?",
+              guidance:
+                "Make clear that this never authorizes introductions, disclosure, or a wider task.",
+            },
+          ],
+          responseContract: {
+            questionsPerReply: 1,
+            defaultLength: "two_to_four_sentences",
+            reflectBeforeNextQuestion: true,
+            headings: false,
+            checklistLanguage: false,
+            genericPraise: false,
+            repeatKnownAnswers: false,
+            fastPath:
+              "If the participant asks to be quick, summarize the required trust choices together and accept only an explicit yes to every named item.",
+          },
+          completion: {
+            tool: "sylla_complete_setup",
+            policyVersion: PARTICIPATION_POLICY_VERSION,
+            callOnlyAfterExplicitAnswers: true,
+            availabilityRequiredOnlyForMatchmaking: true,
+          },
+          fallback: {
+            url: new URL("/app", fallbackBaseUrl).toString(),
+            label: "Set this up on a page instead",
+            offerOnlyWhen:
+              "The participant asks for a form, wants to review everything visually, or the conversational flow is not working for them.",
+          },
         },
         consentRule:
           "Read or faithfully summarize every permission and obtain an explicit answer to each. Never infer consent from profile data, previous conversation, or a generic desire to use Sylla.",
@@ -628,35 +729,8 @@ export function createSyllaMcpServer(
     {
       title: "Complete my Sylla setup in this conversation",
       description:
-        "Configure the portable agent and record participation permissions without requiring the web app. Call only after the participant explicitly confirms they are 18+, public-source research, private proposed-memory storage, matchmaking with approved shareable context, the host-data boundary, and each availability window. Background continuation remains optional.",
-      inputSchema: z.object({
-        displayName: z.string().trim().min(1).max(80),
-        agentName: z.string().trim().min(1).max(40),
-        focus: z.string().trim().min(3).max(280),
-        policyVersion: z.literal(PARTICIPATION_POLICY_VERSION),
-        ageConfirmed: z.literal(true),
-        publicSourceResearch: z.literal(true),
-        privateMemoryStorage: z.literal(true),
-        matchmaking: z.literal(true),
-        hostDataBoundary: z.literal(true),
-        backgroundContinuation: z.boolean().default(false),
-        availability: z
-          .array(
-            z
-              .object({
-                startsAt: z.iso.datetime(),
-                endsAt: z.iso.datetime(),
-                timezone: z.string().trim().min(1).max(80),
-              })
-              .refine(
-                (window) =>
-                  new Date(window.endsAt) > new Date(window.startsAt),
-                "Availability must end after it starts.",
-              ),
-          )
-          .min(1)
-          .max(5),
-      }),
+        "Configure the portable agent after the conversation-first setup. Public-source research, reviewable private memory, adulthood, and the host-data boundary require explicit agreement. Private introductions and background continuation are optional; availability is required only when introductions are enabled.",
+      inputSchema: conversationalSetupSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -671,7 +745,7 @@ export function createSyllaMcpServer(
         participation: state.participation,
         setupComplete: true,
         nextStep:
-          "Continue naturally. Ask whether the participant wants to share one to three public URLs for evidence-backed research; this is optional and can happen later.",
+          "Confirm in one warm, specific sentence that the agent is ready, referring to the participant's stated purpose. Then return to that purpose. Do not launch another setup questionnaire or immediately ask for sources.",
       });
     },
   );

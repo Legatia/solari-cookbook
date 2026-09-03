@@ -879,6 +879,63 @@ describe("Sylla MCP server", () => {
     });
   });
 
+  it("returns a conversation-first setup path with an optional web fallback", async () => {
+    const onboardingState: SyllaSessionState = {
+      ...state,
+      agentName: null,
+      focus: null,
+      stage: "consent",
+      participation: {
+        ...state.participation,
+        displayName: null,
+        policyVersion: null,
+        consentedAt: null,
+        backgroundContinuationAllowed: false,
+        availability: [],
+      },
+    };
+    const handler = createTestHandler(
+      services({ loadState: vi.fn().mockResolvedValue(onboardingState) }),
+    );
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 304,
+      method: "tools/call",
+      params: { name: "sylla_get_setup_guide", arguments: {} },
+    });
+
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          setupComplete: false,
+          onboarding: {
+            mode: "conversation_first",
+            flow: expect.arrayContaining([
+              expect.objectContaining({ id: "purpose" }),
+              expect.objectContaining({ id: "trust" }),
+              expect.objectContaining({
+                id: "introductions",
+                optional: true,
+              }),
+            ]),
+            responseContract: {
+              questionsPerReply: 1,
+              headings: false,
+              checklistLanguage: false,
+            },
+            completion: {
+              tool: "sylla_complete_setup",
+              availabilityRequiredOnlyForMatchmaking: true,
+            },
+            fallback: {
+              url: expect.stringContaining("/app"),
+            },
+          },
+        },
+      },
+    });
+  });
+
   it("reviews a research memory without sending the participant to the web app", async () => {
     const reviewed = {
       ...state,

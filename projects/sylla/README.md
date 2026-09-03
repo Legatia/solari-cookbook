@@ -46,13 +46,13 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - HttpOnly-cookie-isolated participant sessions backed by durable Neon state
 - A server-side shared demo gate with a signed seven-day HttpOnly cookie; protected pages, APIs, checkout, invitations, and OAuth consent cannot create metered work before unlock
 - Expiring, revocable, usage-bounded event invitations with atomic redemption
-- A versioned adult-consent gate covering approved-source research, private memory, matching, host retention boundaries, optional background continuation, and concrete availability windows
+- A versioned adult-consent gate covering approved-source research, private memory, host retention boundaries, optional matching and background continuation, and availability only when introductions are enabled
 - Append-only participation audit events plus withdrawal that immediately releases runtime leases, revokes host connections, and removes the participant from matching
 - Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
 - A built-in OAuth 2.1 authorization server with dynamic client registration, S256 PKCE, one-time authorization codes, rotating refresh tokens, and hashed opaque-token storage
 - OAuth protected-resource and authorization-server discovery, plus optional issuer-, audience-, expiry-, and scope-bound external JWT validation
 - A participant-visible **Connect your AI** panel with the live MCP URL, setup instructions, connection status, and one-click revocation
-- MCP-first conversational onboarding: the connected host can explain the exact consent boundary, collect explicit answers, name and focus the agent, save availability, and continue into source research without requiring `/app`
+- MCP-first conversational onboarding: the setup guide returns a purpose-first, one-question-at-a-time conversation contract, exact trust choices, conditional introduction/availability steps, and `/app` only as an optional visual fallback
 - A portable conversation profile for reply length, warmth, directness, humor, challenge style, preferred address, and explicit do/don't preferences
 - A topic-scoped conversation brief that ranks only approved cross-event memories, returns at most four relevant items, and never stores the supplied topic or full host transcript
 - Deterministic identity linking: the same verified Sylla subject resolves to one user and agent across different MCP clients; the public prototype binds first-party grants to the participant's current Sylla browser session
@@ -109,7 +109,7 @@ The host calls `sylla_prepare_conversation` with a short description of the curr
 
 ## First-session flow
 
-1. Redeem a bounded event invitation and accept the current policy version, including host-data boundaries and at least one availability window.
+1. Redeem a bounded event invitation and accept the current policy version. Private introductions are optional; an availability window is required only when they are enabled.
 2. Name the personal agent and describe one question, transition, or ambition it should understand now.
 3. Approve one to three public URLs. Sylla rejects local, private-network, and unsupported source targets and refuses research without active permission.
 4. Sylla researches those sources through the active Browser adapter and separates `Told to me`, `Observed`, and `Inferred` proposals.
@@ -173,7 +173,7 @@ Browser and Sandbox have been verified with the current development account, and
 
 ## Connect an AI host
 
-The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the private-demo password when Sylla opens its OAuth flow, and approve the relationship. The host first calls `sylla_bootstrap_agent`; if setup is incomplete it calls `sylla_get_setup_guide`, discusses each permission with the participant, and records the explicit answers through `sylla_complete_setup`. After that, ordinary work should begin with `sylla_start_mission`; Sylla returns the selected capability, resource plan, approval state, and exact next action. Naming, current focus, availability, approved-source research, memory review, and missions can all happen in the conversation. `/app` remains an optional visual control surface for inspecting the same state, managing connections, and using richer controls.
+The public Streamable HTTP endpoint is `https://serendipity-kappa.vercel.app/mcp`. In ChatGPT, enable Developer mode, add the remote MCP URL, enter the private-demo password when Sylla opens its OAuth flow, and approve the relationship. The host first calls `sylla_bootstrap_agent`; if setup is incomplete it calls `sylla_get_setup_guide`. That tool tells the host to begin with what would make an agent worth keeping, briefly reflect each answer, ask at most one question per reply, and then explain the trust boundary without dumping a form into chat. The host records the explicit answers through `sylla_complete_setup`; matchmaking and background work remain optional, and availability is requested only for matchmaking. After that, ordinary work should begin with `sylla_start_mission`. Naming, current focus, approved-source research, memory review, and missions can all happen in the conversation. `/app` is returned as the plan-B visual form when a participant asks for it or wants to review the choices on a page.
 
 For local development, the disabled-by-default bearer bridge can exercise MCP without running the browser OAuth flow when all three variables are configured:
 

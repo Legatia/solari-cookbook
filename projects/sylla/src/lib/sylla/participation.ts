@@ -28,26 +28,44 @@ const availabilitySchema = z
     "Availability must end after it starts.",
   );
 
-export const participationConsentSchema = z.object({
+const participationConsentFields = {
   displayName: z.string().trim().min(1).max(80),
   policyVersion: z.literal(PARTICIPATION_POLICY_VERSION),
   ageConfirmed: z.literal(true),
   publicSourceResearch: z.literal(true),
   privateMemoryStorage: z.literal(true),
-  matchmaking: z.literal(true),
+  matchmaking: z.boolean().default(false),
   hostDataBoundary: z.literal(true),
   backgroundContinuation: z.boolean().default(false),
-  availability: z.array(availabilitySchema).min(1).max(5),
-});
+  availability: z.array(availabilitySchema).max(5).default([]),
+};
+
+const matchingHasAvailability = (input: {
+  matchmaking: boolean;
+  availability: unknown[];
+}) => !input.matchmaking || input.availability.length > 0;
+
+export const participationConsentSchema = z
+  .object(participationConsentFields)
+  .refine(matchingHasAvailability, {
+    path: ["availability"],
+    message: "Choose at least one availability window when introductions are enabled.",
+  });
 
 export type ParticipationConsentInput = z.infer<
   typeof participationConsentSchema
 >;
 
-export const conversationalSetupSchema = participationConsentSchema.extend({
-  agentName: z.string().trim().min(1).max(40),
-  focus: z.string().trim().min(3).max(280),
-});
+export const conversationalSetupSchema = z
+  .object({
+    ...participationConsentFields,
+    agentName: z.string().trim().min(1).max(40),
+    focus: z.string().trim().min(3).max(280),
+  })
+  .refine(matchingHasAvailability, {
+    path: ["availability"],
+    message: "Choose at least one availability window when introductions are enabled.",
+  });
 
 export type ConversationalSetupInput = z.infer<
   typeof conversationalSetupSchema
@@ -60,7 +78,7 @@ export const PARTICIPATION_PERMISSION_COPY = {
   privateMemoryStorage:
     "Sylla may store proposed private memories; none become approved until I decide.",
   matchmaking:
-    "Sylla may use only my approved shareable context to look for introductions.",
+    "Optional: Sylla may use only my approved shareable context to look for private introductions.",
   hostDataBoundary:
     "I understand my chosen LLM host may retain our conversation under its own terms.",
   backgroundContinuation:

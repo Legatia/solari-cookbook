@@ -212,7 +212,7 @@ function ConsentScreen({
   const [background, setBackground] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mandatoryAccepted = age && research && memory && matching && hostBoundary;
+  const mandatoryAccepted = age && research && memory && hostBoundary;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -231,13 +231,15 @@ function ConsentScreen({
           matchmaking: matching,
           hostDataBoundary: hostBoundary,
           backgroundContinuation: background,
-          availability: [
-            {
-              startsAt: new Date(start).toISOString(),
-              endsAt: new Date(end).toISOString(),
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            },
-          ],
+          availability: matching
+            ? [
+                {
+                  startsAt: new Date(start).toISOString(),
+                  endsAt: new Date(end).toISOString(),
+                  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                },
+              ]
+            : [],
         }),
       });
       if (payload.state) onComplete(payload.state);
@@ -252,7 +254,6 @@ function ConsentScreen({
     [age, setAge, "I confirm that I am at least 18 years old."],
     [research, setResearch, "Sylla may visit only the public URLs I explicitly submit."],
     [memory, setMemory, "Sylla may store proposed private memories; none become approved until I decide."],
-    [matching, setMatching, "Sylla may use only my approved shareable context to look for event introductions."],
     [hostBoundary, setHostBoundary, "I understand my chosen LLM host may retain our conversation under its own terms."],
   ] as const;
 
@@ -296,12 +297,18 @@ function ConsentScreen({
               ))}
             </div>
           </fieldset>
-          <fieldset>
-            <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-500">When could an introduction happen?</legend>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="text-[10px] text-stone-500">Available from<Input required type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
-              <label className="text-[10px] text-stone-500">Available until<Input required type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
-            </div>
+          <fieldset className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <legend className="px-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">Optional · private introductions</legend>
+            <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-stone-400">
+              <input type="checkbox" checked={matching} onChange={(event) => setMatching(event.target.checked)} className="mt-1 accent-lime-200" />
+              <span>Let my agent look for people I may genuinely want to meet. Nothing identifying is shared unless both people separately say yes.</span>
+            </label>
+            {matching && (
+              <div className="mt-5 grid gap-3 border-t border-white/[0.07] pt-5 sm:grid-cols-2">
+                <label className="text-[10px] text-stone-500">Available from<Input required type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
+                <label className="text-[10px] text-stone-500">Available until<Input required type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
+              </div>
+            )}
           </fieldset>
           <label className="flex items-start gap-3 border-t border-white/[0.07] pt-6 text-xs leading-5 text-stone-500">
             <input type="checkbox" checked={background} onChange={(event) => setBackground(event.target.checked)} className="mt-1 accent-lime-200" />

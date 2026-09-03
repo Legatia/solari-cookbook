@@ -57,7 +57,7 @@ The competitive principle is:
 The first end-to-end attachment loop now exists in the reference application:
 
 - A participant receives an isolated anonymous session, names their agent, states a current focus, and approves one to three public sources.
-- A participant may instead redeem a bounded event invitation, review five explicit permission boundaries, provide an availability window, and enter only after accepting the current policy version.
+- A participant may instead redeem a bounded event invitation, review the explicit trust boundaries, optionally enable private introductions, provide availability only for that feature, and enter after accepting the current policy version.
 - The Browser adapter produces source evidence and explicitly separated `Told to me`, `Observed`, and `Inferred` memory proposals.
 - Neon persists research provenance, source evidence, agent identity, observation status, visibility, and workspace reconstruction state.
 - The participant can Keep, Correct, change Private/Shareable status, or permanently Forget an observation.

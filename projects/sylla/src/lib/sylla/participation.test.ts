@@ -25,12 +25,20 @@ const valid = {
 };
 
 describe("participation consent", () => {
-  it("requires every material permission explicitly", () => {
+  it("keeps introductions optional without weakening core consent", () => {
     expect(participationConsentSchema.safeParse(valid).success).toBe(true);
     expect(
       participationConsentSchema.safeParse({
         ...valid,
         matchmaking: false,
+        availability: [],
+      }).success,
+    ).toBe(true);
+    expect(
+      participationConsentSchema.safeParse({
+        ...valid,
+        matchmaking: true,
+        availability: [],
       }).success,
     ).toBe(false);
   });
