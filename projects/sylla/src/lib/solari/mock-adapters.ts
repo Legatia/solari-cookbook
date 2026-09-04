@@ -79,6 +79,13 @@ export class MockBrowserComputerAdapter implements BrowserComputerAdapter {
     });
   }
 
+  async createLoginHandoff(profileId: string) {
+    return {
+      url: `https://mock.solari.local/login-handoff/${profileId}`,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+    };
+  }
+
   async deleteProfile() {}
 }
 
@@ -121,6 +128,11 @@ export class MockDesktopWorkspaceAdapter implements DesktopWorkspaceAdapter {
       snapshotId: `snapshot-mock-${randomUUID()}`,
       status: "ready",
     });
+  }
+
+  async deleteSnapshot() {
+    // Mock mode creates no Solari snapshots, so there is nothing to prune.
+    return true;
   }
 
   async checkpoint(sessionId: string) {

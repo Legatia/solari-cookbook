@@ -7,6 +7,7 @@ import {
   directionalEvaluationSchema,
   browserComputerRequestSchema,
   browserComputerResultSchema,
+  loginHandoffSchema,
   researchRequestSchema,
   researchResultSchema,
   repositoryTaskRequestSchema,
@@ -16,6 +17,7 @@ import {
   type BrowserResearchAdapter,
   type BrowserComputerAdapter,
   type DesktopWorkspaceAdapter,
+  type LoginHandoff,
   type SandboxEvaluationAdapter,
   type SandboxTaskAdapter,
   type WorkspaceManifest,
@@ -270,6 +272,35 @@ async function annotateBrowserControls(page: {
 export class SolariBrowserComputerAdapter implements BrowserComputerAdapter {
   constructor(private readonly options: LiveAdapterOptions) {}
 
+  /**
+   * Hand the login to the person it belongs to.
+   *
+   * The alternative is asking a participant to type a password into a chat
+   * transcript, which Sylla refuses to do. The returned link opens without a
+   * Solari account, carries a single-use credential bound to this one profile,
+   * expires in thirty minutes, and dies the moment the login is saved.
+   *
+   * Not in the SDK surface yet, so it goes through the client's raw request
+   * escape hatch rather than a hand-rolled fetch that would duplicate auth.
+   */
+  async createLoginHandoff(profileId: string): Promise<LoginHandoff> {
+    const client = new Solari(this.options);
+    const response = await client.request(
+      "POST",
+      `/profiles/${encodeURIComponent(profileId)}/login-handoff`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Solari refused a login handoff for this profile (HTTP ${response.status}).`,
+      );
+    }
+    const parsed = loginHandoffSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new Error("Solari returned an unrecognized login handoff.");
+    }
+    return parsed.data;
+  }
+
   async deleteProfile(profileId: string) {
     const client = new Solari(this.options);
     try {
@@ -438,9 +469,13 @@ export class SolariDesktopWorkspaceAdapter
   implements DesktopWorkspaceAdapter
 {
   private readonly client: DesktopClient;
+  private readonly options: LiveAdapterOptions;
 
   constructor(options: LiveAdapterOptions) {
     this.client = new DesktopClient(options);
+    // Snapshot deletion has no SDK method yet, so it goes over REST and needs
+    // the credentials the client was built from.
+    this.options = options;
   }
 
   async createVolume(participantRef: string) {
@@ -558,6 +593,33 @@ export class SolariDesktopWorkspaceAdapter
 
   async deleteVolume(volumeId: string) {
     await this.client.volumes.delete(volumeId);
+  }
+
+  /**
+   * Delete one snapshot, best effort.
+   *
+   * Snapshot storage is billed from October 2026, and Sylla writes a snapshot
+   * on open, on every explicit checkpoint, and before every pause — so without
+   * pruning, storage grows with how often someone steps away rather than with
+   * how many people use it. Deleting an ancestor while keeping its descendants
+   * is supported, so replacing a checkpoint is safe.
+   *
+   * Never fatal: failing to tidy up must not fail the operation that succeeded.
+   */
+  async deleteSnapshot(snapshotId: string): Promise<boolean> {
+    const base = (this.options.baseUrl ?? "https://api.getsolari.com").replace(/\/+$/, "");
+    try {
+      const response = await fetch(
+        `${base}/snapshots/${encodeURIComponent(snapshotId)}`,
+        {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${this.options.apiKey}` },
+        },
+      );
+      return response.ok || response.status === 404;
+    } catch {
+      return false;
+    }
   }
 }
 

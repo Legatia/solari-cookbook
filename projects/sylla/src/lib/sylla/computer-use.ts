@@ -7,6 +7,7 @@ import {
   browserComputerActionSchema,
   type BrowserComputerAdapter,
   type BrowserComputerResult,
+  type SolariAdapters,
 } from "@/lib/solari/contracts";
 import { createSolariAdapters } from "@/lib/solari";
 import {
@@ -16,6 +17,7 @@ import {
   settleBillableOperation,
 } from "@/lib/sylla/billing";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
+import { recordAuditEvent } from "@/lib/sylla/participation";
 import {
   acquireRuntimeLease,
   releaseRuntimeLease,
@@ -206,6 +208,58 @@ export async function prepareInteractiveBrowserMission(input: {
     await releaseBillableOperation(reservation);
     throw error;
   }
+}
+
+/**
+ * Hand a sign-in to the person whose account it is.
+ *
+ * The standing rule is that Sylla never asks for a password or a one-time code
+ * in a conversation. Until now the only answer at an auth wall was to stop.
+ * This is the other half: a single-use link, scoped to this agent's own browser
+ * profile, that the participant opens themselves. Solari saves the session into
+ * the profile; the credential never passes through the agent, the transcript,
+ * or Sylla's database.
+ */
+export async function requestLoginHandoff(input: {
+  participantId: string;
+  missionId: string;
+  adapters?: SolariAdapters;
+}) {
+  const database = getDatabase();
+  const [profile] = await database
+    .select()
+    .from(agentBrowserProfiles)
+    .where(eq(agentBrowserProfiles.participantId, input.participantId))
+    .limit(1);
+  if (!profile) {
+    throw new Error(
+      "This agent has no browser profile yet. Start the web mission first.",
+    );
+  }
+
+  const solari = input.adapters ?? (await createSolariAdapters());
+  const handoff = await solari.browserComputer.createLoginHandoff(
+    profile.providerProfileId,
+  );
+
+  await recordAuditEvent({
+    participantId: input.participantId,
+    actorType: "participant",
+    action: "login_handoff.issued",
+    entityType: "agent_browser_profile",
+    entityId: profile.id,
+    // The link itself is deliberately absent: an audit row is not a place to
+    // store a live credential.
+    metadata: { missionId: input.missionId, expiresAt: handoff.expiresAt },
+  });
+
+  return {
+    url: handoff.url,
+    expiresAt: handoff.expiresAt,
+    singleUse: true,
+    boundary:
+      "Opens without a Solari account, works once, expires in thirty minutes, and stops working the moment the login is saved. Sylla never sees the password.",
+  };
 }
 
 export async function operateInteractiveBrowserMission(input: {

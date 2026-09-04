@@ -191,9 +191,22 @@ export interface BrowserResearchAdapter {
   research(request: ResearchRequest): Promise<ResearchResult>;
 }
 
+export const loginHandoffSchema = z.object({
+  url: z.url(),
+  expiresAt: z.iso.datetime(),
+});
+
+export type LoginHandoff = z.infer<typeof loginHandoffSchema>;
+
 export interface BrowserComputerAdapter {
   operate(request: BrowserComputerRequest): Promise<BrowserComputerResult>;
   deleteProfile(profileId: string): Promise<void>;
+  /**
+   * A single-use link that lets the participant sign in themselves, inside the
+   * agent's browser profile. The agent never sees the password, and Sylla
+   * never stores one.
+   */
+  createLoginHandoff(profileId: string): Promise<LoginHandoff>;
 }
 
 export interface DesktopWorkspaceAdapter {
@@ -203,6 +216,8 @@ export interface DesktopWorkspaceAdapter {
     options: WorkspaceOpenOptions,
   ): Promise<WorkspaceResult>;
   checkpoint(sessionId: string, name?: string): Promise<string>;
+  /** Best-effort; a snapshot that will not delete must not fail the operation. */
+  deleteSnapshot(snapshotId: string): Promise<boolean>;
   pause(sessionId: string): Promise<void>;
   destroy(sessionId: string): Promise<void>;
   deleteVolume(volumeId: string): Promise<void>;

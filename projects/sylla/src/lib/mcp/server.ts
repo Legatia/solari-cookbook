@@ -31,6 +31,7 @@ import {
 import {
   interactiveBrowserInputSchema,
   operateInteractiveBrowserMission,
+  requestLoginHandoff,
   type InteractiveBrowserInput,
 } from "@/lib/sylla/computer-use";
 import { viewAt } from "@/lib/sylla/control-room";
@@ -326,6 +327,10 @@ export type SyllaMcpServices = {
   listIntroductions: (
     participantId: string,
   ) => ReturnType<typeof listIntroductionsForParticipant>;
+  requestLoginHandoff: (input: {
+    participantId: string;
+    missionId: string;
+  }) => ReturnType<typeof requestLoginHandoff>;
   reviewDeviceLogin: (input: {
     participantId: string;
     rawUserCode: string;
@@ -447,6 +452,7 @@ const defaultServices: SyllaMcpServices = {
     });
   },
   listIntroductions: listIntroductionsForParticipant,
+  requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
   denyDeviceLogin: denyDeviceLoginRequest,
@@ -942,7 +948,7 @@ export function createSyllaMcpServer(
     {
       title: "Continue a web task",
       description:
-        "Operate the current approved website for an interactive mission. Read the latest observation, choose one or more referenced controls, and continue until the participant's requested outcome is complete. Sylla preserves the authenticated browser profile between calls. Do not narrate refs, selectors, sessions, or Solari. Never put a password or one-time code in an action; stop when Sylla reports a human checkpoint.",
+        "Operate the current approved website for an interactive mission. Read the latest observation, choose one or more referenced controls, and continue until the participant's requested outcome is complete. Sylla preserves the authenticated browser profile between calls. Do not narrate refs, selectors, sessions, or Solari. Never put a password or one-time code in an action. At a login, a one-time code, or a payment confirmation, call sylla_request_login_handoff and let the participant sign in themselves; stop when Sylla reports a human checkpoint.",
       inputSchema: interactiveBrowserInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -1221,6 +1227,28 @@ export function createSyllaMcpServer(
         await services.releaseLease(participantId, authorization).catch(() => undefined);
       }
     },
+  );
+
+  server.registerTool(
+    "sylla_request_login_handoff",
+    {
+      title: "Let me sign in myself",
+      description:
+        "Return a single-use link the participant opens to sign into a site inside their agent's own browser profile. Use this the moment a mission reaches a login, a one-time code, or a payment confirmation — never ask for those in conversation, and never offer to type them on the participant's behalf. Give them the link, say plainly that Sylla never sees the password and that it expires in thirty minutes, and wait. Continue the mission with sylla_act_on_web once they say they are in.",
+      inputSchema: z.object({ missionId: z.uuid() }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ missionId }) =>
+      result({
+        handoff: await services.requestLoginHandoff({ participantId, missionId }),
+        nextStep:
+          "Send the link, explain the boundary in one sentence, and wait for them to confirm before continuing the mission.",
+      }),
   );
 
   server.registerTool(

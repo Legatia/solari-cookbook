@@ -498,6 +498,12 @@ function services(
     listIntroductions: vi
       .fn()
       .mockResolvedValue({ introductions: [], awaitingMyAnswer: 0 }),
+    requestLoginHandoff: vi.fn().mockResolvedValue({
+      url: "https://solari.example/login-handoff/abc",
+      expiresAt: "2026-09-04T12:30:00.000Z",
+      singleUse: true,
+      boundary: "Sylla never sees the password.",
+    }),
     reviewDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
     approveDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
     denyDeviceLogin: vi

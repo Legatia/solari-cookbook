@@ -33,8 +33,8 @@ importers:
         specifier: ^14.0.0
         version: 14.0.0
       '@solarisdk/browser':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.1.3
+        version: 0.1.3
       '@solarisdk/desktop':
         specifier: ^0.1.2
         version: 0.1.2
@@ -1313,8 +1313,8 @@ packages:
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
 
-  '@solarisdk/browser@0.1.2':
-    resolution: {integrity: sha512-KU6vg7MCIYmLEzigsyeWzStFS1PI+6rLa3LnAGfrDE3fNU/b99HHQzRhy1EFcBVq7R1SNb/gIpid0rA+x4vChw==}
+  '@solarisdk/browser@0.1.3':
+    resolution: {integrity: sha512-MV0gS5OYoYoWcSr30ivdEydoZXW6elj6UF7Dr7bXOyHYDAyFiO6hjKMQZb8MK0VAhaUOizbf21Y6qBZE2i15FQ==}
     engines: {node: '>=20'}
 
   '@solarisdk/core@0.1.2':
@@ -5054,7 +5054,7 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
-  '@solarisdk/browser@0.1.2':
+  '@solarisdk/browser@0.1.3':
     dependencies:
       patchright-core: 1.62.2
 

@@ -203,6 +203,14 @@ export async function checkpointParticipantWorkspace(
   if (!workspace?.sessionId) {
     throw new Error("Open the agent workspace before checkpointing it.");
   }
+  // Solari refuses a snapshot on a paused machine. Catching it here keeps the
+  // participant from spending a work credit on a call that cannot succeed, and
+  // says what to do instead.
+  if (workspace.status === "paused" || workspace.pausedAt) {
+    throw new Error(
+      "This agent workspace is resting. Resume it before taking a checkpoint.",
+    );
+  }
 
   const reservation = await reserveBillableOperation({
     participantId,
@@ -215,10 +223,17 @@ export async function checkpointParticipantWorkspace(
   let snapshotId: string;
   try {
     const solari = context.adapters ?? (await createSolariAdapters());
+    const replaced = workspace.snapshotId;
     snapshotId = await solari.desktop.checkpoint(
       workspace.sessionId,
       "sylla-user-checkpoint",
     );
+    // The workspace record holds one snapshot id, so every checkpoint used to
+    // orphan the one it replaced: invisible to Sylla, still billed by Solari.
+    // Prune after the replacement exists, and never let tidying fail the work.
+    if (replaced && replaced !== snapshotId) {
+      await solari.desktop.deleteSnapshot(replaced).catch(() => false);
+    }
     await database
       .update(agentWorkspaces)
       .set({ solariSnapshotId: snapshotId, lastActiveAt: new Date() })
@@ -249,11 +264,17 @@ export async function pauseParticipantWorkspace(
   if (workspace.status === "paused") return state;
 
   const solari = context.adapters ?? (await createSolariAdapters());
+  const replaced = workspace.snapshotId;
+  // Snapshot first, then pause: Solari refuses a snapshot on a paused machine,
+  // and pausing without one would lose the state the workbench rebuilds from.
   const snapshotId = await solari.desktop.checkpoint(
     workspace.sessionId,
     "sylla-before-pause",
   );
   await solari.desktop.pause(workspace.sessionId);
+  if (replaced && replaced !== snapshotId) {
+    await solari.desktop.deleteSnapshot(replaced).catch(() => false);
+  }
   const now = new Date();
   await database
     .update(agentWorkspaces)
