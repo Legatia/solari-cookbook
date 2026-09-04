@@ -5,10 +5,22 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-sylla_reserve = "Sy11aRsrv1111111111111111111111111111111111"
+sylla_reserve = "CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy"
+sylla_constitution = "GTdJ5kvtBr3hAy3eSof9R4yxQwbVR1BSbwUCAkZFG6hS"
+sylla_mandate = "EiK8fXf4oeSrmKc78dnmRV5fgY7coqpgQ6zewYhFavuo"
+sylla_charter = "ACCizZVbLXRwU6WQqjf1HuowuXcJydoadZM4cU6fntQv"
+sylla_observatory = "GNeC3AnGTZUFeRTkXkw3A1qxr7RzPGtWLxv6jV4FFNQE"
+sylla_clearing = "Ez2UhS3Wm5q7ZicyrjS4okysQBvpAyb7gseXq23GYfDy"
+sylla_court = "A3gSnb7GkuwMzSZZAYPXtbfiGfeZ8fJxw7zhsJLRfsYP"
 
 [programs.devnet]
-sylla_reserve = "Sy11aRsrv1111111111111111111111111111111111"
+sylla_reserve = "CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy"
+sylla_constitution = "GTdJ5kvtBr3hAy3eSof9R4yxQwbVR1BSbwUCAkZFG6hS"
+sylla_mandate = "EiK8fXf4oeSrmKc78dnmRV5fgY7coqpgQ6zewYhFavuo"
+sylla_charter = "ACCizZVbLXRwU6WQqjf1HuowuXcJydoadZM4cU6fntQv"
+sylla_observatory = "GNeC3AnGTZUFeRTkXkw3A1qxr7RzPGtWLxv6jV4FFNQE"
+sylla_clearing = "Ez2UhS3Wm5q7ZicyrjS4okysQBvpAyb7gseXq23GYfDy"
+sylla_court = "A3gSnb7GkuwMzSZZAYPXtbfiGfeZ8fJxw7zhsJLRfsYP"
 
 [registry]
 url = "https://api.apr.dev"

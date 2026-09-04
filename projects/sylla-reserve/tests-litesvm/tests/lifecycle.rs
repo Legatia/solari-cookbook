@@ -20,7 +20,7 @@ use solana_sdk::{
 };
 
 const PROGRAM_ID: Pubkey =
-    solana_sdk::pubkey!("Sy11aRsrv1111111111111111111111111111111111");
+    solana_sdk::pubkey!("CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy");
 const DECIMALS: u8 = 9;
 const SCALE: u64 = 1_000_000_000;
 /// 0.0001 SOL per whole token, the illustrative price from the protocol draft.

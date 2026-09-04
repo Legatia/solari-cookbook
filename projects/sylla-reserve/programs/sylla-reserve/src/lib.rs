@@ -27,7 +27,7 @@ use anchor_spl::token_interface::{
 pub mod math;
 use crate::math::*;
 
-declare_id!("Sy11aRsrv1111111111111111111111111111111111");
+declare_id!("CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy");
 
 pub const CONSTITUTION_SEED: &[u8] = b"constitution";
 pub const TREASURY_SEED: &[u8] = b"treasury";

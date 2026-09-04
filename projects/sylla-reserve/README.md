@@ -1,8 +1,26 @@
-# sylla-reserve
+# sylla-protocol
 
-The root reserve currency from `projects/sylla/MONETARY_PROTOCOL.md`, as a
-Solana program. Step 4 of that document's build sequence: one currency, exact
-on-chain accounting, nothing else.
+The seven programs from `projects/sylla/MONETARY_PROTOCOL.md`, live on devnet.
+
+| Program | Devnet address |
+|---|---|
+| `reserve` | `CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy` |
+| `constitution` | `GTdJ5kvtBr3hAy3eSof9R4yxQwbVR1BSbwUCAkZFG6hS` |
+| `mandate` | `EiK8fXf4oeSrmKc78dnmRV5fgY7coqpgQ6zewYhFavuo` |
+| `charter` | `ACCizZVbLXRwU6WQqjf1HuowuXcJydoadZM4cU6fntQv` |
+| `observatory` | `GNeC3AnGTZUFeRTkXkw3A1qxr7RzPGtWLxv6jV4FFNQE` |
+| `clearing` | `Ez2UhS3Wm5q7ZicyrjS4okysQBvpAyb7gseXq23GYfDy` |
+| `court` | `A3gSnb7GkuwMzSZZAYPXtbfiGfeZ8fJxw7zhsJLRfsYP` |
+
+**Reserve** — one currency, capitalized in SOL, priced at NAV.
+**Constitution** — approved-program registry and charter compliance state.
+**Mandate** — bounded, expiring, revocable agent spend authority.
+**Charter** — sponsor bonds held apart from holder reserves.
+**Observatory** — reserve attestations and permissionless breach proofs.
+**Clearing** — agent-contract escrow, held outside any charter.
+**Court** — inert by construction: a record that moves no value.
+
+The reserve's treasury holds only SOL.
 
 The treasury holds only SOL. That is the design, not a simplification waiting to
 be undone: with no imported assets there are no oracles, no bridges and no
