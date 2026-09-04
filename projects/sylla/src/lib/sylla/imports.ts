@@ -153,7 +153,11 @@ export function dataImportGuide() {
     ],
     boundary:
       "Sylla reads only the files listed above, turns them into private memory proposals, and approves nothing. The participant keeps, corrects, or forgets each one, and chooses separately what may ever be shareable.",
-    uploadAt: controlRoomUrl("memory"),
+    // The upload control lives in the agent's own workspace; review of what it
+    // produced happens under memory. Sending people to the wrong one means
+    // they land on a page with no upload button.
+    uploadAt: controlRoomUrl("workspace"),
+    reviewAt: controlRoomUrl("memory"),
     neverInChat:
       "Never ask the participant to paste an export into the conversation. Point them at uploadAt.",
   };

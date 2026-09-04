@@ -16,6 +16,8 @@ import { inflateRawSync } from "node:zlib";
 export const IMPORT_MAX_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRIES = 400;
 const MAX_ENTRY_BYTES = 8 * 1024 * 1024;
+/** Total decompressed bytes across the whole archive. */
+const MAX_TOTAL_INFLATED_BYTES = 64 * 1024 * 1024;
 /** A review queue longer than this stops being a review and becomes a chore. */
 const MAX_CLAIMS = 40;
 
@@ -45,11 +47,34 @@ export type ParsedArchive = {
 type ZipEntry = { name: string; read: () => Buffer };
 
 /**
+ * A running budget across one archive.
+ *
+ * The central directory is written by whoever made the file, so
+ * `uncompressedSize` is a claim, not a fact. A zip bomb declares a small size
+ * and inflates to gigabytes. Every read is therefore bounded twice: the
+ * decompressor is capped up front, and what it actually produced is counted
+ * against a whole-archive budget afterwards.
+ */
+class InflationBudget {
+  private used = 0;
+
+  spend(bytes: number) {
+    this.used += bytes;
+    if (this.used > MAX_TOTAL_INFLATED_BYTES) {
+      throw new DataImportError(
+        "That archive expands to more data than Sylla will read.",
+      );
+    }
+  }
+}
+
+/**
  * Minimal ZIP reader over the central directory, supporting stored and
  * deflated entries — which is all LinkedIn and X exports use. Written against
  * node:zlib so an archive import needs no new dependency.
  */
 export function readZip(buffer: Buffer): ZipEntry[] {
+  const budget = new InflationBudget();
   // The end-of-central-directory record is at the tail, after an optional
   // comment, so scan backwards for its signature.
   let end = -1;
@@ -94,8 +119,24 @@ export function readZip(buffer: Buffer): ZipEntry[] {
         const localExtraLength = buffer.readUInt16LE(localOffset + 28);
         const start = localOffset + 30 + localNameLength + localExtraLength;
         const raw = buffer.subarray(start, start + compressedSize);
-        if (method === 0) return Buffer.from(raw);
-        if (method === 8) return inflateRawSync(raw);
+        if (method === 0) {
+          budget.spend(raw.length);
+          return Buffer.from(raw);
+        }
+        if (method === 8) {
+          // Cap the decompressor itself rather than trusting the declared
+          // size, then charge what it actually produced to the budget.
+          let inflated: Buffer;
+          try {
+            inflated = inflateRawSync(raw, { maxOutputLength: MAX_ENTRY_BYTES });
+          } catch {
+            throw new DataImportError(
+              "One file in that archive expands beyond what Sylla will read.",
+            );
+          }
+          budget.spend(inflated.length);
+          return inflated;
+        }
         throw new DataImportError("That archive uses an unsupported compression method.");
       },
     });

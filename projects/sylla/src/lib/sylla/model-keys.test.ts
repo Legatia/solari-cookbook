@@ -139,7 +139,58 @@ describe("model key errors", () => {
   });
 });
 
+const publicResolver = async () => [{ address: "203.0.113.10" }];
+
 describe("openai-compatible providers", () => {
+  it("refuses a public hostname that resolves to a private address", async () => {
+    // The string check alone is not enough: a public-looking name can answer
+    // with 169.254.169.254, and the participant's key would travel there.
+    const fetchImpl = vi.fn();
+    await expect(
+      verifyModelKey({
+        provider: "openai_compatible",
+        apiKey: "sk-test-key-value",
+        baseUrl: "https://metadata.evil.example",
+        model: "some-model",
+        fetchImpl: fetchImpl as never,
+        resolver: async () => [{ address: "169.254.169.254" }],
+      }),
+    ).rejects.toThrow(/private address/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("refuses a host with one private address among several", async () => {
+    await expect(
+      verifyModelKey({
+        provider: "openai_compatible",
+        apiKey: "sk-test-key-value",
+        baseUrl: "https://split.example",
+        model: "some-model",
+        fetchImpl: vi.fn() as never,
+        resolver: async () => [
+          { address: "203.0.113.10" },
+          { address: "10.0.0.5" },
+        ],
+      }),
+    ).rejects.toThrow(/private address/);
+  });
+
+  it("refuses to follow a redirect, since the key travels with the request", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response("", { status: 302 }));
+    await expect(
+      verifyModelKey({
+        provider: "openai_compatible",
+        apiKey: "sk-test-key-value",
+        baseUrl: "https://api.example.com",
+        model: "some-model",
+        fetchImpl: fetchImpl as never,
+        resolver: publicResolver,
+      }),
+    ).rejects.toThrow(/redirect/);
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.redirect).toBe("manual");
+  });
+
   it("probes a compatible endpoint with a one-token completion", async () => {
     // /models is inconsistently implemented across these providers, so the
     // check exercises the exact path the fallback will use.
@@ -152,6 +203,7 @@ describe("openai-compatible providers", () => {
       baseUrl: "https://api.deepseek.com/v1",
       model: "deepseek-chat",
       fetchImpl: fetchImpl as never,
+      resolver: publicResolver,
     });
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.deepseek.com/v1/chat/completions");
@@ -168,6 +220,7 @@ describe("openai-compatible providers", () => {
         baseUrl: "https://api.example.com",
         model: "some-model",
         fetchImpl: fetchImpl as never,
+        resolver: publicResolver,
       }),
     ).rejects.toThrow(/base URL/);
   });

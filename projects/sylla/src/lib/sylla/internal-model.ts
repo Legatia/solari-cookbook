@@ -449,6 +449,10 @@ export function createOpenAiCompatibleInternalModelAdapter(options: {
       try {
         response = await fetchImpl(`${baseUrl}/chat/completions`, {
           method: "POST",
+          // The participant's key travels with this request, so a redirect is
+          // refused rather than followed: a 302 to an internal address would
+          // carry the key there.
+          redirect: "manual",
           headers: {
             authorization: `Bearer ${apiKey}`,
             "content-type": "application/json",
@@ -488,6 +492,11 @@ export function createOpenAiCompatibleInternalModelAdapter(options: {
         clearTimeout(timeout);
       }
 
+      if (response.status >= 300 && response.status < 400) {
+        throw new InternalModelResponseError(
+          "Internal model endpoint redirected; the request was not followed.",
+        );
+      }
       if (!response.ok) {
         throw new InternalModelResponseError(
           `Internal model returned HTTP ${response.status}.`,

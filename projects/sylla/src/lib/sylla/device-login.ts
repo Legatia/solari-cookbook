@@ -152,7 +152,7 @@ const GRANTS = [
   "Opens your Sylla control room in that browser",
   "Reads and manages your approved memories, evidence, and permissions",
   "Does not transfer agent ownership and does not create a new account",
-  "Can be revoked at any time from Connected devices",
+  "Can be signed out at any time from Connected devices in the control room",
 ];
 
 export async function createDeviceLoginRequest(request: NextRequest) {

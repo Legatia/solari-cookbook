@@ -495,6 +495,9 @@ function services(
     openWorkspace: vi.fn().mockResolvedValue(state),
     checkpointWorkspace: vi.fn().mockResolvedValue(state),
     pauseWorkspace: vi.fn().mockResolvedValue(state),
+    listIntroductions: vi
+      .fn()
+      .mockResolvedValue({ introductions: [], awaitingMyAnswer: 0 }),
     reviewDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
     approveDeviceLogin: vi.fn().mockResolvedValue(deviceLoginContext),
     denyDeviceLogin: vi
@@ -739,7 +742,7 @@ describe("Sylla MCP server", () => {
     });
   });
 
-  it("runs one private introduction direction without disclosing identity", async () => {
+  it("stops when the caller's own agent did not recommend the pair", async () => {
     const releaseLease = vi.fn().mockResolvedValue(undefined);
     const handler = createTestHandler(services({ releaseLease }));
     const { body } = await callMcp(handler, {
@@ -755,11 +758,68 @@ describe("Sylla MCP server", () => {
     expect(body).toMatchObject({
       result: {
         structuredContent: {
-          status: "waiting_for_other_agent",
+          status: "not_recommended",
           candidatePair: { readyForProposal: false },
         },
       },
     });
+    expect(JSON.stringify(body)).not.toContain("otherParticipant");
+  });
+
+  it("advances to disclosure when the caller's own agent recommends", async () => {
+    // One recommendation is enough to ask. The flow must not stall waiting for
+    // the other agent, which is what squared the odds away at cohort scale.
+    const getCandidatePair = vi
+      .fn()
+      .mockResolvedValue({ id: "pair-1", status: "one_sided", readyForProposal: true });
+    const handler = createTestHandler(services({ getCandidatePair }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 205,
+      method: "tools/call",
+      params: {
+        name: "sylla_find_private_introduction",
+        arguments: { requestId: "intro-124" },
+      },
+    });
+    expect(body).toMatchObject({
+      result: { structuredContent: { status: "ready_to_propose" } },
+    });
+    expect(JSON.stringify(body)).toContain("sylla_approve_my_disclosure");
+    expect(JSON.stringify(body)).not.toContain("otherParticipant");
+  });
+
+  it("hands the recipient an inbox, since they are never given a proposal id", async () => {
+    const listIntroductions = vi.fn().mockResolvedValue({
+      introductions: [
+        {
+          introductionProposalId: "22222222-2222-4222-8222-222222222222",
+          candidatePairId: "33333333-3333-4333-8333-333333333333",
+          status: "waiting",
+          origin: {
+            tier: "one_sided",
+            initiatedByMe: false,
+            explanation: "Their agent proposed this.",
+          },
+          myDecision: null,
+          preview: [],
+          awaitingMyAnswer: true,
+        },
+      ],
+      awaitingMyAnswer: 1,
+    });
+    const handler = createTestHandler(services({ listIntroductions }));
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 206,
+      method: "tools/call",
+      params: { name: "sylla_list_my_introductions", arguments: {} },
+    });
+    expect(body).toMatchObject({
+      result: { structuredContent: { awaitingMyAnswer: 1 } },
+    });
+    // The id is the whole point: without it there is nothing to answer.
+    expect(JSON.stringify(body)).toContain("22222222-2222-4222-8222-222222222222");
     expect(JSON.stringify(body)).not.toContain("otherParticipant");
   });
 

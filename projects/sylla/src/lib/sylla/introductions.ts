@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
 import {
@@ -639,6 +639,53 @@ export async function respondToIntroductionProposal(input: {
     },
   });
   return loadParticipantProposalView(input.participantId, joined.proposal.id);
+}
+
+/**
+ * Every introduction waiting on this participant, in either direction.
+ *
+ * Without this a one-sided proposal is undiscoverable: the recipient is never
+ * handed the proposal id, so there is nothing for them to look up. An inbox is
+ * the difference between a feature that exists and a feature someone can use.
+ */
+export async function listIntroductionsForParticipant(participantId: string) {
+  const database = getDatabase();
+  const rows = await database
+    .select({ proposal: introductionProposals, pair: candidatePairs })
+    .from(introductionProposals)
+    .innerJoin(
+      candidatePairs,
+      eq(introductionProposals.candidatePairId, candidatePairs.id),
+    )
+    .where(
+      or(
+        eq(candidatePairs.participantLowId, participantId),
+        eq(candidatePairs.participantHighId, participantId),
+      ),
+    )
+    .orderBy(asc(introductionProposals.createdAt));
+
+  const views = await Promise.all(
+    rows.map(async (row) => {
+      const view = await getIntroductionProposalForParticipant(
+        participantId,
+        row.proposal.id,
+      );
+      return {
+        introductionProposalId: row.proposal.id,
+        candidatePairId: row.pair.id,
+        status: view.status,
+        origin: view.origin,
+        myDecision: view.myDecision,
+        preview: view.preview,
+        awaitingMyAnswer: view.status === "waiting" && view.myDecision === null,
+      };
+    }),
+  );
+  return {
+    introductions: views,
+    awaitingMyAnswer: views.filter((view) => view.awaitingMyAnswer).length,
+  };
 }
 
 export async function getIntroductionProposalForParticipant(

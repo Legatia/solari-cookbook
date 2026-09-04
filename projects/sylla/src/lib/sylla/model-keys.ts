@@ -4,10 +4,11 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
+import { lookup } from "node:dns/promises";
 
 import { eq } from "drizzle-orm";
 
-import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
+import { assertPublicHttpUrl, isPrivateAddress } from "@/lib/solari/url-policy";
 
 import { getDatabase } from "@/db";
 import { participantModelKeys } from "@/db/schema";
@@ -115,6 +116,43 @@ export const COMPATIBLE_PRESETS = [
 ] as const;
 
 /**
+ * Resolve a hostname and refuse it if *any* address it answers with is private.
+ *
+ * Checking the literal string is not enough: `evil.example.com` is a public
+ * name that can resolve to 169.254.169.254, and a host with several A records
+ * only needs one of them to point inward. This is the check that actually
+ * closes the hole; the string check above only catches the naive case.
+ */
+export type AddressResolver = (
+  hostname: string,
+) => Promise<Array<{ address: string }>>;
+
+const defaultResolver: AddressResolver = (hostname) =>
+  lookup(hostname, { all: true });
+
+async function assertPublicDestination(
+  hostname: string,
+  resolver: AddressResolver = defaultResolver,
+) {
+  let addresses: Array<{ address: string }>;
+  try {
+    addresses = await resolver(hostname);
+  } catch {
+    throw new ModelKeyError("That host could not be resolved.");
+  }
+  if (!addresses.length) {
+    throw new ModelKeyError("That host could not be resolved.");
+  }
+  for (const { address } of addresses) {
+    if (isPrivateAddress(address)) {
+      throw new ModelKeyError(
+        "That host resolves to a private address. Use the provider's public endpoint.",
+      );
+    }
+  }
+}
+
+/**
  * A participant-supplied base URL is a server-side fetch target, so it gets the
  * same treatment as an approved research source: HTTPS only, no private,
  * local, or internal addresses. Without this, the field is an SSRF hole.
@@ -190,10 +228,15 @@ export async function verifyModelKey(input: {
   baseUrl?: string;
   model?: string;
   fetchImpl?: typeof fetch;
+  /** Injectable so tests stay hermetic; production uses the real resolver. */
+  resolver?: AddressResolver;
 }) {
   const { provider, apiKey } = input;
   const label = PROVIDER_DEFAULTS[provider].label;
   const fetchImpl = input.fetchImpl ?? fetch;
+  if (provider === "openai_compatible" && input.baseUrl) {
+    await assertPublicDestination(new URL(input.baseUrl).hostname, input.resolver);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
 
@@ -227,6 +270,9 @@ export async function verifyModelKey(input: {
                 max_tokens: 1,
                 messages: [{ role: "user", content: "ok" }],
               }),
+              // Never follow a redirect: the key travels with this request, and
+              // a 302 to an internal address would carry it there.
+              redirect: "manual" as const,
               signal: controller.signal,
             },
           ];
@@ -235,6 +281,11 @@ export async function verifyModelKey(input: {
     const response = await fetchImpl(request[0], request[1]);
     if (response.status === 401 || response.status === 403) {
       throw new ModelKeyError(`${label} rejected that key.`);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new ModelKeyError(
+        "That endpoint redirects. Use the address it redirects to directly, so your key is never forwarded somewhere you did not name.",
+      );
     }
     if (response.status === 404) {
       throw new ModelKeyError(
@@ -275,6 +326,7 @@ export async function saveModelKey(input: {
   baseUrl?: string;
   apiKey: string;
   fetchImpl?: typeof fetch;
+  resolver?: AddressResolver;
 }): Promise<ModelKeyView> {
   const apiKey = input.apiKey.trim();
   if (apiKey.length < 12) throw new ModelKeyError("That does not look like an API key.");
@@ -297,6 +349,7 @@ export async function saveModelKey(input: {
     baseUrl: baseUrl ?? undefined,
     model,
     fetchImpl: input.fetchImpl,
+    resolver: input.resolver,
   });
 
   const identity = await ensurePortableIdentity(input.participantId);
@@ -414,10 +467,12 @@ export async function resolveParticipantModelAdapter(
     return createAnthropicInternalModelAdapter({ apiKey, model: row.model });
   }
   if (row.provider === "openai_compatible") {
-    // Re-check the stored origin: a host that has since resolved inward must
-    // not become a fetch target just because it passed validation once.
+    // Re-check the stored origin every time. A host that has since started
+    // resolving inward must not become a fetch target on the strength of a
+    // validation that happened once, weeks ago.
     try {
-      assertPublicHttpUrl(row.baseUrl ?? "");
+      const url = assertPublicHttpUrl(row.baseUrl ?? "");
+      await assertPublicDestination(url.hostname);
     } catch {
       return fallback();
     }

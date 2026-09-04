@@ -162,6 +162,81 @@ export async function createUserSession(userId: string) {
   return { participant, token };
 }
 
+export type UserSessionView = {
+  id: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+};
+
+/**
+ * Every browser signed in to this agent.
+ *
+ * Sessions last a month, so "sign out here" was never enough: losing a laptop
+ * has to be recoverable from the laptop you still have.
+ */
+export async function listUserSessions(
+  participantId: string,
+  currentToken?: string,
+): Promise<UserSessionView[]> {
+  const identity = await ensurePortableIdentity(participantId);
+  const currentHash = validToken(currentToken)
+    ? hashToken(currentToken as string)
+    : null;
+  const rows = await getDatabase()
+    .select()
+    .from(userSessions)
+    .where(
+      and(
+        eq(userSessions.userId, identity.userId),
+        isNull(userSessions.revokedAt),
+        gt(userSessions.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(desc(userSessions.lastUsedAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt.toISOString(),
+    lastUsedAt: row.lastUsedAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+    current: currentHash !== null && row.tokenHash === currentHash,
+  }));
+}
+
+/**
+ * Revoke one session by id. Takes effect on that browser's next request, since
+ * `resolveParticipant` refuses a revoked session.
+ */
+export async function revokeUserSession(
+  participantId: string,
+  sessionId: string,
+  currentToken?: string,
+) {
+  const identity = await ensurePortableIdentity(participantId);
+  const currentHash = validToken(currentToken)
+    ? hashToken(currentToken as string)
+    : null;
+  const [revoked] = await getDatabase()
+    .update(userSessions)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(userSessions.id, sessionId),
+        // Scoped to the caller's own account: a session id is not a capability.
+        eq(userSessions.userId, identity.userId),
+        isNull(userSessions.revokedAt),
+      ),
+    )
+    .returning();
+  if (!revoked) return { revoked: false, wasCurrent: false };
+  return {
+    revoked: true,
+    wasCurrent: currentHash !== null && revoked.tokenHash === currentHash,
+  };
+}
+
 export async function revokeBrowserSession(request: NextRequest) {
   const token = validToken(request.cookies.get(SESSION_COOKIE)?.value);
   if (!token) return;

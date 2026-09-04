@@ -46,6 +46,7 @@ import {
   approveDisclosureEnvelope,
   createIntroductionProposal,
   getIntroductionProposalForParticipant,
+  listIntroductionsForParticipant,
   respondToIntroductionProposal,
 } from "@/lib/sylla/introductions";
 import {
@@ -322,6 +323,9 @@ export type SyllaMcpServices = {
     authorization: RuntimeLeaseAuthorization,
     idempotencyKey: string,
   ) => Promise<SyllaSessionState>;
+  listIntroductions: (
+    participantId: string,
+  ) => ReturnType<typeof listIntroductionsForParticipant>;
   reviewDeviceLogin: (input: {
     participantId: string;
     rawUserCode: string;
@@ -442,6 +446,7 @@ const defaultServices: SyllaMcpServices = {
       idempotencyKey,
     });
   },
+  listIntroductions: listIntroductionsForParticipant,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
   denyDeviceLogin: denyDeviceLoginRequest,
@@ -1149,7 +1154,7 @@ export function createSyllaMcpServer(
     {
       title: "Find someone I may genuinely want to meet",
       description:
-        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate only the caller's direction. Returns no identity or private rationale. A proposal can advance only after the other agent independently recommends the match and both humans separately consent.",
+        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate the caller's own direction. Returns no identity or private rationale. If the caller's own agent recommends, that alone is enough to propose — the other agent does not have to agree first, though Sylla records which it was and tells the recipient honestly. Follow the returned nextStep: approve a disclosure envelope, then create the proposal. Identity and meeting details still appear only after both people separately accept.",
       inputSchema: z.object({ requestId: idempotencyKeySchema }),
       annotations: {
         readOnlyHint: false,
@@ -1194,11 +1199,18 @@ export function createSyllaMcpServer(
             "introduction:my-direction",
           ),
         });
+        const gate = await services.getCandidatePair(participantId, pair.id);
+        // One recommendation is enough to ask. Requiring both squared the odds
+        // away at cohort scale, so the flow must not stall here.
+        const readyToPropose = gate.readyForProposal === true;
         return result({
-          status: "waiting_for_other_agent",
-          candidatePair: await services.getCandidatePair(participantId, pair.id),
+          status: readyToPropose ? "ready_to_propose" : "not_recommended",
+          candidatePair: gate,
+          nextStep: readyToPropose
+            ? "Ask the participant which one to five of their shareable observations this introduction may disclose, call sylla_approve_my_disclosure, then sylla_create_introduction_proposal. Their own agent recommending is enough; the other agent does not have to agree first."
+            : "The caller's own agent did not recommend this pair. Do not propose it.",
           privacy:
-            "No identity, private context, decision, or evaluation rationale is disclosed before the bilateral gates complete.",
+            "No identity, private context, decision, or evaluation rationale is disclosed before both humans separately accept.",
         });
       } catch (error) {
         if (error instanceof EntitlementRequiredError) {
@@ -1209,6 +1221,31 @@ export function createSyllaMcpServer(
         await services.releaseLease(participantId, authorization).catch(() => undefined);
       }
     },
+  );
+
+  server.registerTool(
+    "sylla_list_my_introductions",
+    {
+      title: "See introductions waiting on me",
+      description:
+        "List every private introduction involving the caller, in either direction, with the proposal id needed to answer one. Use this whenever the participant asks whether anyone wants to meet them, and at the start of a conversation if they have matchmaking enabled. Each entry says whether both agents reached it independently or only the other person's did — tell them that plainly using origin.explanation. No identity or meeting detail appears until both people separately accept.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () =>
+      result({
+        ...(await services.listIntroductions(participantId)),
+        viewAt: viewAt("overview", "Their own control room."),
+        privacy: {
+          identityRevealed: false,
+          otherDecisionRevealed: false,
+        },
+      }),
   );
 
   server.registerTool(

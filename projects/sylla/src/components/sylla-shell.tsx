@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { isControlRoomView } from "@/lib/sylla/control-room";
 import { Input } from "@/components/ui/input";
@@ -1868,6 +1869,109 @@ function ModelAccessPanel() {
   );
 }
 
+type SessionRow = {
+  id: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+};
+
+/**
+ * Every browser signed in to this agent, and a way to end any of them.
+ *
+ * Sessions last a month, so "sign out on this device" was never enough: losing
+ * a laptop has to be recoverable from the laptop you still have. Approving a
+ * sign-in from your AI promises this list exists, so it has to.
+ */
+function ConnectedDevicesPanel() {
+  const router = useRouter();
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/sessions", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json()) as { sessions?: SessionRow[] };
+        if (active) setSessions(payload.sessions ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function revoke(id: string, current: boolean) {
+    setBusy(id);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/sessions", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: id }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not sign that browser out.");
+      if (current) {
+        router.push("/");
+        router.refresh();
+        return;
+      }
+      const refreshed = await fetch("/api/auth/sessions", { cache: "no-store" });
+      const next = (await refreshed.json()) as { sessions?: SessionRow[] };
+      setSessions(next.sessions ?? []);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign that browser out.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
+      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">
+        <Monitor className="size-3.5" /> Connected devices
+      </p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">
+        Every browser signed in to your agent. Sign any of them out from here,
+        including one you no longer have.
+      </p>
+      <div className="mt-4 space-y-2">
+        {sessions.length === 0 && (
+          <p className="text-xs text-stone-600">No other browser is signed in.</p>
+        )}
+        {sessions.map((session) => (
+          <div
+            key={session.id}
+            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="text-xs text-stone-300">
+                {session.current ? "This browser" : "Another browser"}
+              </p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+                last used {new Date(session.lastUsedAt).toLocaleDateString()} · expires{" "}
+                {new Date(session.expiresAt).toLocaleDateString()}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void revoke(session.id, session.current)}
+              disabled={busy === session.id}
+              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-500 hover:text-red-300"
+            >
+              {busy === session.id ? "Ending…" : session.current ? "Sign out" : "Revoke"}
+            </button>
+          </div>
+        ))}
+      </div>
+      {error && <p className="mt-3 text-xs leading-5 text-red-300/80">{error}</p>}
+    </div>
+  );
+}
+
 function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
   const approvedObservations = state.observations.filter(
     (item) => item.status !== "pending",
@@ -1978,6 +2082,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
           </div>
 
           <PasskeyAccountPanel />
+          <ConnectedDevicesPanel />
           <ModelAccessPanel />
         </div>
 
@@ -2183,8 +2288,23 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
             })}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Badge variant="outline" className="border-white/10 bg-white/[0.02] text-[9px] text-stone-500">
-              {state.research.provider === "solari" ? "Live Solari" : "Safe mock"}
+            {/* Describes the last research run for this agent, not the system:
+                an account researched before live mode was switched on keeps its
+                honest label until it researches again. */}
+            <Badge
+              variant="outline"
+              title={
+                state.research.provider === "solari"
+                  ? "This agent's research ran on Solari."
+                  : "This agent has not run research on Solari yet."
+              }
+              className="border-white/10 bg-white/[0.02] text-[9px] text-stone-500"
+            >
+              {state.research.provider === "solari"
+                ? "Researched on Solari"
+                : state.research.provider
+                  ? "Earlier run, not on Solari"
+                  : "No research yet"}
             </Badge>
             <Badge variant="outline" className="hidden border-white/10 bg-white/[0.02] text-[9px] text-stone-600 sm:inline-flex">
               Private session
