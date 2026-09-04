@@ -26,6 +26,7 @@
     "verify:data-import": "tsx scripts/verify-data-import.ts",
     "verify:one-sided": "tsx scripts/verify-one-sided-introduction.ts",
     "verify:model-key": "tsx scripts/verify-model-key.ts",
+    "verify:desktop-live": "INTEGRATION_MODE=live tsx scripts/verify-live-desktop.ts",
     "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },

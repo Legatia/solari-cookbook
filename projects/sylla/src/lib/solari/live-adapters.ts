@@ -547,11 +547,32 @@ export class SolariDesktopWorkspaceAdapter
         `${workspacePath}/workspace.html`,
         workspaceDocument(manifest),
       );
-      await desktop.open("chrome", [
+      // The template ships google-chrome, not `chrome`. Try the names a
+      // desktop image might use rather than pinning one, so a template change
+      // does not take the workbench down again.
+      const viewerArgs = [
         "--no-first-run",
         "--disable-default-apps",
         "--app=file:///home/oai/share/sylla-home/workbench/workspace.html",
-      ]);
+      ];
+      let viewerOpened = false;
+      for (const binary of ["google-chrome", "google-chrome-stable", "chromium", "chrome"]) {
+        try {
+          await desktop.open(binary, viewerArgs);
+          viewerOpened = true;
+          break;
+        } catch {
+          // Try the next name.
+        }
+      }
+      if (!viewerOpened) {
+        // The workbench is the files and the snapshot; the window is how a
+        // participant looks at them. Failing to open a viewer must not fail
+        // provisioning and lose the durable state that did succeed.
+        console.warn(
+          "sylla: no browser binary on this desktop template; workbench files written without a viewer window.",
+        );
+      }
       const snapshotId = await desktop.snapshot("sylla-workbench");
 
       return workspaceResultSchema.parse({
