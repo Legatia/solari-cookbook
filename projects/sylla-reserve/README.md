@@ -12,7 +12,9 @@ The seven programs from `projects/sylla/MONETARY_PROTOCOL.md`, live on devnet.
 | `clearing` | `Ez2UhS3Wm5q7ZicyrjS4okysQBvpAyb7gseXq23GYfDy` |
 | `court` | `A3gSnb7GkuwMzSZZAYPXtbfiGfeZ8fJxw7zhsJLRfsYP` |
 
-**Reserve** — one currency, capitalized in SOL, priced at NAV.
+**Reserve** — one currency, capitalized in SOL, priced at NAV over a treasury
+that may hold SOL plus up to four approved assets, each with a price feed, an
+allocation band, and a prudential collateral factor.
 **Constitution** — approved-program registry and charter compliance state.
 **Mandate** — bounded, expiring, revocable agent spend authority.
 **Charter** — sponsor bonds held apart from holder reserves.
@@ -20,7 +22,26 @@ The seven programs from `projects/sylla/MONETARY_PROTOCOL.md`, live on devnet.
 **Clearing** — agent-contract escrow, held outside any charter.
 **Court** — inert by construction: a record that moves no value.
 
-The reserve's treasury holds only SOL.
+### Why the oracle is a settable account
+
+Not a shortcut. The build sequence requires modelling oracle failure, depeg and
+correlated drawdown, and none of those can be produced against a live feed: you
+cannot make Pyth go stale, widen its confidence, or fall sixty percent on
+demand. The feed's shape is Pyth's — price, publish slot, confidence — so a
+Pyth adapter replaces one read and nothing else.
+
+Valuation prices at the **low edge** of the confidence interval. A treasury
+that marks itself at the optimistic end of every uncertain price discovers it
+was smaller than it thought at the worst possible moment.
+
+An unusable feed fails the whole valuation rather than being skipped. Skipping
+would value the missing asset at zero and quietly mint someone a larger share
+of a treasury that is merely unmeasured.
+
+Collateral factors are computed but never applied to a holder's claim. Marking
+holder assets below fair value transfers value between whoever redeems before
+the mark and whoever redeems after; the factor exists to gate eligibility and
+size capital, not to reprice someone's share.
 
 The treasury holds only SOL. That is the design, not a simplification waiting to
 be undone: with no imported assets there are no oracles, no bridges and no

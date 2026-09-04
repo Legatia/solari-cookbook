@@ -129,6 +129,49 @@ pub fn nav_per_token(
     mul_div_floor(reserve_lamports, scale, outstanding_supply)
 }
 
+/// Value of an asset holding, in lamports.
+///
+/// `lamports_per_whole` is the price of one whole token. Balances are base
+/// units, so the decimals divide back out. Floored, like everything else, so a
+/// treasury is never valued above what it holds.
+pub fn asset_value_lamports(
+    balance: u64,
+    lamports_per_whole: u64,
+    decimals: u8,
+) -> MathResult<u64> {
+    let scale = 10u64
+        .checked_pow(decimals as u32)
+        .ok_or(ReserveMathError::Overflow)?;
+    mul_div_floor(balance, lamports_per_whole, scale)
+}
+
+/// Apply a prudential collateral factor to a fair value.
+///
+/// This never touches holder NAV. Marking holder assets below fair value would
+/// silently transfer value between whoever redeems before the mark and whoever
+/// redeems after; the factor exists to gate eligibility and size capital, not
+/// to reprice someone's claim.
+pub fn prudential_value(fair_lamports: u64, collateral_factor_bps: u16) -> MathResult<u64> {
+    mul_div_floor(fair_lamports, collateral_factor_bps as u64, BPS_DENOMINATOR)
+}
+
+/// Current weight of one asset against total NAV, in basis points.
+pub fn weight_bps(asset_value: u64, total_nav: u64) -> MathResult<u64> {
+    if total_nav == 0 {
+        return Ok(0);
+    }
+    mul_div_floor(asset_value, BPS_DENOMINATOR, total_nav)
+}
+
+/// A holder's pro-rata slice of one balance, for in-kind redemption.
+pub fn in_kind_slice(
+    balance: u64,
+    tokens_burned: u64,
+    outstanding_supply: u64,
+) -> MathResult<u64> {
+    mul_div_floor(balance, tokens_burned, outstanding_supply)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,6 +311,43 @@ mod tests {
         assert!(tokens_for_deposit(100, 100, 0).is_err());
         assert!(lamports_for_redemption(100, 100, 0).is_err());
         assert_eq!(nav_per_token(100, 0, DECIMALS).unwrap(), 0);
+    }
+
+    #[test]
+    fn an_asset_is_valued_at_what_it_would_fetch_not_at_par() {
+        // 2.5 tBTC at 300 SOL each, six decimals on the asset.
+        let value = asset_value_lamports(2_500_000, 300 * 1_000_000_000, 6).unwrap();
+        assert_eq!(value, 750 * 1_000_000_000);
+        // A depeg is just a lower price; nothing special happens in the math.
+        let depegged = asset_value_lamports(2_500_000, 150 * 1_000_000_000, 6).unwrap();
+        assert_eq!(depegged, 375 * 1_000_000_000);
+    }
+
+    #[test]
+    fn a_collateral_factor_never_touches_the_holder_claim() {
+        let fair = 1_000 * 1_000_000_000u64;
+        // Eighty percent factor for a bridged asset.
+        assert_eq!(prudential_value(fair, 8_000).unwrap(), 800 * 1_000_000_000);
+        // The fair figure is unchanged: holders still own what they own.
+        assert_eq!(fair, 1_000 * 1_000_000_000);
+    }
+
+    #[test]
+    fn in_kind_slices_never_sum_above_the_balance() {
+        let balance = 1_000_000_007u64;
+        let supply = 3u64;
+        let total: u64 = (0..3).map(|_| in_kind_slice(balance, 1, supply).unwrap()).sum();
+        assert!(total <= balance, "three thirds must not exceed the whole");
+    }
+
+    #[test]
+    fn weights_track_value_not_intention() {
+        let nav = 1_000u64;
+        assert_eq!(weight_bps(500, nav).unwrap(), 5_000);
+        // Price moves the weight without anyone trading: this is lawful drift,
+        // and only a cure period turns it into a breach.
+        assert_eq!(weight_bps(300, nav).unwrap(), 3_000);
+        assert_eq!(weight_bps(0, 0).unwrap(), 0);
     }
 
     #[test]

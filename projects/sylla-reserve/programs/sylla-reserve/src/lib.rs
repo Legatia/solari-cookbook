@@ -21,11 +21,14 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 use anchor_spl::token_interface::{
-    burn, mint_to, Burn, Mint, MintTo, TokenAccount, TokenInterface,
+    burn, mint_to, transfer_checked, Burn, Mint, MintTo, TokenAccount, TokenInterface,
+    TransferChecked,
 };
 
 pub mod math;
+pub mod oracle;
 use crate::math::*;
+use crate::oracle::*;
 
 declare_id!("CFvQkQeqdo9wJtPYEqzF9RTrTPtar41UtcQUf6F7j1Dy");
 
@@ -72,6 +75,17 @@ pub mod sylla_reserve {
         constitution.reserve_lamports = 0;
         constitution.bump = ctx.bumps.constitution;
         constitution.treasury_bump = ctx.bumps.treasury;
+        constitution.max_staleness_slots = if params.max_staleness_slots == 0 {
+            DEFAULT_MAX_STALENESS_SLOTS
+        } else {
+            params.max_staleness_slots
+        };
+        constitution.max_confidence_bps = if params.max_confidence_bps == 0 {
+            DEFAULT_MAX_CONFIDENCE_BPS
+        } else {
+            params.max_confidence_bps
+        };
+        constitution.assets = Default::default();
 
         // The treasury carries its own rent, separate from the reserve, so that
         // draining the reserve to zero can never purge the account holding it.
@@ -149,6 +163,119 @@ pub mod sylla_reserve {
             .checked_add(lamports)
             .ok_or(ReserveError::Overflow)?;
         receipt.bump = ctx.bumps.receipt;
+        Ok(())
+    }
+
+    /// Publish a price for one reserve asset.
+    ///
+    /// Settable by design: the failure scenarios this protocol must survive —
+    /// depeg, staleness, a widening confidence interval — cannot be produced
+    /// against a live feed.
+    pub fn publish_price(
+        ctx: Context<PublishPrice>,
+        lamports_per_whole: u64,
+        confidence_bps: u16,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let feed = &mut ctx.accounts.feed;
+        feed.mint = ctx.accounts.mint.key();
+        feed.publisher = ctx.accounts.publisher.key();
+        feed.lamports_per_whole = lamports_per_whole;
+        feed.confidence_bps = confidence_bps;
+        feed.published_slot = clock.slot;
+        feed.published_at = clock.unix_timestamp;
+        feed.bump = ctx.bumps.feed;
+        emit!(PricePublished {
+            mint: feed.mint,
+            lamports_per_whole,
+            confidence_bps,
+            slot: clock.slot,
+        });
+        Ok(())
+    }
+
+    /// Add an approved reserve asset, before any capital is accepted.
+    ///
+    /// Only during capitalization: the assets a currency may hold are part of
+    /// what subscribers agreed to, and adding one afterwards would change the
+    /// deal after the money arrived.
+    pub fn register_asset(ctx: Context<RegisterAsset>, params: AssetParams) -> Result<()> {
+        require!(
+            params.collateral_factor_bps <= BPS_DENOMINATOR as u16,
+            ReserveError::InvalidCollateralFactor
+        );
+        require!(
+            params.lower_band_bps <= params.target_weight_bps
+                && params.target_weight_bps <= params.upper_band_bps
+                && params.upper_band_bps <= BPS_DENOMINATOR as u16,
+            ReserveError::InvalidBand
+        );
+        let constitution = &mut ctx.accounts.constitution;
+        require!(
+            constitution.state == CurrencyState::Capitalizing,
+            ReserveError::WrongState
+        );
+        // One slot per mint. Two slots holding the same asset would count it
+        // twice in NAV, which is a way to mint against money that is not there.
+        require!(
+            !constitution
+                .active_assets()
+                .any(|(_, slot)| slot.mint == ctx.accounts.asset_mint.key()),
+            ReserveError::AssetAlreadyRegistered
+        );
+        let slot = constitution
+            .assets
+            .iter_mut()
+            .find(|slot| !slot.active)
+            .ok_or(ReserveError::TooManyAssets)?;
+        *slot = ReserveAssetSlot {
+            mint: ctx.accounts.asset_mint.key(),
+            price_feed: ctx.accounts.feed.key(),
+            token_account: ctx.accounts.treasury_tokens.key(),
+            decimals: ctx.accounts.asset_mint.decimals,
+            target_weight_bps: params.target_weight_bps,
+            lower_band_bps: params.lower_band_bps,
+            upper_band_bps: params.upper_band_bps,
+            collateral_factor_bps: params.collateral_factor_bps,
+            active: true,
+        };
+        emit!(AssetRegistered {
+            constitution: constitution.key(),
+            mint: ctx.accounts.asset_mint.key(),
+            target_weight_bps: params.target_weight_bps,
+            collateral_factor_bps: params.collateral_factor_bps,
+        });
+        Ok(())
+    }
+
+    /// Move an approved asset into the treasury while forming it.
+    pub fn deposit_asset(ctx: Context<DepositAsset>, amount: u64) -> Result<()> {
+        require!(amount > 0, ReserveError::ZeroAmount);
+        require!(
+            ctx.accounts.constitution.state == CurrencyState::Capitalizing,
+            ReserveError::WrongState
+        );
+        require!(
+            ctx.accounts
+                .constitution
+                .active_assets()
+                .any(|(_, slot)| slot.mint == ctx.accounts.asset_mint.key()
+                    && slot.token_account == ctx.accounts.treasury_tokens.key()),
+            ReserveError::UnapprovedAsset
+        );
+        transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.depositor_tokens.to_account_info(),
+                    mint: ctx.accounts.asset_mint.to_account_info(),
+                    to: ctx.accounts.treasury_tokens.to_account_info(),
+                    authority: ctx.accounts.depositor.to_account_info(),
+                },
+            ),
+            amount,
+            ctx.accounts.asset_mint.decimals,
+        )?;
         Ok(())
     }
 
@@ -247,12 +374,15 @@ pub mod sylla_reserve {
         let constitution_bump = constitution.bump;
         let constitution_key = constitution.key();
         let (net, fee) = apply_fee(lamports, constitution.entry_fee_bps)?;
-        // Priced against the reserve as it stands before this deposit lands.
-        let tokens = tokens_for_deposit(
-            net,
-            constitution.reserve_lamports,
-            constitution.outstanding_supply,
+        // Priced against total NAV before this deposit lands — the SOL sleeve
+        // plus every asset. If any feed is unusable this fails, and minting
+        // stops until prices are trustworthy again.
+        let (fair_nav, _prudential) = valuate(
+            constitution,
+            ctx.remaining_accounts,
+            Clock::get()?.slot,
         )?;
+        let tokens = tokens_for_deposit(net, fair_nav, constitution.outstanding_supply)?;
         // Refuse rather than pocket a deposit too small to mint anything.
         require!(tokens > 0, ReserveError::DustAmount);
 
@@ -319,13 +449,20 @@ pub mod sylla_reserve {
             ReserveError::WrongState
         );
 
-        let owed = lamports_for_redemption(
-            tokens,
-            constitution.reserve_lamports,
-            constitution.outstanding_supply,
+        // The SOL route is a convenience priced at full NAV, so it is bounded
+        // by the liquid sleeve. When SOL runs out the in-kind route still
+        // works, which is why redemption can never actually be closed.
+        let (fair_nav, _prudential) = valuate(
+            constitution,
+            ctx.remaining_accounts,
+            Clock::get()?.slot,
         )?;
+        let owed = lamports_for_redemption(tokens, fair_nav, constitution.outstanding_supply)?;
         require!(owed > 0, ReserveError::DustAmount);
-        require!(owed <= constitution.reserve_lamports, ReserveError::Overflow);
+        require!(
+            owed <= constitution.reserve_lamports,
+            ReserveError::InsufficientLiquidSleeve
+        );
 
         burn(
             CpiContext::new(
@@ -398,6 +535,78 @@ pub mod sylla_reserve {
     }
 }
 
+/// Total fair NAV in lamports: the SOL sleeve plus every asset at its
+/// confidence-adjusted price.
+///
+/// Callers pass `[treasury_token_account, price_feed]` pairs in slot order via
+/// `remaining_accounts`. Every pair is checked against the slot it claims to
+/// be, so a caller cannot substitute a friendlier feed or a fuller account.
+///
+/// Any unusable feed fails the whole valuation rather than being skipped.
+/// Skipping would value the missing asset at zero and quietly mint someone a
+/// larger share of a treasury that is merely unmeasured.
+fn valuate(
+    constitution: &Constitution,
+    remaining: &[AccountInfo],
+    current_slot: u64,
+) -> Result<(u64, u64)> {
+    let mut fair = constitution.reserve_lamports;
+    let mut prudential = constitution.reserve_lamports;
+    let mut cursor = 0usize;
+
+    for (_, slot) in constitution.active_assets() {
+        let token_info = remaining
+            .get(cursor)
+            .ok_or(ReserveError::MissingValuationAccount)?;
+        let feed_info = remaining
+            .get(cursor + 1)
+            .ok_or(ReserveError::MissingValuationAccount)?;
+        cursor += 2;
+
+        require_keys_eq!(
+            token_info.key(),
+            slot.token_account,
+            ReserveError::MissingValuationAccount
+        );
+        require_keys_eq!(
+            feed_info.key(),
+            slot.price_feed,
+            ReserveError::MissingValuationAccount
+        );
+
+        // Deserialize from the raw account rather than re-borrowing, so the
+        // helper does not need the instruction's lifetime threaded through it.
+        let tokens = {
+            let raw = token_info.try_borrow_data()?;
+            anchor_spl::token_interface::TokenAccount::try_deserialize(&mut &raw[..])?
+        };
+        require_keys_eq!(*feed_info.owner, crate::ID, ReserveError::MissingValuationAccount);
+        let feed = {
+            let raw = feed_info.try_borrow_data()?;
+            PriceFeed::try_deserialize(&mut &raw[..])?
+        };
+        require!(
+            feed_problem(
+                &feed,
+                current_slot,
+                constitution.max_staleness_slots,
+                constitution.max_confidence_bps,
+            )
+            .is_none(),
+            ReserveError::FeedUnusable
+        );
+
+        let value =
+            asset_value_lamports(tokens.amount, conservative_price(&feed), slot.decimals)?;
+        fair = fair.checked_add(value).ok_or(ReserveError::Overflow)?;
+        prudential = prudential
+            .checked_add(prudential_value(value, slot.collateral_factor_bps)?)
+            .ok_or(ReserveError::Overflow)?;
+    }
+
+    Ok((fair, prudential))
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PublishParams {
     /// Lamports per whole token, fixed forever at publication.
@@ -409,6 +618,9 @@ pub struct PublishParams {
     /// Hash of the full published constitution. The document is the law; this
     /// is the anchor that proves which version the currency was sold under.
     pub version_hash: [u8; 32],
+    /// Zero means the constitutional default.
+    pub max_staleness_slots: u64,
+    pub max_confidence_bps: u16,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -416,6 +628,30 @@ pub enum CurrencyState {
     Capitalizing,
     Active,
     WindDown,
+}
+
+/// Up to four reserve assets beside SOL. Four is enough to express weights,
+/// bands, drift and a correlated drawdown; more would only be more of the same,
+/// and every extra asset is another oracle to trust.
+pub const MAX_RESERVE_ASSETS: usize = 4;
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReserveAssetSlot {
+    pub mint: Pubkey,
+    pub price_feed: Pubkey,
+    /// The treasury's token account for this asset.
+    pub token_account: Pubkey,
+    pub decimals: u8,
+    pub target_weight_bps: u16,
+    pub lower_band_bps: u16,
+    pub upper_band_bps: u16,
+    /// Prudential only. Never applied to a holder's claim.
+    pub collateral_factor_bps: u16,
+    pub active: bool,
+}
+
+impl ReserveAssetSlot {
+    pub const SIZE: usize = 32 * 3 + 1 + 2 * 4 + 1;
 }
 
 #[account]
@@ -440,10 +676,33 @@ pub struct Constitution {
     pub state: CurrencyState,
     pub bump: u8,
     pub treasury_bump: u8,
+    /// Beyond this a price is a memory, and valuation-sensitive operations stop.
+    pub max_staleness_slots: u64,
+    pub max_confidence_bps: u16,
+    pub assets: [ReserveAssetSlot; MAX_RESERVE_ASSETS],
 }
 
 impl Constitution {
-    pub const SIZE: usize = 8 + 32 + 32 + 32 + 8 * 7 + 2 + 1 + 1 + 1 + 1 + 8;
+    pub const SIZE: usize = 8
+        + 32 * 3
+        + 8 * 7
+        + 2
+        + 1
+        + 1
+        + 1
+        + 1
+        + 8
+        + 2
+        + ReserveAssetSlot::SIZE * MAX_RESERVE_ASSETS
+        + 16;
+
+    /// Slots that actually hold something, in declaration order.
+    pub fn active_assets(&self) -> impl Iterator<Item = (usize, &ReserveAssetSlot)> {
+        self.assets
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.active)
+    }
 }
 
 #[account]
@@ -456,6 +715,72 @@ pub struct SubscriptionReceipt {
 
 impl SubscriptionReceipt {
     pub const SIZE: usize = 8 + 32 + 32 + 8 + 1 + 8;
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct AssetParams {
+    pub target_weight_bps: u16,
+    pub lower_band_bps: u16,
+    pub upper_band_bps: u16,
+    pub collateral_factor_bps: u16,
+}
+
+#[derive(Accounts)]
+pub struct PublishPrice<'info> {
+    #[account(mut)]
+    pub publisher: Signer<'info>,
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        init_if_needed,
+        payer = publisher,
+        space = PriceFeed::SIZE,
+        seeds = [FEED_SEED, mint.key().as_ref()],
+        bump,
+    )]
+    pub feed: Account<'info, PriceFeed>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RegisterAsset<'info> {
+    #[account(mut, address = constitution.authority @ ReserveError::NotAuthority)]
+    pub authority: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [CONSTITUTION_SEED, constitution.currency_mint.as_ref()],
+        bump = constitution.bump,
+    )]
+    pub constitution: Account<'info, Constitution>,
+    pub asset_mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        seeds = [FEED_SEED, asset_mint.key().as_ref()],
+        bump = feed.bump,
+        constraint = feed.mint == asset_mint.key() @ ReserveError::FeedMintMismatch,
+    )]
+    pub feed: Account<'info, PriceFeed>,
+    /// The treasury's holding account, owned by the constitution PDA.
+    #[account(
+        constraint = treasury_tokens.mint == asset_mint.key() @ ReserveError::UnapprovedAsset,
+        constraint = treasury_tokens.owner == constitution.key() @ ReserveError::UnapprovedAsset,
+    )]
+    pub treasury_tokens: InterfaceAccount<'info, TokenAccount>,
+}
+
+#[derive(Accounts)]
+pub struct DepositAsset<'info> {
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+    #[account(
+        seeds = [CONSTITUTION_SEED, constitution.currency_mint.as_ref()],
+        bump = constitution.bump,
+    )]
+    pub constitution: Account<'info, Constitution>,
+    pub asset_mint: InterfaceAccount<'info, Mint>,
+    #[account(mut)]
+    pub depositor_tokens: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut)]
+    pub treasury_tokens: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -635,6 +960,22 @@ pub struct BeginWindDown<'info> {
 }
 
 #[event]
+pub struct PricePublished {
+    pub mint: Pubkey,
+    pub lamports_per_whole: u64,
+    pub confidence_bps: u16,
+    pub slot: u64,
+}
+
+#[event]
+pub struct AssetRegistered {
+    pub constitution: Pubkey,
+    pub mint: Pubkey,
+    pub target_weight_bps: u16,
+    pub collateral_factor_bps: u16,
+}
+
+#[event]
 pub struct CurrencyPublished {
     pub constitution: Pubkey,
     pub currency_mint: Pubkey,
@@ -714,6 +1055,24 @@ pub enum ReserveError {
     FreezeAuthorityPresent,
     #[msg("The currency mint already has supply.")]
     SupplyBeforePublication,
+    #[msg("A collateral factor cannot exceed one hundred percent.")]
+    InvalidCollateralFactor,
+    #[msg("The allocation band must contain its own target weight.")]
+    InvalidBand,
+    #[msg("This currency already holds the maximum number of reserve assets.")]
+    TooManyAssets,
+    #[msg("That asset is already registered; a mint occupies exactly one slot.")]
+    AssetAlreadyRegistered,
+    #[msg("That asset is not on this currency's approved list.")]
+    UnapprovedAsset,
+    #[msg("That price feed prices a different asset.")]
+    FeedMintMismatch,
+    #[msg("A reserve asset is missing its treasury account or price feed.")]
+    MissingValuationAccount,
+    #[msg("A price feed is stale, too uncertain, or empty; valuation is paused.")]
+    FeedUnusable,
+    #[msg("The liquid SOL sleeve cannot cover this redemption. Redeem in kind instead.")]
+    InsufficientLiquidSleeve,
     #[msg("Arithmetic overflowed.")]
     Overflow,
 }

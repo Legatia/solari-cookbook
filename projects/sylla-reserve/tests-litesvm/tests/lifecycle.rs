@@ -48,6 +48,8 @@ struct PublishParams {
     subscription_ends_at: i64,
     entry_fee_bps: u16,
     version_hash: [u8; 32],
+    max_staleness_slots: u64,
+    max_confidence_bps: u16,
 }
 
 /// Mirrors the on-chain `Constitution`, minus the 8-byte account discriminator.
@@ -81,8 +83,10 @@ struct World {
 
 impl World {
     fn constitution(&self) -> Constitution {
+        // The account carries asset slots and padding after these fields, so
+        // read what is needed and ignore the rest.
         let raw = self.svm.get_account(&self.constitution).unwrap().data;
-        Constitution::try_from_slice(&raw[8..]).unwrap()
+        Constitution::deserialize(&mut &raw[8..]).unwrap()
     }
 
     fn nav_numerator(&self) -> u128 {
@@ -169,6 +173,9 @@ fn publish(min_cap: u64, max_cap: u64, entry_fee_bps: u16) -> (World, i64) {
         subscription_ends_at: ends_at,
         entry_fee_bps,
         version_hash: [7u8; 32],
+        // Zero takes the constitutional defaults.
+        max_staleness_slots: 0,
+        max_confidence_bps: 0,
     };
     let authority_key = world.authority.pubkey();
     let instruction = Instruction {
