@@ -44,6 +44,25 @@ import {
  * and a real durable volume, so it costs credits and holds the account's only
  * free-plan slot while it runs.
  */
+/**
+ * Ask Solari whether a snapshot still exists.
+ *
+ * Pruning is best-effort by design, which means a wrong endpoint would fail
+ * silently and storage would accumulate from October with nothing to see. This
+ * is the assertion that catches that.
+ */
+async function snapshotExists(snapshotId: string) {
+  const base = (process.env.SOLARI_BASE_URL ?? "https://api.getsolari.com").replace(
+    /\/+$/,
+    "",
+  );
+  const response = await fetch(
+    `${base}/snapshots/${encodeURIComponent(snapshotId)}`,
+    { headers: { authorization: `Bearer ${process.env.SOLARI_API_KEY}` } },
+  );
+  return response.status !== 404;
+}
+
 async function main() {
   const mode = process.env.INTEGRATION_MODE;
   assert.equal(
@@ -156,6 +175,16 @@ async function main() {
     );
     observed.checkpointReplacedSnapshot = true;
 
+    // The replaced snapshot must actually be gone from Solari, not merely
+    // forgotten by Sylla. Storage is billed whether or not we still track it.
+    assert.ok(await snapshotExists(secondSnapshot), "the live snapshot is retained");
+    assert.equal(
+      await snapshotExists(firstSnapshot!),
+      false,
+      "the snapshot the checkpoint replaced was not pruned",
+    );
+    observed.replacedSnapshotPruned = true;
+
     // 3. Pause snapshots first, then pauses. Order matters: Solari refuses a
     //    snapshot on a paused machine.
     const paused = await pauseParticipantWorkspace(participantId, {
@@ -163,7 +192,13 @@ async function main() {
       idempotencyKey: `live-desktop-pause-${syntheticId}`,
     });
     assert.equal(paused.workspace?.status, "paused");
-    observed.pausedWithSnapshot = Boolean(paused.workspace?.snapshotId);
+    const pauseSnapshot = paused.workspace?.snapshotId ?? null;
+    observed.pausedWithSnapshot = Boolean(pauseSnapshot);
+    assert.equal(
+      await snapshotExists(secondSnapshot),
+      false,
+      "pausing must prune the checkpoint it superseded",
+    );
 
     // 4. The guard added for the new 409: refuse before spending a credit.
     await assert.rejects(

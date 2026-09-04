@@ -353,6 +353,91 @@ export async function getParticipantConnectionSummary(participantId: string) {
   };
 }
 
+export type ConnectedClient = {
+  clientId: string;
+  clientName: string | null;
+  connections: number;
+  lastUsedAt: string | null;
+  connectedAt: string;
+};
+
+/**
+ * Which AI clients are connected to this agent, one row each.
+ *
+ * The summary above answers "is anything connected"; this answers "what, and
+ * can I cut that one off". A participant who connected ChatGPT and Claude and
+ * now wants only one of them should not have to disconnect both.
+ */
+export async function listParticipantConnections(
+  participantId: string,
+): Promise<ConnectedClient[]> {
+  const rows = await getDatabase()
+    .select({
+      clientId: oauthAccessTokens.clientId,
+      clientName: oauthClients.clientName,
+      lastUsedAt: oauthAccessTokens.lastUsedAt,
+      createdAt: oauthAccessTokens.createdAt,
+    })
+    .from(oauthAccessTokens)
+    .leftJoin(oauthClients, eq(oauthClients.clientId, oauthAccessTokens.clientId))
+    .where(
+      and(
+        eq(oauthAccessTokens.participantId, participantId),
+        isNull(oauthAccessTokens.revokedAt),
+        gt(oauthAccessTokens.refreshExpiresAt, new Date()),
+      ),
+    );
+
+  // One row per client, not per token: a host that reconnected five times is
+  // still one thing the participant recognizes.
+  const byClient = new Map<string, ConnectedClient>();
+  for (const row of rows) {
+    const existing = byClient.get(row.clientId);
+    const lastUsed = row.lastUsedAt?.toISOString() ?? null;
+    const connectedAt = row.createdAt.toISOString();
+    if (!existing) {
+      byClient.set(row.clientId, {
+        clientId: row.clientId,
+        clientName: row.clientName ?? null,
+        connections: 1,
+        lastUsedAt: lastUsed,
+        connectedAt,
+      });
+      continue;
+    }
+    existing.connections += 1;
+    if (lastUsed && (!existing.lastUsedAt || lastUsed > existing.lastUsedAt)) {
+      existing.lastUsedAt = lastUsed;
+    }
+    if (connectedAt < existing.connectedAt) existing.connectedAt = connectedAt;
+  }
+  return [...byClient.values()].sort((a, b) =>
+    (b.lastUsedAt ?? b.connectedAt).localeCompare(a.lastUsedAt ?? a.connectedAt),
+  );
+}
+
+/**
+ * Disconnect one AI client. Takes effect on its next request, since every
+ * token check refuses a revoked row.
+ */
+export async function revokeParticipantConnection(
+  participantId: string,
+  clientId: string,
+) {
+  const revoked = await getDatabase()
+    .update(oauthAccessTokens)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(oauthAccessTokens.participantId, participantId),
+        eq(oauthAccessTokens.clientId, clientId),
+        isNull(oauthAccessTokens.revokedAt),
+      ),
+    )
+    .returning({ id: oauthAccessTokens.id });
+  return { revoked: revoked.length };
+}
+
 export async function revokeParticipantOAuthTokens(participantId: string) {
   await getDatabase()
     .update(oauthAccessTokens)

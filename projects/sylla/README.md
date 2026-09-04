@@ -51,7 +51,7 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - Canonical Sylla user and personal-agent identifiers, lazily linked to existing first-session participants
 - A built-in OAuth 2.1 authorization server with dynamic client registration, S256 PKCE, one-time authorization codes, rotating refresh tokens, and hashed opaque-token storage
 - OAuth protected-resource and authorization-server discovery, plus optional issuer-, audience-, expiry-, and scope-bound external JWT validation
-- A participant-visible **Connect your AI** panel with the live MCP URL, setup instructions, connection status, and one-click revocation
+- A participant-visible **Connect your AI** panel listing every connected AI client by name, with per-client disconnect and a disconnect-all, plus the live MCP URL and setup instructions
 - MCP-first conversational onboarding: the setup guide returns a purpose-first, one-question-at-a-time conversation contract, exact trust choices, conditional introduction/availability steps, and `/app` only as an optional visual fallback
 - A portable conversation profile for reply length, warmth, directness, humor, challenge style, preferred address, and explicit do/don't preferences
 - A topic-scoped conversation brief that ranks only approved cross-event memories, returns at most four relevant items, and never stores the supplied topic or full host transcript
@@ -65,6 +65,9 @@ Sylla is the system of record and infrastructure broker. Participants connect to
 - An authenticated scheduled fallback sweep with stale-worker recovery and the same lease exclusion used by host clients
 - A provider-neutral internal-model interface with deterministic default and an optional bounded OpenAI Responses adapter
 - Trial/active entitlements, atomic work-credit reservations, an idempotent usage ledger, and expiring hosted-checkout capabilities
+- Sign-in to a new browser approved from a connected AI, with a 180-second code and a 40-second window once approved, plus a Connected devices list with per-session revocation
+- Import of a participant's own LinkedIn or X export as private, reviewable memory proposals
+- Participant-supplied model access for background work — Anthropic, OpenAI, or any OpenAI-compatible endpoint — stored encrypted and never returned by any read path
 - Persistent workspace metadata and lifecycle services for one Desktop, durable volume, recovery snapshots, reconnect/resume, pause, and withdrawal destruction
 - A stateless Streamable HTTP MCP endpoint with portable-agent bootstrap, approved-context recall, mission start/status/approval/continue/cancel, durable run/handoff control, and private-workspace inspect/open/checkpoint/pause tools
 - Companion-level setup, memory review, `sylla_remember`, `sylla_research`, and `sylla_find_private_introduction` tools that hide lease choreography while retaining the lower-level recovery tools
@@ -220,6 +223,26 @@ Run `pnpm verify:portability` to create one canonical agent across two event rec
 Run `SYLLA_DEMO_PASSWORD=… pnpm verify:mcp-live https://serendipity-kappa.vercel.app` to exercise production OAuth, the 44-tool MCP surface, conversation briefing and tuning, conversational setup, approved memory, the durable mission lifecycle, connection visibility, and revocation. Add `SYLLA_VERIFY_LIVE_RESEARCH=true` for one mission-routed Browser source, `SYLLA_VERIFY_LIVE_SANDBOX_MISSION=true` for one mission-routed disposable repository check, or `SYLLA_VERIFY_LIVE_DESKTOP_MISSION=true` to retry Desktop after Solari fixes the current plan-gate defect. Those optional modes consume real Solari resources when allocation succeeds.
 
 Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
+
+
+## Verification scripts
+
+Each proves one boundary against the configured Neon database; the live ones
+provision real Solari machines and cost credits.
+
+| Command | What it proves |
+|---|---|
+| `verify:handoff` | Lease exclusion, worker races, bounded fallback, no double charge |
+| `verify:browser` | One source per host call, background completion, no duplicate visits |
+| `verify:participation` | Invitation exhaustion, consent, withdrawal, audit |
+| `verify:matching` | Eligibility filters, directional privacy, bilateral gate |
+| `verify:introduction` / `verify:outcome` | Disclosure, mutual reveal, structured outcomes |
+| `verify:one-sided` | One agent is enough to propose; two people still decide |
+| `verify:portability` | Export excludes pending state; deletion is irreversible |
+| `verify:device-login` | Server-derived context, split clocks, single-use session |
+| `verify:data-import` | Consent-gated import, pending and private by default |
+| `verify:model-key` | Encrypted at rest, never returned, safe on secret rotation |
+| `verify:desktop-live` | **Live**: volume, desktop, workbench, snapshot pruning, pause |
 
 ## OAuth MCP authentication
 

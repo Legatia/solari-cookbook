@@ -1453,8 +1453,17 @@ function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openW
   );
 }
 
+type ConnectedClient = {
+  clientId: string;
+  clientName: string | null;
+  connections: number;
+  lastUsedAt: string | null;
+  connectedAt: string;
+};
+
 function ConnectionsView({ agentName }: { agentName: string | null }) {
   const [connection, setConnection] = useState<ApiResponse["connection"] | null>(null);
+  const [clients, setClients] = useState<ConnectedClient[]>([]);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1464,6 +1473,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
     try {
       const payload = await api("/api/mcp/connection");
       setConnection(payload.connection);
+      setClients((payload as { clients?: ConnectedClient[] }).clients ?? []);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection state failed.");
     }
@@ -1473,7 +1483,10 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
     let active = true;
     api("/api/mcp/connection")
       .then((payload) => {
-        if (active) setConnection(payload.connection);
+        if (active) {
+          setConnection(payload.connection);
+          setClients((payload as { clients?: ConnectedClient[] }).clients ?? []);
+        }
       })
       .catch((caught) => {
         if (active) {
@@ -1492,18 +1505,66 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
     window.setTimeout(() => setCopied(false), 1_800);
   }
 
-  async function disconnect() {
+  /** No clientId disconnects everything; a clientId disconnects just that one. */
+  async function disconnect(clientId?: string) {
     setBusy(true);
     setError(null);
     try {
-      const payload = await api("/api/mcp/connection", { method: "DELETE" });
+      const payload = await api("/api/mcp/connection", {
+        method: "DELETE",
+        body: JSON.stringify(clientId ? { clientId } : {}),
+      });
       setConnection(payload.connection);
+      setClients((payload as { clients?: ConnectedClient[] }).clients ?? []);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Disconnect failed.");
     } finally {
       setBusy(false);
     }
   }
+
+  const connectedClients = (
+    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+        Connected AI
+      </p>
+      <p className="mt-3 text-xs leading-5 text-stone-500">
+        Every AI that can reach your agent. Disconnect one without disconnecting
+        the rest — it stops working on its very next request.
+      </p>
+      <div className="mt-4 space-y-2">
+        {clients.length === 0 && (
+          <p className="text-xs text-stone-600">Nothing is connected yet.</p>
+        )}
+        {clients.map((client) => (
+          <div
+            key={client.clientId}
+            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-xs text-stone-300">
+                {client.clientName ?? client.clientId}
+              </p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+                {client.lastUsedAt
+                  ? `last used ${new Date(client.lastUsedAt).toLocaleDateString()}`
+                  : "not used yet"}
+                {client.connections > 1 ? ` · ${client.connections} sessions` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void disconnect(client.clientId)}
+              disabled={busy}
+              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-500 hover:text-red-300"
+            >
+              Disconnect
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
@@ -1574,6 +1635,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
             </div>
             {connection?.lastUsedAt && <p className="mt-4 text-[9px] text-stone-600">Last used {new Date(connection.lastUsedAt).toLocaleString()}</p>}
             {error && <p className="mt-4 text-xs text-red-300/80">{error}</p>}
+            <div className="mt-6">{connectedClients}</div>
           </div>
 
           <aside className="space-y-4">
