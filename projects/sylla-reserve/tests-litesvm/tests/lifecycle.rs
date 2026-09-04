@@ -50,6 +50,7 @@ struct PublishParams {
     version_hash: [u8; 32],
     max_staleness_slots: u64,
     max_confidence_bps: u16,
+    oracle_authority: Pubkey,
 }
 
 /// Mirrors the on-chain `Constitution`, minus the 8-byte account discriminator.
@@ -176,6 +177,7 @@ fn publish(min_cap: u64, max_cap: u64, entry_fee_bps: u16) -> (World, i64) {
         // Zero takes the constitutional defaults.
         max_staleness_slots: 0,
         max_confidence_bps: 0,
+        oracle_authority: world.authority.pubkey(),
     };
     let authority_key = world.authority.pubkey();
     let instruction = Instruction {

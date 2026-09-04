@@ -85,6 +85,12 @@ pub mod sylla_reserve {
         } else {
             params.max_confidence_bps
         };
+        require_keys_neq!(
+            params.oracle_authority,
+            Pubkey::default(),
+            ReserveError::OracleAuthorityRequired
+        );
+        constitution.oracle_authority = params.oracle_authority;
         constitution.assets = Default::default();
 
         // The treasury carries its own rent, separate from the reserve, so that
@@ -168,9 +174,16 @@ pub mod sylla_reserve {
 
     /// Publish a price for one reserve asset.
     ///
-    /// Settable by design: the failure scenarios this protocol must survive —
-    /// depeg, staleness, a widening confidence interval — cannot be produced
-    /// against a live feed.
+    /// Settable by design — depeg, staleness and a widening confidence interval
+    /// cannot be produced against a live feed — but never *openly* settable.
+    /// A price is the denominator of every redemption: whoever can write one
+    /// can inflate NAV and drain the SOL sleeve, or crash it and mint cheaply.
+    ///
+    /// So a feed binds to its publisher on first write and refuses every other
+    /// signer afterwards. Binding alone is not enough, because anyone could
+    /// create a feed for a mint before it is registered and own its price
+    /// forever; `register_asset` therefore also refuses any feed whose
+    /// publisher is not the currency's declared oracle authority.
     pub fn publish_price(
         ctx: Context<PublishPrice>,
         lamports_per_whole: u64,
@@ -178,8 +191,19 @@ pub mod sylla_reserve {
     ) -> Result<()> {
         let clock = Clock::get()?;
         let feed = &mut ctx.accounts.feed;
+        // A freshly initialized account is zeroed, which is how first write is
+        // told apart from an update.
+        if feed.publisher == Pubkey::default() {
+            feed.publisher = ctx.accounts.publisher.key();
+        } else {
+            require_keys_eq!(
+                feed.publisher,
+                ctx.accounts.publisher.key(),
+                ReserveError::NotFeedPublisher
+            );
+            require_keys_eq!(feed.mint, ctx.accounts.mint.key(), ReserveError::FeedMintMismatch);
+        }
         feed.mint = ctx.accounts.mint.key();
-        feed.publisher = ctx.accounts.publisher.key();
         feed.lamports_per_whole = lamports_per_whole;
         feed.confidence_bps = confidence_bps;
         feed.published_slot = clock.slot;
@@ -621,6 +645,8 @@ pub struct PublishParams {
     /// Zero means the constitutional default.
     pub max_staleness_slots: u64,
     pub max_confidence_bps: u16,
+    /// The only publisher whose feeds this currency will price against.
+    pub oracle_authority: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -679,6 +705,9 @@ pub struct Constitution {
     /// Beyond this a price is a memory, and valuation-sensitive operations stop.
     pub max_staleness_slots: u64,
     pub max_confidence_bps: u16,
+    /// Whose prices this currency will accept. Declared before capitalization,
+    /// like every other term.
+    pub oracle_authority: Pubkey,
     pub assets: [ReserveAssetSlot; MAX_RESERVE_ASSETS],
 }
 
@@ -693,6 +722,7 @@ impl Constitution {
         + 1
         + 8
         + 2
+        + 32
         + ReserveAssetSlot::SIZE * MAX_RESERVE_ASSETS
         + 16;
 
@@ -752,10 +782,15 @@ pub struct RegisterAsset<'info> {
     )]
     pub constitution: Account<'info, Constitution>,
     pub asset_mint: InterfaceAccount<'info, Mint>,
+    /// The feed must already be published by the authority this currency
+    /// declared, or an attacker who created it first would own the price of a
+    /// reserve asset for the life of the currency.
     #[account(
         seeds = [FEED_SEED, asset_mint.key().as_ref()],
         bump = feed.bump,
         constraint = feed.mint == asset_mint.key() @ ReserveError::FeedMintMismatch,
+        constraint = feed.publisher == constitution.oracle_authority
+            @ ReserveError::UntrustedFeedPublisher,
     )]
     pub feed: Account<'info, PriceFeed>,
     /// The treasury's holding account, owned by the constitution PDA.
@@ -1067,6 +1102,12 @@ pub enum ReserveError {
     UnapprovedAsset,
     #[msg("That price feed prices a different asset.")]
     FeedMintMismatch,
+    #[msg("Only the publisher that created this feed may update it.")]
+    NotFeedPublisher,
+    #[msg("That feed was published by someone this currency does not trust.")]
+    UntrustedFeedPublisher,
+    #[msg("A currency must declare whose prices it accepts.")]
+    OracleAuthorityRequired,
     #[msg("A reserve asset is missing its treasury account or price feed.")]
     MissingValuationAccount,
     #[msg("A price feed is stale, too uncertain, or empty; valuation is paused.")]

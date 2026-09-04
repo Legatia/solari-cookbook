@@ -38,6 +38,7 @@ struct PublishParams {
     version_hash: [u8; 32],
     max_staleness_slots: u64,
     max_confidence_bps: u16,
+    oracle_authority: Pubkey,
 }
 
 #[derive(BorshSerialize)]
@@ -223,6 +224,7 @@ fn world_with_treasury() -> World {
                     version_hash: [7u8; 32],
                     max_staleness_slots: MAX_STALENESS_SLOTS,
                     max_confidence_bps: 200,
+                    oracle_authority: authority.pubkey(),
                 },
             ),
         },
@@ -545,4 +547,107 @@ fn a_substituted_feed_or_account_is_refused() {
     accounts.truncate(7);
     let ix = Instruction { program_id: PROGRAM_ID, accounts, data: data("mint_currency", &SOL) };
     assert!(send(&mut world.svm, ix, &[&holder]).is_err(), "a missing feed is not a zero price");
+}
+
+#[test]
+fn a_stranger_cannot_overwrite_a_price_and_drain_the_sleeve() {
+    // The attack this closes: a price is the denominator of every redemption.
+    // Inflate it and each token claims more SOL than it owns, up to the whole
+    // liquid sleeve. Anyone holding any amount of the currency could do it.
+    let mut world = world_with_treasury();
+    let attacker = funded(&mut world.svm, 100 * SOL);
+    let tokens = make_token_account(&mut world.svm, world.currency_mint, attacker.pubkey(), 0);
+    mint_currency(&mut world, &attacker, tokens, 4 * SOL).expect("attacker buys in honestly");
+    let held = world.token_balance(&tokens);
+
+    // Ten times the real price.
+    let ix = Instruction {
+        program_id: PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(attacker.pubkey(), true),
+            AccountMeta::new_readonly(world.tusd_mint, false),
+            AccountMeta::new(world.tusd_feed, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: data("publish_price", &(SOL / 10, 0u16)),
+    };
+    assert!(
+        send(&mut world.svm, ix, &[&attacker]).is_err(),
+        "only the publisher that created a feed may update it",
+    );
+
+    // The honest price still stands, so the honest claim is all they get.
+    let before = world.svm.get_account(&attacker.pubkey()).unwrap().lamports;
+    redeem(&mut world, &attacker, tokens, held).expect("ordinary redemption");
+    let received = world.svm.get_account(&attacker.pubkey()).unwrap().lamports - before;
+    assert!(
+        received <= 4 * SOL + SOL / 100,
+        "redeemed {received} for a 4 SOL deposit; the price was manipulated",
+    );
+}
+
+#[test]
+fn a_currency_refuses_a_feed_it_did_not_authorize() {
+    // Binding a feed to its creator is not enough on its own: an attacker who
+    // publishes first would own that asset's price for the life of any
+    // currency that later adopts it.
+    let mut world = world_with_treasury();
+    let squatter = funded(&mut world.svm, 100 * SOL);
+    let other_mint = make_mint(&mut world.svm, Some(squatter.pubkey()), TUSD_DECIMALS);
+    let (other_feed, _) =
+        Pubkey::find_program_address(&[b"price-feed", other_mint.as_ref()], &PROGRAM_ID);
+
+    send(
+        &mut world.svm,
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: vec![
+                AccountMeta::new(squatter.pubkey(), true),
+                AccountMeta::new_readonly(other_mint, false),
+                AccountMeta::new(other_feed, false),
+                AccountMeta::new_readonly(system_program::ID, false),
+            ],
+            data: data("publish_price", &(SOL, 0u16)),
+        },
+        &[&squatter],
+    )
+    .expect("anyone may publish a feed for an asset nobody uses");
+
+    let treasury_account =
+        make_token_account(&mut world.svm, other_mint, world.constitution, 1_000_000);
+    let authority = world.authority.insecure_clone();
+    assert!(
+        send(
+            &mut world.svm,
+            Instruction {
+                program_id: PROGRAM_ID,
+                accounts: vec![
+                    AccountMeta::new(authority.pubkey(), true),
+                    AccountMeta::new(world.constitution, false),
+                    AccountMeta::new_readonly(other_mint, false),
+                    AccountMeta::new_readonly(other_feed, false),
+                    AccountMeta::new_readonly(treasury_account, false),
+                ],
+                data: data(
+                    "register_asset",
+                    &AssetParams {
+                        target_weight_bps: 1_000,
+                        lower_band_bps: 500,
+                        upper_band_bps: 1_500,
+                        collateral_factor_bps: 8_000,
+                    },
+                ),
+            },
+            &[&authority],
+        )
+        .is_err(),
+        "a squatter's feed must not become a reserve asset's price",
+    );
+}
+
+#[test]
+fn the_declared_oracle_authority_can_still_publish() {
+    let mut world = world_with_treasury();
+    // The authority created the feed at genesis, so it remains its publisher.
+    publish_price(&mut world, SOL / 50, 10).expect("the authorized publisher continues");
 }
