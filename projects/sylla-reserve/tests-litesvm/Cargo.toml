@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "sylla-reserve-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A standalone workspace on purpose: these tests build with the host toolchain,
+# while programs/ builds with the older Rust that ships with Solana tools. One
+# shared lockfile would drag edition-2024 crates into the on-chain build.
+
+[dev-dependencies]
+litesvm = "0.6"
+solana-sdk = "2.1"
+solana-program = "2.1"
+spl-token = { version = "6", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "6", features = ["no-entrypoint"] }
+borsh = "1"
+sha2 = "0.10"
