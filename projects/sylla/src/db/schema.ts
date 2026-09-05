@@ -637,6 +637,16 @@ export const eventInvitations = pgTable(
     // A short spoken form of the same invitation, for handing over in person
     // or reading down a phone. Nullable so invitations predating it still work.
     codeHash: text("code_hash"),
+    // Who vouched. Null for invitations an organizer minted from the command
+    // line; set when one member spends a seat on someone they know.
+    //
+    // Deliberately not a foreign key. participants already points at this
+    // table, and closing the loop makes the two types mutually recursive,
+    // which silently degrades every inferred column on both to
+    // possibly-undefined. It is also the better semantic: an invitation should
+    // outlive the account of whoever handed it out, and a member withdrawing
+    // must not drag their invitees' provenance with them.
+    createdByParticipantId: uuid("created_by_participant_id"),
     label: text("label"),
     maxUses: integer("max_uses").default(1).notNull(),
     useCount: integer("use_count").default(0).notNull(),
@@ -648,6 +658,7 @@ export const eventInvitations = pgTable(
   },
   (table) => [
     index("event_invitations_event_idx").on(table.eventId),
+    index("event_invitations_creator_idx").on(table.createdByParticipantId),
     uniqueIndex("event_invitations_token_unique").on(table.tokenHash),
     uniqueIndex("event_invitations_code_unique").on(table.codeHash),
   ],

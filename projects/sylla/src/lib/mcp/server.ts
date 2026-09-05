@@ -51,6 +51,10 @@ import {
   respondToIntroductionProposal,
 } from "@/lib/sylla/introductions";
 import {
+  createReferralInvitation,
+  referralAllowance,
+} from "@/lib/sylla/referrals";
+import {
   acquireRuntimeLease,
   heartbeatRuntimeLease,
   releaseRuntimeLease,
@@ -327,6 +331,11 @@ export type SyllaMcpServices = {
   listIntroductions: (
     participantId: string,
   ) => ReturnType<typeof listIntroductionsForParticipant>;
+  referralAllowance: (participantId: string) => ReturnType<typeof referralAllowance>;
+  createReferralInvitation: (
+    participantId: string,
+    label?: string,
+  ) => ReturnType<typeof createReferralInvitation>;
   requestLoginHandoff: (input: {
     participantId: string;
     missionId: string;
@@ -452,6 +461,8 @@ const defaultServices: SyllaMcpServices = {
     });
   },
   listIntroductions: listIntroductionsForParticipant,
+  referralAllowance,
+  createReferralInvitation,
   requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
@@ -1342,6 +1353,43 @@ export function createSyllaMcpServer(
           otherDecisionRevealed: false,
         },
       }),
+  );
+
+  server.registerTool(
+    "sylla_invite_someone",
+    {
+      title: "Invite someone into Sylla",
+      description:
+        "Create a single-use invitation the participant can send to one person they know, and report how many seats they have left. Sylla is invitation-only, so this is the only way in. Use it when they ask to invite, refer, or bring someone. There is no reward to promise and you must not invent one: a seat returns to them when someone they invited settles in, which is worth saying because it explains why inviting people they actually know is the point. Give them the link and code exactly as returned; both are shown only once.",
+      inputSchema: z.object({
+        label: z
+          .string()
+          .max(80)
+          .optional()
+          .describe(
+            "Optional note for the participant's own records, such as who this is for. Never shown to the invited person.",
+          ),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ label }) => {
+      const invitation = await services.createReferralInvitation(participantId, label);
+      return result({
+        invitation: {
+          url: invitation.url,
+          code: invitation.code,
+          expiresAt: invitation.expiresAt,
+          forOnePersonOnly: true,
+        },
+        seats: await services.referralAllowance(participantId),
+        viewAt: viewAt("overview", "Their own control room."),
+      });
+    },
   );
 
   server.registerTool(

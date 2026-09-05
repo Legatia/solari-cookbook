@@ -498,6 +498,22 @@ function services(
     listIntroductions: vi
       .fn()
       .mockResolvedValue({ introductions: [], awaitingMyAnswer: 0 }),
+    referralAllowance: vi.fn().mockResolvedValue({
+      granted: 3,
+      base: 3,
+      earned: 0,
+      spent: 1,
+      remaining: 2,
+      atCeiling: false,
+    }),
+    createReferralInvitation: vi.fn().mockResolvedValue({
+      invitationId: "inv_1",
+      token: "tok",
+      code: "K7QF-M1RA-P2WZ",
+      url: "https://sylla.example/join/tok",
+      maxUses: 1,
+      expiresAt: "2026-09-20T12:00:00.000Z",
+    }),
     requestLoginHandoff: vi.fn().mockResolvedValue({
       url: "https://solari.example/login-handoff/abc",
       expiresAt: "2026-09-04T12:30:00.000Z",

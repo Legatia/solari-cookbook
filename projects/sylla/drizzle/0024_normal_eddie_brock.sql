@@ -1,0 +1,2 @@
+ALTER TABLE "event_invitations" ADD COLUMN "created_by_participant_id" uuid;--> statement-breakpoint
+CREATE INDEX "event_invitations_creator_idx" ON "event_invitations" USING btree ("created_by_participant_id");

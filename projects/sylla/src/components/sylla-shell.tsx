@@ -38,6 +38,7 @@ import { isControlRoomView } from "@/lib/sylla/control-room";
 import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { RecoveryCodesPanel } from "@/components/recovery-codes";
+import { ReferralPanel } from "@/components/referral-panel";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   SyllaObservation,
@@ -2300,6 +2301,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
 
           <PasskeyAccountPanel />
           <RecoveryCodesPanel />
+          <ReferralPanel />
           <ConnectedDevicesPanel />
           <ModelAccessPanel />
         </div>

@@ -32,7 +32,8 @@
     "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
     "invite:create": "tsx scripts/create-event-invite.ts",
     "circle:status": "tsx scripts/circle-status.ts",
-    "verify:circle": "tsx scripts/verify-circle.ts"
+    "verify:circle": "tsx scripts/verify-circle.ts",
+    "verify:referrals": "tsx scripts/verify-referrals.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

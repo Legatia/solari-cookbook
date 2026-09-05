@@ -65,6 +65,7 @@ export async function createEventInvitation(input: {
   label?: string;
   maxUses?: number;
   expiresAt?: Date | null;
+  createdByParticipantId?: string | null;
 }) {
   const database = getDatabase();
   const [event] = await database
@@ -90,6 +91,7 @@ export async function createEventInvitation(input: {
       eventId: event.id,
       tokenHash: hashToken(token),
       codeHash: hashToken(normalizeInvitationCode(code)),
+      createdByParticipantId: input.createdByParticipantId ?? null,
       label: input.label?.trim().slice(0, 120),
       maxUses,
       expiresAt: input.expiresAt,

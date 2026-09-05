@@ -228,6 +228,12 @@ Opening the link shows what is being joined — the circle's name, seats left, w
 
 Codes tolerate how people actually read them back — case, spacing, and the letters Crockford base32 leaves out, so `OIL0` and `0110` are the same code.
 
+Members invite members. A participant who has consented in their own right starts with three seats, visible in the control room and reachable from their agent through `sylla_invite_someone`. Each one is single use and expires in two weeks, because a member vouches for a person rather than for a link that can be forwarded onward.
+
+The reward for a referral is another referral, and deliberately nothing else. Paying credits for invitations would turn vouching into farming — the fastest way to earn would be to invite anyone at all, which destroys the only thing an invitation-only society has, that someone already here is willing to stake a seat on you. Earned seats also cannot be manufactured: a seat returns when the invited person consents in their own right, not when they open the link. Redeeming alone earns the inviter nothing, and `verify:referrals` exists mostly to hold that line.
+
+An unused invitation returns its seat when it expires or when the member withdraws it; a redeemed one is not withdrawable, because that person now has their own agent and cancelling someone else's account is not a referral action.
+
 `pnpm circle:status <event-slug>` shows seats spent, seats left, and who is actually present. Those are different numbers: someone can open an invitation and never finish consent.
 
 
