@@ -158,6 +158,22 @@ export const introductionDecision = pgEnum("introduction_decision", [
 
 export const outcomeAnswer = pgEnum("outcome_answer", ["yes", "no", "unsure"]);
 
+/**
+ * Standing refusals a member's agent applies for them.
+ *
+ * Deliberately a closed set rather than free text: a boundary decides what
+ * reaches a person, so it has to be evaluable the same way every time and
+ * legible when they read it back. Nothing here needs a model to interpret it.
+ */
+export const boundaryKind = pgEnum("boundary_kind", [
+  // Nothing reaches me, optionally until a date I choose.
+  "paused",
+  // Only where both agents independently arrived at it; no cold approaches.
+  "mutual_only",
+  // At most N in a rolling week.
+  "weekly_limit",
+]);
+
 export const debriefDisposition = pgEnum("debrief_disposition", [
   "skipped",
   "quick",
@@ -1469,6 +1485,57 @@ export const introductionOutcomes = pgTable(
       table.introductionProposalId,
       table.participantId,
     ),
+  ],
+);
+
+export const participantBoundaries = pgTable(
+  "participant_boundaries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    kind: boundaryKind("kind").notNull(),
+    /** For weekly_limit: how many may reach them in a rolling week. */
+    threshold: integer("threshold"),
+    /** For paused: when it lifts by itself. Null means until they lift it. */
+    until: timestamp("until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("participant_boundaries_participant_idx").on(table.participantId),
+  ],
+);
+
+/**
+ * What the shield turned away.
+ *
+ * A boundary nobody can inspect is not a shield, it is an algorithm quietly
+ * deciding someone's life. This exists so the member can see what was refused
+ * on their behalf and loosen it if it was too tight. It records the boundary
+ * and the pair, never anything about the other person.
+ */
+export const shieldDeclines = pgTable(
+  "shield_declines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    candidatePairId: uuid("candidate_pair_id")
+      .notNull()
+      .references(() => candidatePairs.id, { onDelete: "cascade" }),
+    kind: boundaryKind("kind").notNull(),
+    originTier: introductionOriginTier("origin_tier").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("shield_declines_participant_idx").on(table.participantId),
   ],
 );
 

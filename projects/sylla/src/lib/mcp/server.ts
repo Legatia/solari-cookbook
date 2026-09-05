@@ -51,6 +51,12 @@ import {
   respondToIntroductionProposal,
 } from "@/lib/sylla/introductions";
 import {
+  type BoundaryKind,
+  releaseBoundary,
+  reviewShield,
+  setBoundary,
+} from "@/lib/sylla/boundaries";
+import {
   createReferralInvitation,
   referralAllowance,
 } from "@/lib/sylla/referrals";
@@ -332,6 +338,15 @@ export type SyllaMcpServices = {
     participantId: string,
   ) => ReturnType<typeof listIntroductionsForParticipant>;
   referralAllowance: (participantId: string) => ReturnType<typeof referralAllowance>;
+  reviewShield: (participantId: string) => ReturnType<typeof reviewShield>;
+  setBoundary: (
+    participantId: string,
+    input: { kind: BoundaryKind; threshold?: number; until?: Date },
+  ) => ReturnType<typeof setBoundary>;
+  releaseBoundary: (
+    participantId: string,
+    kind: BoundaryKind,
+  ) => ReturnType<typeof releaseBoundary>;
   createReferralInvitation: (
     participantId: string,
     label?: string,
@@ -463,6 +478,9 @@ const defaultServices: SyllaMcpServices = {
   listIntroductions: listIntroductionsForParticipant,
   referralAllowance,
   createReferralInvitation,
+  reviewShield,
+  setBoundary,
+  releaseBoundary,
   requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
@@ -1390,6 +1408,78 @@ export function createSyllaMcpServer(
         viewAt: viewAt("overview", "Their own control room."),
       });
     },
+  );
+
+  server.registerTool(
+    "sylla_set_boundary",
+    {
+      title: "Say no on their behalf, standingly",
+      description:
+        "Put a standing boundary in place, or lift one. Use this the moment someone signals they want less: too much, not now, nothing cold, need a break. Do not talk them out of it and do not ask why. paused turns everything away; mutual_only refuses approaches only one agent arrived at; weekly_limit caps how many reach them in a week. Nobody is told a boundary exists, and nothing is closed permanently, so this is safe to set and easy to undo — say both, briefly.",
+      inputSchema: z.object({
+        kind: z
+          .enum(["paused", "mutual_only", "weekly_limit"])
+          .describe("Which standing refusal to apply."),
+        release: z
+          .boolean()
+          .optional()
+          .describe("True to lift this boundary instead of setting it."),
+        weeklyLimit: z
+          .number()
+          .int()
+          .min(0)
+          .max(50)
+          .optional()
+          .describe("For weekly_limit: how many may reach them per week."),
+        until: z
+          .string()
+          .optional()
+          .describe("For paused: an ISO date when it should lift by itself."),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ kind, release, weeklyLimit, until }) => {
+      const boundaries = release
+        ? await services.releaseBoundary(participantId, kind)
+        : await services.setBoundary(participantId, {
+            kind,
+            ...(weeklyLimit === undefined ? {} : { threshold: weeklyLimit }),
+            ...(until === undefined ? {} : { until: new Date(until) }),
+          });
+      return result({
+        boundaries,
+        nobodyIsToldTheseExist: true,
+        reversible: true,
+        viewAt: viewAt("overview", "Their own control room."),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_review_shield",
+    {
+      title: "What their agent turned away",
+      description:
+        "Report the boundaries in force and how much they have refused on the participant's behalf. Use it when they ask whether they are missing anything, or whether a boundary is too tight. Counts only: who was turned away is deliberately not recorded, because naming them would hand back the decision the boundary existed to spare them. If a boundary is refusing a lot, say so plainly and offer to loosen it rather than deciding for them.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () =>
+      result({
+        ...(await services.reviewShield(participantId)),
+        identitiesWithheldByDesign: true,
+        viewAt: viewAt("overview", "Their own control room."),
+      }),
   );
 
   server.registerTool(

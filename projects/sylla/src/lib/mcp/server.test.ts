@@ -506,6 +506,16 @@ function services(
       remaining: 2,
       atCeiling: false,
     }),
+    reviewShield: vi.fn().mockResolvedValue({
+      boundaries: [],
+      turnedAwayTotal: 0,
+      turnedAwayThisWeek: 0,
+      distinctPeople: 0,
+      byBoundary: {},
+      mostRecentAt: null,
+    }),
+    setBoundary: vi.fn().mockResolvedValue([]),
+    releaseBoundary: vi.fn().mockResolvedValue([]),
     createReferralInvitation: vi.fn().mockResolvedValue({
       invitationId: "inv_1",
       token: "tok",

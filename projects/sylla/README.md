@@ -228,6 +228,12 @@ Opening the link shows what is being joined — the circle's name, seats left, w
 
 Codes tolerate how people actually read them back — case, spacing, and the letters Crockford base32 leaves out, so `OIL0` and `0110` are the same code.
 
+A member's agent can also refuse on their behalf. Three standing boundaries are available from the control room or through `sylla_set_boundary`: nothing at all for now, nothing that only one agent arrived at, and at most a few a week. They are a closed set rather than free text, because a boundary decides what reaches a person and so has to be evaluated the same way every time and legible when they read it back.
+
+A boundary is refused with the exact wording the introduction gate already uses for every unrelated reason, so nobody outside can infer that a rule exists — a refusal that announced itself would become a signal about the person refusing. It also creates no proposal, which means a boundary that meant "not this week" does not permanently consume the pair the way a real decline does; lift it and the same introduction can still happen.
+
+Everything turned away is recorded for the member and nothing else, because a boundary nobody can inspect stops being protection and becomes an algorithm quietly deciding who they meet. The review is counts only: they declined these without ever being asked, and naming who was refused would hand back the decision the boundary existed to spare them. `pnpm verify:shield` holds all four properties.
+
 Members invite members. A participant who has consented in their own right starts with three seats, visible in the control room and reachable from their agent through `sylla_invite_someone`. Each one is single use and expires in two weeks, because a member vouches for a person rather than for a link that can be forwarded onward.
 
 The reward for a referral is another referral, and deliberately nothing else. Paying credits for invitations would turn vouching into farming — the fastest way to earn would be to invite anyone at all, which destroys the only thing an invitation-only society has, that someone already here is willing to stake a seat on you. Earned seats also cannot be manufactured: a seat returns when the invited person consents in their own right, not when they open the link. Redeeming alone earns the inviter nothing, and `verify:referrals` exists mostly to hold that line.

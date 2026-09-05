@@ -176,6 +176,13 @@
       "when": 1788646660006,
       "tag": "0024_normal_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788647646011,
+      "tag": "0025_nappy_sleeper",
+      "breakpoints": true
     }
   ]
 }
