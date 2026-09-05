@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import {
+  clearSessionCookie,
   jsonWithSession,
   listUserSessions,
   resolveParticipant,
@@ -35,10 +36,9 @@ export async function DELETE(request: NextRequest) {
       throw new Error("Name the session to revoke.");
     }
     const current = request.cookies.get(SESSION_COOKIE)?.value;
-    return jsonWithSession(
-      { result: await revokeUserSession(participant.id, sessionId, current) },
-      newToken,
-    );
+    const result = await revokeUserSession(participant.id, sessionId, current);
+    const response = jsonWithSession({ result }, newToken);
+    return result.wasCurrent ? clearSessionCookie(response) : response;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not revoke that session." },

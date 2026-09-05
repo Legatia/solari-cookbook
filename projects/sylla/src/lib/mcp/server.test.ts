@@ -578,6 +578,7 @@ describe("Sylla MCP server", () => {
           expect.objectContaining({ name: "sylla_review_observation" }),
           expect.objectContaining({ name: "sylla_research" }),
           expect.objectContaining({ name: "sylla_find_private_introduction" }),
+          expect.objectContaining({ name: "sylla_propose_private_introduction" }),
           expect.objectContaining({ name: "sylla_get_agent_workspace" }),
           expect.objectContaining({ name: "sylla_get_plan" }),
           expect.objectContaining({ name: "sylla_acquire_agent_lease" }),
@@ -791,8 +792,92 @@ describe("Sylla MCP server", () => {
     expect(body).toMatchObject({
       result: { structuredContent: { status: "ready_to_propose" } },
     });
-    expect(JSON.stringify(body)).toContain("sylla_approve_my_disclosure");
+    expect(JSON.stringify(body)).toContain("sylla_propose_private_introduction");
+    expect(JSON.stringify(body)).not.toContain("sylla_approve_my_disclosure");
     expect(JSON.stringify(body)).not.toContain("otherParticipant");
+  });
+
+  it("sends an approved private introduction without exposing lease mechanics", async () => {
+    const candidatePairId = "b59cf50a-1c23-49a7-875d-538b29978494";
+    const observationIds = ["3295a3c0-a857-4be3-9a03-bd31d3995045"];
+    const proposalId = "84145b35-3fae-4910-af85-ce9e49f7a606";
+    const acquireLease = vi.fn().mockResolvedValue({
+      leaseId: "proposal-lease",
+      clientId,
+      runId: "server-owned-run",
+      leaseToken,
+      purpose: "test",
+      expiresAt: "2026-09-01T10:10:00.000Z",
+    });
+    const releaseLease = vi.fn().mockResolvedValue(undefined);
+    const approveDisclosure = vi.fn().mockResolvedValue({
+      id: "3dad893f-9d0c-4782-8da8-82e84339fcb4",
+      observationIds,
+    });
+    const createIntroduction = vi.fn().mockResolvedValue({
+      id: proposalId,
+      status: "waiting",
+    });
+    const getIntroduction = vi.fn().mockResolvedValue({
+      id: proposalId,
+      status: "waiting",
+      myDecision: "accepted",
+      otherParticipant: null,
+      meeting: null,
+    });
+    const handler = createTestHandler(
+      services({
+        acquireLease,
+        releaseLease,
+        approveDisclosure,
+        createIntroduction,
+        getIntroduction,
+      }),
+    );
+
+    const { body } = await callMcp(handler, {
+      jsonrpc: "2.0",
+      id: 207,
+      method: "tools/call",
+      params: {
+        name: "sylla_propose_private_introduction",
+        arguments: {
+          candidatePairId,
+          observationIds,
+          requestId: "proposal-approval-001",
+          confirmation: "I APPROVE THIS INTRODUCTION",
+        },
+      },
+    });
+
+    expect(acquireLease).toHaveBeenCalledOnce();
+    const authorization = expect.objectContaining({ clientId, leaseToken });
+    expect(approveDisclosure).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      candidatePairId,
+      observationIds,
+      authorization,
+    });
+    expect(createIntroduction).toHaveBeenCalledWith({
+      participantId: state.participantId,
+      candidatePairId,
+      authorization,
+    });
+    expect(getIntroduction).toHaveBeenCalledWith(
+      state.participantId,
+      proposalId,
+    );
+    expect(releaseLease).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({
+      result: {
+        structuredContent: {
+          proposal: { id: proposalId, status: "waiting" },
+          introduction: { otherParticipant: null, meeting: null },
+        },
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain("leaseToken");
+    expect(JSON.stringify(body)).not.toContain("runId");
   });
 
   it("hands the recipient an inbox, since they are never given a proposal id", async () => {

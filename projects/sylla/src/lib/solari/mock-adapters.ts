@@ -31,7 +31,7 @@ export class MockBrowserResearchAdapter implements BrowserResearchAdapter {
         sourceId: source.id,
         sourceUrl: url.toString(),
         sourceTitle: source.label ?? url.hostname,
-        excerpt: `Mock evidence collected from ${url.hostname}.`,
+        excerpt: `Preview evidence collected from ${url.hostname}.`,
         observedAt,
       };
     });

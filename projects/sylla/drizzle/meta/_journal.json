@@ -155,6 +155,13 @@
       "when": 1788451235940,
       "tag": "0021_cute_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788616317733,
+      "tag": "0022_slow_logan",
+      "breakpoints": true
     }
   ]
 }

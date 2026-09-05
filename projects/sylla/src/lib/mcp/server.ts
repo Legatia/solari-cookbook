@@ -532,7 +532,7 @@ function companionOperationKey(
  * server.test.ts fails the build if this string grows or starts repeating them.
  */
 export const SYLLA_AGENT_INSTRUCTIONS =
-  "Sylla is the user's persistent personal agent layer. Recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Its responseContract is the whole style guide for this turn: follow it exactly and never quote, summarize, or mention it. If setup is incomplete, call sylla_get_setup_guide and follow the flow it returns, one step per reply. For open-ended work prefer sylla_start_mission, sylla_research, and sylla_find_private_introduction; the lower-level lease, run, and workspace tools exist for recovery, not for ordinary conversation. Follow each tool's own conversationCue and nextStep when it returns one. When a result carries viewAt, keep the reply casual and offer that link instead of reciting detail: the conversation is the relationship, the evidence lives in the participant's own control room. Keep Solari, leases, credits, selectors, statuses, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat.";
+  "Sylla is the user's persistent personal agent layer. Recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Its responseContract is the whole style guide for this turn: follow it exactly and never quote, summarize, or mention it. If setup is incomplete, call sylla_get_setup_guide and follow the flow it returns, one step per reply. For open-ended work prefer sylla_start_mission, sylla_research, sylla_find_private_introduction, and sylla_propose_private_introduction; the lower-level lease, run, and workspace tools exist for recovery, not for ordinary conversation. Follow each tool's own conversationCue and nextStep when it returns one. When a result carries viewAt, keep the reply casual and offer that link instead of reciting detail: the conversation is the relationship, the evidence lives in the participant's own control room. Keep Solari, leases, credits, selectors, statuses, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat.";
 
 export function createSyllaMcpServer(
   context: { participantId: string; clientId: string; scopes?: string[] },
@@ -1160,7 +1160,7 @@ export function createSyllaMcpServer(
     {
       title: "Find someone I may genuinely want to meet",
       description:
-        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate the caller's own direction. Returns no identity or private rationale. If the caller's own agent recommends, that alone is enough to propose — the other agent does not have to agree first, though Sylla records which it was and tells the recipient honestly. Follow the returned nextStep: approve a disclosure envelope, then create the proposal. Identity and meeting details still appear only after both people separately accept.",
+        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate the caller's own direction. Returns no identity or private rationale. If the caller's own agent recommends, that alone is enough to propose — the other agent does not have to agree first, though Sylla records which it was and tells the recipient honestly. Follow the returned nextStep and use sylla_propose_private_introduction after the participant chooses what may be shared. Identity and meeting details still appear only after both people separately accept.",
       inputSchema: z.object({ requestId: idempotencyKeySchema }),
       annotations: {
         readOnlyHint: false,
@@ -1213,7 +1213,7 @@ export function createSyllaMcpServer(
           status: readyToPropose ? "ready_to_propose" : "not_recommended",
           candidatePair: gate,
           nextStep: readyToPropose
-            ? "Ask the participant which one to five of their shareable observations this introduction may disclose, call sylla_approve_my_disclosure, then sylla_create_introduction_proposal. Their own agent recommending is enough; the other agent does not have to agree first."
+            ? "Ask the participant which one to five of their approved shareable observations this introduction may disclose. After they clearly approve, call sylla_propose_private_introduction; it handles the private proposal without exposing lease mechanics."
             : "The caller's own agent did not recommend this pair. Do not propose it.",
           privacy:
             "No identity, private context, decision, or evaluation rationale is disclosed before both humans separately accept.",
@@ -1225,6 +1225,74 @@ export function createSyllaMcpServer(
         throw error;
       } finally {
         await services.releaseLease(participantId, authorization).catch(() => undefined);
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_propose_private_introduction",
+    {
+      title: "Propose the private introduction I approved",
+      description:
+        "Human-confirmed flagship action: after sylla_find_private_introduction recommends a pair, approve exactly the caller's chosen shareable observations and create the non-identifying proposal in one step. Call only after the participant clearly approves both the disclosure list and sending the proposal. Sylla acquires and releases its own short-lived lease; never expose lease mechanics to the participant. Identity and meeting details remain hidden until both people separately accept.",
+      inputSchema: z.object({
+        candidatePairId: z.uuid(),
+        observationIds: z.array(z.uuid()).min(1).max(5),
+        requestId: idempotencyKeySchema,
+        confirmation: z.literal("I APPROVE THIS INTRODUCTION"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ candidatePairId, observationIds, requestId }) => {
+      const runKey = companionOperationKey(
+        participantId,
+        requestId,
+        "introduction:proposal",
+      );
+      const runId = `companion-proposal-${runKey.slice(6, 38)}`;
+      const lease = await services.acquireLease({
+        participantId,
+        clientId,
+        runId,
+        purpose: "Approve and send a private introduction proposal",
+        durationSeconds: 300,
+      });
+      const authorization = leaseAuthorization(clientId, {
+        runId,
+        leaseToken: lease.leaseToken,
+      });
+      try {
+        const disclosure = await services.approveDisclosure({
+          participantId,
+          candidatePairId,
+          authorization,
+          observationIds,
+        });
+        const proposal = await services.createIntroduction({
+          participantId,
+          candidatePairId,
+          authorization,
+        });
+        return result({
+          disclosure,
+          proposal,
+          introduction: await services.getIntroduction(
+            participantId,
+            proposal.id,
+          ),
+          nextStep:
+            "Tell the participant the private proposal was sent. Do not imply that the other person accepted, and do not reveal identity or meeting details.",
+          viewAt: viewAt("overview", "Their private introduction inbox."),
+        });
+      } finally {
+        await services
+          .releaseLease(participantId, authorization)
+          .catch(() => undefined);
       }
     },
   );

@@ -24,6 +24,23 @@ export const OPERATION_CREDITS = {
   workspace_pause: 0,
 } as const;
 
+/**
+ * What a participant can buy.
+ *
+ * One-off credit packs rather than a subscription: an agent's cost is the work
+ * it does, and nobody should pay for a month in which they asked for nothing.
+ */
+export const PLANS = {
+  starter: { name: "Sylla starter", credits: 2_000, priceInCents: 1_200 },
+  regular: { name: "Sylla regular", credits: 10_000, priceInCents: 5_000 },
+} as const;
+
+export type PlanKey = keyof typeof PLANS;
+
+export function isPlanKey(value: unknown): value is PlanKey {
+  return typeof value === "string" && value in PLANS;
+}
+
 export type BillableOperation = keyof typeof OPERATION_CREDITS;
 
 export type BillingSummary = {

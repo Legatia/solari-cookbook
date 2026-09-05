@@ -5,7 +5,6 @@ import type { NextRequest, NextResponse } from "next/server";
 
 import { getDatabase } from "@/db";
 import {
-  authRateLimits,
   deviceLoginRequests,
   personalAgents,
   syllaUsers,
@@ -16,6 +15,7 @@ import {
   type RuntimeLeaseAuthorization,
 } from "@/lib/sylla/leases";
 import { recordAuditEvent } from "@/lib/sylla/participation";
+import { consumeRateLimit as consumeSharedRateLimit } from "@/lib/sylla/rate-limit";
 import { createUserSession } from "@/lib/sylla/session";
 
 export const DEVICE_CODE_COOKIE = "sylla_device_login";
@@ -48,6 +48,22 @@ const MAX_APPROVAL_ATTEMPTS = 5;
 export class DeviceLoginError extends Error {}
 export class DeviceLoginRateLimitError extends DeviceLoginError {}
 
+/** The shared limiter, but failing with this module's error type. */
+function consumeRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+  message: string,
+) {
+  return consumeSharedRateLimit(
+    key,
+    limit,
+    windowSeconds,
+    message,
+    (text) => new DeviceLoginRateLimitError(text),
+  );
+}
+
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -79,25 +95,6 @@ function generateUserCode() {
   return code;
 }
 
-async function consumeRateLimit(
-  key: string,
-  limit: number,
-  windowSeconds: number,
-  message: string,
-) {
-  const [row] = await getDatabase()
-    .insert(authRateLimits)
-    .values({ keyHash: hash(key) })
-    .onConflictDoUpdate({
-      target: authRateLimits.keyHash,
-      set: {
-        attempts: sql`case when ${authRateLimits.windowStartedAt} < now() - make_interval(secs => ${windowSeconds}) then 1 else ${authRateLimits.attempts} + 1 end`,
-        windowStartedAt: sql`case when ${authRateLimits.windowStartedAt} < now() - make_interval(secs => ${windowSeconds}) then now() else ${authRateLimits.windowStartedAt} end`,
-      },
-    })
-    .returning();
-  if (row && row.attempts > limit) throw new DeviceLoginRateLimitError(message);
-}
 
 /**
  * Describe the browser asking to be signed in, using only what the server can

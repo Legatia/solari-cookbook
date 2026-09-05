@@ -27,6 +27,8 @@
     "verify:one-sided": "tsx scripts/verify-one-sided-introduction.ts",
     "verify:model-key": "tsx scripts/verify-model-key.ts",
     "verify:desktop-live": "INTEGRATION_MODE=live tsx scripts/verify-live-desktop.ts",
+    "verify:phase-one": "tsx scripts/verify-phase-one.ts",
+    "verify:internal-model": "tsx scripts/verify-internal-model.ts",
     "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
     "invite:create": "tsx scripts/create-event-invite.ts"
   },
@@ -50,7 +52,9 @@
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "shadcn": "^4.19.1",
+    "stripe": "^22.6.1",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
     "zod": "^4.5.4"

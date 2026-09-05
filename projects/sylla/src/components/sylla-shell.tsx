@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { isControlRoomView } from "@/lib/sylla/control-room";
 import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
+import { RecoveryCodesPanel } from "@/components/recovery-codes";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   SyllaObservation,
@@ -122,6 +123,10 @@ function OriginBadge({ origin }: { origin: SyllaObservation["origin"] }) {
       {labels[origin]}
     </Badge>
   );
+}
+
+function humanizePreviewCopy(value: string) {
+  return value.replace(/Mock evidence collected from/gi, "Earlier preview evidence from");
 }
 
 function AgentMark({ active = false }: { active?: boolean }) {
@@ -706,13 +711,13 @@ function ObservationCard({
             </div>
           ) : (
             <p className="mt-4 max-w-2xl font-heading text-xl leading-7 text-stone-200">
-              {observation.claim}
+              {humanizePreviewCopy(observation.claim)}
             </p>
           )}
 
           {observation.evidenceExcerpt && !editing && (
             <p className="mt-3 max-w-2xl border-l border-white/10 pl-4 text-xs leading-5 text-stone-500">
-              {observation.evidenceExcerpt}
+              {humanizePreviewCopy(observation.evidenceExcerpt)}
             </p>
           )}
 
@@ -939,6 +944,98 @@ function PersonalMemoryCard({
   );
 }
 
+type IntroductionInboxItem = {
+  introductionProposalId: string;
+  status: string;
+  myDecision: "accepted" | "declined" | null;
+  awaitingMyAnswer: boolean;
+  origin: { explanation: string };
+  preview: Array<{ id: string; claim: string }>;
+};
+
+function IntroductionInboxPanel() {
+  const [inbox, setInbox] = useState<IntroductionInboxItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/introductions", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          introductions?: IntroductionInboxItem[];
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(
+            payload.error ?? "Your private introductions could not be loaded.",
+          );
+        }
+        if (active) {
+          setInbox(payload.introductions ?? []);
+          setError(null);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (active) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Your private introductions could not be loaded.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const waiting = inbox?.filter((item) => item.awaitingMyAnswer) ?? [];
+  return (
+    <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="flex items-center gap-2 text-[9px] uppercase tracking-[0.17em] text-stone-500">
+          <ShieldCheck className="size-3.5" /> Private introductions
+        </p>
+        {waiting.length > 0 && (
+          <span className="rounded-full bg-lime-200/[0.08] px-2 py-1 text-[9px] text-lime-200">
+            {waiting.length} waiting
+          </span>
+        )}
+      </div>
+      {error ? (
+        <p className="mt-3 text-xs leading-5 text-red-300/80">{error}</p>
+      ) : inbox === null ? (
+        <p className="mt-3 text-xs text-stone-600">Checking quietly…</p>
+      ) : inbox.length === 0 ? (
+        <p className="mt-3 text-xs leading-5 text-stone-600">
+          Nothing is waiting. Sylla will not invent a match to fill this space.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {inbox.slice(-3).reverse().map((item) => (
+            <div
+              key={item.introductionProposalId}
+              className="rounded-xl border border-white/[0.07] bg-black/15 px-3 py-3"
+            >
+              <p className="text-xs leading-5 text-stone-300">
+                {item.preview[0]?.claim ?? "A private possibility"}
+              </p>
+              <p className="mt-1 text-[10px] leading-4 text-stone-600">
+                {item.origin.explanation}
+              </p>
+              {item.awaitingMyAnswer && (
+                <p className="mt-2 text-[10px] text-lime-200/70">
+                  Ask your connected AI to tell you more or answer privately.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConversationView({
   state,
   onChange,
@@ -987,7 +1084,7 @@ function ConversationView({
                 {pending ? "I found a few possible memories." : "I know enough to ask better questions."}
               </p>
               <p className="mt-1 text-xs text-stone-500">
-                {state.agentName} · {state.research.provider === "solari" ? "researched with Solari Browser" : "safe mock research"}
+                {state.agentName} · {state.research.provider === "solari" ? "researched with Solari Browser" : "earlier preview research"}
               </p>
             </div>
           </div>
@@ -1028,6 +1125,9 @@ function ConversationView({
                 Inspect memory
               </Button>
             </div>
+            {state.participation.permissions.matchmaking && (
+              <IntroductionInboxPanel />
+            )}
           </div>
         </div>
       </div>
@@ -1249,7 +1349,7 @@ function WorkspaceBoard({ state, compact = false }: { state: SyllaSessionState; 
           {approved.slice(0, compact ? 2 : 3).map((observation, index) => (
             <div key={observation.id} className="rounded-lg border border-white/[0.07] bg-black/15 p-3">
               <p className="line-clamp-2 font-heading text-xs leading-4 text-stone-300">
-                <span className="mr-2 text-stone-600">0{index + 1}</span>{observation.claim}
+                <span className="mr-2 text-stone-600">0{index + 1}</span>{humanizePreviewCopy(observation.claim)}
               </p>
             </div>
           ))}
@@ -1646,7 +1746,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
                   [Brain, "Recall", "Bring only approved context into this conversation."],
                   [Sparkles, "Remember", "Propose something you explicitly asked it to keep."],
                   [Globe2, "Research", "Read approved public sources with evidence preserved."],
-                  [ShieldCheck, "Introduce", "Look privately for one bilateral human possibility."],
+                  [ShieldCheck, "Introduce", "Look privately for one human possibility, with consent on both sides."],
                 ].map(([Icon, title, body]) => {
                   const ActionIcon = Icon as typeof Brain;
                   return <div key={title as string} className="grid grid-cols-[2.25rem_1fr] gap-3"><span className="grid size-8 place-items-center rounded-full border border-white/10 text-lime-200/70"><ActionIcon className="size-3.5" /></span><div><p className="text-xs font-medium text-stone-200">{title as ReactNode}</p><p className="mt-1 text-[11px] leading-5 text-stone-500">{body as ReactNode}</p></div></div>;
@@ -1835,8 +1935,11 @@ function ModelAccessPanel() {
             onChange={(event) => {
               const next = event.target.value as ModelProviderId;
               setProvider(next);
-              setModel("");
-              setBaseUrl("");
+              const firstPreset =
+                next === "openai_compatible" ? presets[0] : undefined;
+              setPresetId(firstPreset?.id ?? "");
+              setModel(firstPreset?.model ?? "");
+              setBaseUrl(firstPreset?.baseUrl ?? "");
             }}
             className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
           >
@@ -1856,8 +1959,6 @@ function ModelAccessPanel() {
                     (preset) => preset.id === event.target.value,
                   );
                   setPresetId(event.target.value);
-                  // Prefill only. Both fields stay editable, so a preset that
-                  // has moved is a small correction rather than a dead end.
                   setBaseUrl(next?.baseUrl ?? "");
                   setModel(next?.model ?? "");
                 }}
@@ -1872,10 +1973,10 @@ function ModelAccessPanel() {
               <input
                 type="url"
                 value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://api.example.com/v1"
+                readOnly
+                aria-label="Reviewed provider endpoint"
                 spellCheck={false}
-                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-500"
               />
             </>
           )}
@@ -1919,8 +2020,8 @@ function ModelAccessPanel() {
             </a>
           ) : (
             <p className="text-[10px] leading-4 text-stone-600">
-              Anything speaking the OpenAI chat-completions API works. The base
-              URL usually ends in /v1, and must be public HTTPS.
+              Choose a reviewed provider endpoint for the pilot. The model name
+              remains editable; custom server targets stay disabled.
             </p>
           )}
         </div>
@@ -1949,6 +2050,7 @@ type SessionRow = {
 function ConnectedDevicesPanel() {
   const router = useRouter();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1956,10 +2058,29 @@ function ConnectedDevicesPanel() {
     let active = true;
     void fetch("/api/auth/sessions", { cache: "no-store" })
       .then(async (response) => {
-        const payload = (await response.json()) as { sessions?: SessionRow[] };
-        if (active) setSessions(payload.sessions ?? []);
+        const payload = (await response.json()) as {
+          sessions?: SessionRow[];
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Could not load connected devices.");
+        }
+        if (active) {
+          setSessions(payload.sessions ?? []);
+          setError(null);
+          setLoaded(true);
+        }
       })
-      .catch(() => undefined);
+      .catch((caught: unknown) => {
+        if (active) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Could not load connected devices.",
+          );
+          setLoaded(true);
+        }
+      });
     return () => {
       active = false;
     };
@@ -1982,7 +2103,13 @@ function ConnectedDevicesPanel() {
         return;
       }
       const refreshed = await fetch("/api/auth/sessions", { cache: "no-store" });
-      const next = (await refreshed.json()) as { sessions?: SessionRow[] };
+      const next = (await refreshed.json()) as {
+        sessions?: SessionRow[];
+        error?: string;
+      };
+      if (!refreshed.ok) {
+        throw new Error(next.error ?? "Could not refresh connected devices.");
+      }
       setSessions(next.sessions ?? []);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not sign that browser out.");
@@ -2001,7 +2128,10 @@ function ConnectedDevicesPanel() {
         including one you no longer have.
       </p>
       <div className="mt-4 space-y-2">
-        {sessions.length === 0 && (
+        {!loaded && (
+          <p className="text-xs text-stone-600">Loading connected devices…</p>
+        )}
+        {loaded && !error && sessions.length === 0 && (
           <p className="text-xs text-stone-600">No other browser is signed in.</p>
         )}
         {sessions.map((session) => (
@@ -2144,6 +2274,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
           </div>
 
           <PasskeyAccountPanel />
+          <RecoveryCodesPanel />
           <ConnectedDevicesPanel />
           <ModelAccessPanel />
         </div>

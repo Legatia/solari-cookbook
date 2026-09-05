@@ -214,6 +214,54 @@ export const participantModelKeys = pgTable(
   (table) => [uniqueIndex("participant_model_keys_user_unique").on(table.userId)],
 );
 
+/**
+ * Emergency credentials for the case every passkey and connected AI is gone.
+ *
+ * Hashed like a password, single use, and shown exactly once. Without these,
+ * losing a laptop means losing an agent — and an agent someone cannot recover
+ * is not portable, whatever the export endpoint says.
+ */
+export const recoveryCodes = pgTable(
+  "recovery_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("recovery_codes_user_idx").on(table.userId),
+    uniqueIndex("recovery_codes_hash_unique").on(table.codeHash),
+  ],
+);
+
+/**
+ * One row per scheduled sweep, so a cron that quietly stopped firing is
+ * visible instead of merely absent.
+ */
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    job: text("job").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ok: boolean("ok").default(false).notNull(),
+    executed: integer("executed").default(0).notNull(),
+    skipped: integer("skipped").default(0).notNull(),
+    failed: integer("failed").default(0).notNull(),
+    detail: text("detail"),
+  },
+  (table) => [index("cron_runs_job_idx").on(table.job, table.startedAt)],
+);
+
 export const passkeyCredentials = pgTable(
   "passkey_credentials",
   {

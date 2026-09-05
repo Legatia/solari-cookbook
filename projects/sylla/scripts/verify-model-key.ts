@@ -156,14 +156,15 @@ async function main() {
     assert.equal(compatibleAdapter.provider, "openai_compatible");
     assert.equal(compatibleAdapter.model, "deepseek-chat");
 
-    // 8. A base URL pointing inward is refused: this field is a server-side
-    //    fetch target, so it gets the same policy as an approved source.
+    // 8. Only reviewed provider targets are accepted. Private, plaintext, and
+    //    otherwise public custom targets are all refused before a key is sent.
     for (const hostile of [
       "http://localhost:11434/v1",
       "https://127.0.0.1/v1",
       "https://10.0.0.5/v1",
       "https://169.254.169.254/latest",
       "http://api.deepseek.com/v1",
+      "https://api.example.com/v1",
     ]) {
       await assert.rejects(
         saveModelKey({
@@ -192,7 +193,7 @@ async function main() {
     assert.ok(!JSON.stringify(logged).includes(apiKey), "audit rows hold no key");
 
     console.log(
-      "Model key verified: absent means deterministic, a rejected key is not stored, a verified key is encrypted with only a 4-character hint, no read path or audit row exposes it, the fallback resolves to the participant's own key, a rotated secret degrades safely, a compatible endpoint normalizes and resolves to chat-completions, private and plaintext base URLs are refused, and deletion is immediate.",
+      "Model key verified: absent means deterministic, a rejected key is not stored, a verified key is encrypted with only a 4-character hint, no read path or audit row exposes it, the fallback resolves to the participant's own key, a rotated secret degrades safely, a reviewed compatible endpoint normalizes and resolves to chat-completions, private, plaintext, and custom base URLs are refused, and deletion is immediate.",
     );
   } finally {
     if (originalSecret === undefined) delete process.env.MODEL_KEY_SECRET;

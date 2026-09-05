@@ -6,7 +6,14 @@ import {
   hasDemoAccess,
 } from "@/lib/demo-access";
 
-const UNLOCKED_API_PATHS = ["/api/access", "/api/cron/fallbacks"];
+// Health and the Stripe webhook are machine endpoints: an uptime check and
+// Stripe cannot type a demo password.
+const UNLOCKED_API_PATHS = [
+  "/api/access",
+  "/api/cron/fallbacks",
+  "/api/health",
+  "/api/billing/webhook",
+];
 
 export function proxy(request: NextRequest) {
   if (!demoAccessIsConfigured() || hasDemoAccess(request)) {

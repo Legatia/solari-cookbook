@@ -139,12 +139,8 @@ describe("model key errors", () => {
   });
 });
 
-const publicResolver = async () => [{ address: "203.0.113.10" }];
-
 describe("openai-compatible providers", () => {
-  it("refuses a public hostname that resolves to a private address", async () => {
-    // The string check alone is not enough: a public-looking name can answer
-    // with 169.254.169.254, and the participant's key would travel there.
+  it("refuses an unreviewed endpoint before a credential-bearing fetch", async () => {
     const fetchImpl = vi.fn();
     await expect(
       verifyModelKey({
@@ -153,26 +149,21 @@ describe("openai-compatible providers", () => {
         baseUrl: "https://metadata.evil.example",
         model: "some-model",
         fetchImpl: fetchImpl as never,
-        resolver: async () => [{ address: "169.254.169.254" }],
       }),
-    ).rejects.toThrow(/private address/);
+    ).rejects.toThrow(/reviewed provider endpoints/);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("refuses a host with one private address among several", async () => {
+  it("refuses query-bearing variants of an otherwise reviewed endpoint", async () => {
     await expect(
       verifyModelKey({
         provider: "openai_compatible",
         apiKey: "sk-test-key-value",
-        baseUrl: "https://split.example",
-        model: "some-model",
+        baseUrl: "https://api.deepseek.com/v1?redirect=elsewhere",
+        model: "deepseek-chat",
         fetchImpl: vi.fn() as never,
-        resolver: async () => [
-          { address: "203.0.113.10" },
-          { address: "10.0.0.5" },
-        ],
       }),
-    ).rejects.toThrow(/private address/);
+    ).rejects.toThrow(/reviewed provider endpoints/);
   });
 
   it("refuses to follow a redirect, since the key travels with the request", async () => {
@@ -181,10 +172,9 @@ describe("openai-compatible providers", () => {
       verifyModelKey({
         provider: "openai_compatible",
         apiKey: "sk-test-key-value",
-        baseUrl: "https://api.example.com",
-        model: "some-model",
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
         fetchImpl: fetchImpl as never,
-        resolver: publicResolver,
       }),
     ).rejects.toThrow(/redirect/);
     const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
@@ -203,7 +193,6 @@ describe("openai-compatible providers", () => {
       baseUrl: "https://api.deepseek.com/v1",
       model: "deepseek-chat",
       fetchImpl: fetchImpl as never,
-      resolver: publicResolver,
     });
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.deepseek.com/v1/chat/completions");
@@ -217,10 +206,9 @@ describe("openai-compatible providers", () => {
       verifyModelKey({
         provider: "openai_compatible",
         apiKey: "sk-test-key-value",
-        baseUrl: "https://api.example.com",
-        model: "some-model",
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-chat",
         fetchImpl: fetchImpl as never,
-        resolver: publicResolver,
       }),
     ).rejects.toThrow(/base URL/);
   });
@@ -291,12 +279,10 @@ describe("openai-compatible providers", () => {
     ).rejects.toThrow(/refused/);
   });
 
-  it("ships presets that all end in a versioned path, plus a custom escape", () => {
-    const custom = COMPATIBLE_PRESETS.find((preset) => preset.id === "custom");
-    expect(custom?.baseUrl).toBe("");
+  it("ships only reviewed HTTPS presets", () => {
     for (const preset of COMPATIBLE_PRESETS) {
-      if (preset.id === "custom") continue;
       expect(preset.baseUrl.startsWith("https://")).toBe(true);
     }
+    expect(COMPATIBLE_PRESETS.map((preset) => preset.id)).not.toContain("custom");
   });
 });
