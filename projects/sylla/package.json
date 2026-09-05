@@ -30,7 +30,9 @@
     "verify:phase-one": "tsx scripts/verify-phase-one.ts",
     "verify:internal-model": "tsx scripts/verify-internal-model.ts",
     "verify:mcp-live": "tsx scripts/verify-live-oauth-mcp.ts",
-    "invite:create": "tsx scripts/create-event-invite.ts"
+    "invite:create": "tsx scripts/create-event-invite.ts",
+    "circle:status": "tsx scripts/circle-status.ts",
+    "verify:circle": "tsx scripts/verify-circle.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

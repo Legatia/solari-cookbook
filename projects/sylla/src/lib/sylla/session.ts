@@ -32,6 +32,16 @@ function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** One new browser-session credential, ready for an atomic persistence path. */
+export function newUserSessionCredential() {
+  const token = randomBytes(32).toString("base64url");
+  return {
+    token,
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1_000),
+  };
+}
+
 function validToken(value: string | undefined) {
   return value && /^[A-Za-z0-9_-]{32,}$/.test(value) ? value : undefined;
 }
@@ -152,14 +162,14 @@ export async function createUserSession(userId: string) {
     throw new Error("This passkey is not linked to an active Sylla agent.");
   }
 
-  const token = randomBytes(32).toString("base64url");
+  const credential = newUserSessionCredential();
   await database.insert(userSessions).values({
     userId,
     participantId: participant.id,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1_000),
+    tokenHash: credential.tokenHash,
+    expiresAt: credential.expiresAt,
   });
-  return { participant, token };
+  return { participant, token: credential.token };
 }
 
 export type UserSessionView = {

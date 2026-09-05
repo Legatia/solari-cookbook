@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, lt } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
-import { cronRuns } from "@/db/schema";
+import { authRateLimits, cronRuns } from "@/db/schema";
 
 /**
  * Scheduler monitoring.
@@ -17,13 +17,47 @@ import { cronRuns } from "@/db/schema";
  */
 
 /** Daily cron on Vercel Hobby, so anything past a day and a half is late. */
-const STALE_AFTER_MS = 36 * 60 * 60 * 1_000;
+const MISSED_RUN_AFTER_MS = 36 * 60 * 60 * 1_000;
+/** The route has a 60-second ceiling; ten minutes is ample failure grace. */
+const UNFINISHED_RUN_AFTER_MS = 10 * 60 * 1_000;
+const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1_000;
+const CRON_HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+
+export function cronRunIsStale(
+  run: { startedAt: Date; finishedAt: Date | null },
+  now = Date.now(),
+) {
+  const reference = run.finishedAt ?? run.startedAt;
+  const threshold = run.finishedAt
+    ? MISSED_RUN_AFTER_MS
+    : UNFINISHED_RUN_AFTER_MS;
+  return now - reference.getTime() > threshold;
+}
 
 export async function beginCronRun(job: string) {
-  const [row] = await getDatabase()
-    .insert(cronRuns)
-    .values({ job })
-    .returning({ id: cronRuns.id });
+  const now = Date.now();
+  const [, , rows] = await getDatabase().batch([
+    // These tables are fed by unauthenticated callers and recurring work. A
+    // daily bounded cleanup prevents either one growing without limit.
+    getDatabase()
+      .delete(authRateLimits)
+      .where(
+        lt(
+          authRateLimits.windowStartedAt,
+          new Date(now - RATE_LIMIT_RETENTION_MS),
+        ),
+      ),
+    getDatabase()
+      .delete(cronRuns)
+      .where(
+        lt(cronRuns.startedAt, new Date(now - CRON_HISTORY_RETENTION_MS)),
+      ),
+    getDatabase()
+      .insert(cronRuns)
+      .values({ job })
+      .returning({ id: cronRuns.id }),
+  ]);
+  const [row] = rows;
   return row.id;
 }
 
@@ -61,6 +95,23 @@ export type CronHealth = {
   neverRun: boolean;
 };
 
+/** Safe shape for the unauthenticated uptime endpoint. */
+export function publicCronHealth(health: CronHealth) {
+  return {
+    healthy:
+      health.configured && !health.stale && health.lastOk !== false,
+    sweep: {
+      job: health.job,
+      configured: health.configured,
+      lastRunAt: health.lastRunAt,
+      lastFinishedAt: health.lastFinishedAt,
+      lastOk: health.lastOk,
+      stale: health.stale,
+      neverRun: health.neverRun,
+    },
+  };
+}
+
 /**
  * Health for one job, shaped so an uptime check can read a single boolean.
  *
@@ -90,7 +141,6 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
     };
   }
 
-  const reference = last.finishedAt ?? last.startedAt;
   return {
     job,
     configured,
@@ -98,7 +148,7 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
     lastFinishedAt: last.finishedAt?.toISOString() ?? null,
     lastOk: last.finishedAt ? last.ok : null,
     lastDetail: last.detail,
-    stale: Date.now() - reference.getTime() > STALE_AFTER_MS,
+    stale: cronRunIsStale(last),
     neverRun: false,
   };
 }

@@ -14,6 +14,18 @@ import {
   resolveParticipant,
 } from "@/lib/sylla/session";
 
+export function recoveryRateLimitIdentity(request: Pick<Request, "headers">) {
+  // Proxies append comma-separated hops. Bound the value before hashing so a
+  // caller cannot turn one small request into unbounded allocation work.
+  const forwarded = request.headers
+    .get("x-forwarded-for")
+    ?.split(",")[0]
+    ?.trim()
+    .slice(0, 128);
+  const agent = request.headers.get("user-agent")?.trim().slice(0, 256);
+  return forwarded || agent || "anonymous";
+}
+
 /** How many codes are left. Never the codes themselves. */
 export async function GET(request: NextRequest) {
   try {
@@ -55,10 +67,7 @@ export async function PUT(request: NextRequest) {
     // The only unauthenticated way into an account, so it is metered. A code is
     // 12 Crockford base32 characters, which is far past guessing range, but the
     // limit also caps what a stolen partial list is worth.
-    const caller =
-      request.headers.get("x-forwarded-for") ??
-      request.headers.get("user-agent") ??
-      "anonymous";
+    const caller = recoveryRateLimitIdentity(request);
     await consumeRateLimit(
       `recovery:redeem:${caller}`,
       10,

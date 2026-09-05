@@ -222,7 +222,13 @@ Run `pnpm verify:portability` to create one canonical agent across two event rec
 
 Run `SYLLA_DEMO_PASSWORD=… pnpm verify:mcp-live https://serendipity-kappa.vercel.app` to exercise production OAuth, the 45-tool MCP surface, conversation briefing and tuning, conversational setup, approved memory, the durable mission lifecycle, connection visibility, and revocation. Add `SYLLA_VERIFY_LIVE_RESEARCH=true` for one mission-routed Browser source, `SYLLA_VERIFY_LIVE_SANDBOX_MISSION=true` for one mission-routed disposable repository check, or `SYLLA_VERIFY_LIVE_DESKTOP_MISSION=true` for one live Desktop allocation. Those optional modes consume real Solari resources when allocation succeeds.
 
-Create an event invitation locally with `pnpm invite:create <event-slug> "Event name" [max-uses] [hours-valid]`. The command prints the only copy of the bearer invitation URL; store and distribute it accordingly.
+Create an invitation with `pnpm invite:create <event-slug> "Circle name" [max-uses] [hours-valid]`. It prints the only copy of two forms of the same invitation: a bearer URL to paste into a chat, and a twelve-character code to read down a phone. They share one seat count, so handing out both cannot enlarge the circle. Store and distribute them accordingly.
+
+Opening the link shows what is being joined — the circle's name, seats left, when it closes — and spends nothing. A seat is taken only when the invited person presses the button, because every messenger that renders a link preview fetches the URL first, and a redemption on `GET` would let a group chat burn seats and create agents before a human ever clicked. Redeeming also lifts the demo password gate for that browser: the invitation expires, is capped, is revocable, and names one circle, so it is already the stronger of the two credentials and a friend should not need a second shared secret to use the one they were given.
+
+Codes tolerate how people actually read them back — case, spacing, and the letters Crockford base32 leaves out, so `OIL0` and `0110` are the same code.
+
+`pnpm circle:status <event-slug>` shows seats spent, seats left, and who is actually present. Those are different numbers: someone can open an invitation and never finish consent.
 
 
 ## Verification scripts

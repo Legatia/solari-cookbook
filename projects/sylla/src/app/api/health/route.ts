@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { cronHealth } from "@/lib/sylla/cron-health";
+import { cronHealth, publicCronHealth } from "@/lib/sylla/cron-health";
 import { stripeIsConfigured } from "@/lib/sylla/stripe";
 
 /**
@@ -15,13 +15,18 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const sweep = await cronHealth("fallback-sweep");
-  const healthy = sweep.configured && !sweep.stale;
+  // This route is public. The helper intentionally omits stored provider
+  // errors and other diagnostic detail.
+  const publicSweep = publicCronHealth(sweep);
+  const payload = {
+    ...publicSweep,
+    payments: { configured: stripeIsConfigured() },
+  };
   return NextResponse.json(
+    payload,
     {
-      healthy,
-      sweep,
-      payments: { configured: stripeIsConfigured() },
+      status: payload.healthy ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
     },
-    { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

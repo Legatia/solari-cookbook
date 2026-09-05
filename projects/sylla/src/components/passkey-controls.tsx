@@ -81,6 +81,7 @@ export function PasskeyLoginButton() {
 export function PasskeyAccountPanel() {
   const router = useRouter();
   const [status, setStatus] = useState<PasskeyStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +104,9 @@ export function PasskeyAccountPanel() {
             caught instanceof Error ? caught.message : "Account status failed.",
           );
         }
+      })
+      .finally(() => {
+        if (active) setStatusLoaded(true);
       });
     return () => {
       active = false;
@@ -170,11 +174,13 @@ export function PasskeyAccountPanel() {
           <ShieldCheck className="size-4 text-lime-200/70" />
           <div>
             <p className="text-xs text-stone-300">
-              {status?.enrolled
+              {!statusLoaded
+                ? "Checking account security…"
+                : status?.enrolled
                 ? `${status.count} passkey${status.count === 1 ? "" : "s"} connected`
                 : status
                   ? "No recovery passkey yet"
-                  : "Checking account security…"}
+                  : "Passkey status is unavailable"}
             </p>
             <p className="mt-1 text-[10px] text-stone-600">
               {status?.credentials[0]?.lastUsedAt
@@ -189,7 +195,7 @@ export function PasskeyAccountPanel() {
         <Button
           type="button"
           onClick={() => void enroll()}
-          disabled={busy}
+          disabled={busy || !statusLoaded}
           className="rounded-full bg-lime-200 text-xs text-stone-950"
         >
           {busy ? <LoaderCircle className="animate-spin" /> : <Fingerprint />}

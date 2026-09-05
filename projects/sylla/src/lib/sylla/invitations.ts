@@ -19,6 +19,45 @@ function validToken(token: string) {
   return /^[A-Za-z0-9_-]{32,}$/.test(token);
 }
 
+/** Crockford base32: no I, L, O, or U, so a code read aloud survives being written down. */
+const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const CODE_GROUPS = 3;
+const CODE_GROUP_LENGTH = 4;
+
+function generateCode() {
+  return Array.from({ length: CODE_GROUPS }, () =>
+    Array.from(
+      { length: CODE_GROUP_LENGTH },
+      () => CODE_ALPHABET[randomBytes(1)[0] % CODE_ALPHABET.length],
+    ).join(""),
+  ).join("-");
+}
+
+/** Accepts the characters Crockford drops, so a human misreading still resolves. */
+export function normalizeInvitationCode(raw: string) {
+  return raw
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .replace(/O/g, "0")
+    .replace(/[IL]/g, "1")
+    .replace(/U/g, "V");
+}
+
+function validCode(code: string) {
+  return normalizeInvitationCode(code).length === CODE_GROUPS * CODE_GROUP_LENGTH;
+}
+
+/**
+ * One invitation, two ways to present it.
+ *
+ * A link is what you paste into a chat; a code is what you say out loud. They
+ * are the same invitation and draw on the same seat count, so a circle cannot
+ * be quietly enlarged by handing out the other form.
+ */
+function credentialClause(credential: string) {
+  return sql`(invitation.token_hash = ${hashToken(credential)} or invitation.code_hash = ${hashToken(normalizeInvitationCode(credential))})`;
+}
+
 export class InvitationUnavailableError extends Error {}
 
 export async function createEventInvitation(input: {
@@ -44,11 +83,13 @@ export async function createEventInvitation(input: {
     throw new InvitationUnavailableError("Invitation expiry must be in the future.");
   }
   const token = randomBytes(32).toString("base64url");
+  const code = generateCode();
   const [invitation] = await database
     .insert(eventInvitations)
     .values({
       eventId: event.id,
       tokenHash: hashToken(token),
+      codeHash: hashToken(normalizeInvitationCode(code)),
       label: input.label?.trim().slice(0, 120),
       maxUses,
       expiresAt: input.expiresAt,
@@ -66,14 +107,68 @@ export async function createEventInvitation(input: {
   return {
     invitationId: invitation.id,
     token,
+    code,
     url: new URL(`/join/${token}`, baseUrl).toString(),
     maxUses,
     expiresAt: invitation.expiresAt?.toISOString() ?? null,
   };
 }
 
+export type InvitationPreview = {
+  eventName: string;
+  label: string | null;
+  seatsRemaining: number;
+  expiresAt: string | null;
+};
+
+/**
+ * Read an invitation without spending it.
+ *
+ * The join link is shared in group chats, and every messenger that renders a
+ * preview fetches the URL first. When redeeming was a plain GET, each of those
+ * silently burned a seat and created an agent nobody asked for. Looking and
+ * accepting are now different actions.
+ */
+export async function previewInvitation(
+  credential: string,
+): Promise<InvitationPreview> {
+  if (!validToken(credential) && !validCode(credential)) {
+    throw new InvitationUnavailableError("Invitation is invalid.");
+  }
+  const found = await getDatabase().execute<{
+    label: string | null;
+    max_uses: number;
+    use_count: number;
+    expires_at: Date | null;
+    event_name: string;
+  }>(sql`
+    select invitation.label, invitation.max_uses, invitation.use_count,
+           invitation.expires_at, events.name as event_name
+    from event_invitations as invitation
+    join events on events.id = invitation.event_id
+    where ${credentialClause(credential)}
+      and invitation.revoked_at is null
+      and (invitation.expires_at is null or invitation.expires_at > now())
+      and invitation.use_count < invitation.max_uses
+      and events.status = 'open'
+    limit 1
+  `);
+  const row = found.rows[0];
+  if (!row) {
+    throw new InvitationUnavailableError(
+      "This invitation is expired, revoked, full, or the circle is closed.",
+    );
+  }
+  return {
+    eventName: row.event_name,
+    label: row.label,
+    seatsRemaining: row.max_uses - row.use_count,
+    expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+  };
+}
+
 export async function redeemEventInvitation(token: string) {
-  if (!validToken(token)) {
+  if (!validToken(token) && !validCode(token)) {
     throw new InvitationUnavailableError("Invitation is invalid.");
   }
   const database = getDatabase();
@@ -83,7 +178,7 @@ export async function redeemEventInvitation(token: string) {
   }>(sql`
     update event_invitations as invitation
     set use_count = use_count + 1
-    where token_hash = ${hashToken(token)}
+    where ${credentialClause(token)}
       and revoked_at is null
       and (expires_at is null or expires_at > now())
       and use_count < max_uses
@@ -92,7 +187,7 @@ export async function redeemEventInvitation(token: string) {
         where events.id = invitation.event_id
           and events.status = 'open'
       )
-    returning id as invitation_id, event_id
+    returning invitation.id as invitation_id, invitation.event_id
   `);
   const invitation = claimed.rows[0];
   if (!invitation) {

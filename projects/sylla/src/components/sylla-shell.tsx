@@ -1794,6 +1794,7 @@ type CompatiblePreset = {
  */
 function ModelAccessPanel() {
   const [stored, setStored] = useState<ModelKeyState>(null);
+  const [loaded, setLoaded] = useState(false);
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [presets, setPresets] = useState<CompatiblePreset[]>([]);
   const [provider, setProvider] = useState<ModelProviderId>("anthropic");
@@ -1821,12 +1822,14 @@ function ModelAccessPanel() {
           setStored(payload.modelKey ?? null);
           setProviders(payload.providers ?? []);
           setPresets(payload.compatiblePresets ?? []);
+          setError(null);
         })
         .catch((caught: unknown) => {
           setError(
             caught instanceof Error ? caught.message : "Could not load model access.",
           );
-        }),
+        })
+        .finally(() => setLoaded(true)),
     [],
   );
 
@@ -1838,14 +1841,28 @@ function ModelAccessPanel() {
           modelKey?: ModelKeyState;
           providers?: ProviderOption[];
           compatiblePresets?: CompatiblePreset[];
+          error?: string;
         };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Could not load model access.");
+        }
         if (active) {
           setStored(payload.modelKey ?? null);
           setProviders(payload.providers ?? []);
           setPresets(payload.compatiblePresets ?? []);
+          setError(null);
         }
       })
-      .catch(() => undefined);
+      .catch((caught: unknown) => {
+        if (active) {
+          setError(
+            caught instanceof Error ? caught.message : "Could not load model access.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
     return () => {
       active = false;
     };
@@ -1885,9 +1902,15 @@ function ModelAccessPanel() {
     setError(null);
     setMessage(null);
     try {
-      await fetch("/api/auth/model-key", { method: "DELETE" });
+      const response = await fetch("/api/auth/model-key", { method: "DELETE" });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not remove that key.");
+      }
       setMessage("Removed. Background work falls back to a deterministic summary.");
       await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not remove that key.");
     } finally {
       setBusy(false);
     }
@@ -1905,7 +1928,9 @@ function ModelAccessPanel() {
         for work you already approved.
       </p>
 
-      {stored ? (
+      {!loaded ? (
+        <p className="mt-4 text-xs text-stone-600">Loading model access…</p>
+      ) : stored ? (
         <div className="mt-4 rounded-xl border border-lime-200/20 bg-lime-200/[0.04] p-4">
           <p className="text-xs text-stone-300">
             {stored.providerLabel} · {stored.model}

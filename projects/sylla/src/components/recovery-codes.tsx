@@ -17,6 +17,7 @@ type RecoveryStatus = { issued: number; remaining: number };
  */
 export function RecoveryCodesPanel() {
   const [status, setStatus] = useState<RecoveryStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -32,13 +33,27 @@ export function RecoveryCodesPanel() {
         };
         if (!response.ok) throw new Error(payload.error ?? "Could not read status.");
         setStatus(payload.recovery ?? null);
-      } catch {
-        setStatus(null);
+      } catch (caught) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Could not read recovery-code status.",
+        );
+      } finally {
+        setStatusLoaded(true);
       }
     })();
   }, []);
 
   async function issue() {
+    if (
+      hasCodes &&
+      !window.confirm(
+        "Replace your recovery codes? Every code in the current set will stop working immediately.",
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setError(null);
     setCopied(false);
@@ -87,11 +102,15 @@ export function RecoveryCodesPanel() {
 
       <div className="mt-7 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
         <p className="text-xs text-stone-300">
-          {status
+          {!statusLoaded
+            ? "Checking recovery codes…"
+            : status
             ? hasCodes
               ? `${status.remaining} of ${status.issued} codes unused`
-              : "No recovery codes yet"
-            : "Checking recovery codes…"}
+              : status.issued > 0
+                ? "All recovery codes have been used"
+                : "No recovery codes yet"
+            : "Recovery-code status is unavailable"}
         </p>
         <p className="mt-1 text-[10px] text-stone-600">
           Each code works once. Generating a new set cancels the old one.
@@ -128,7 +147,7 @@ export function RecoveryCodesPanel() {
         <Button
           type="button"
           onClick={() => void issue()}
-          disabled={busy}
+          disabled={busy || !statusLoaded}
           className="rounded-full bg-lime-200 text-xs text-stone-950"
         >
           {busy ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}

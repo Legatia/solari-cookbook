@@ -69,9 +69,8 @@ export const sourceKind = pgEnum("source_kind", ["url", "import"]);
 export const modelProvider = pgEnum("model_provider", [
   "anthropic",
   "openai",
-  // Anything speaking the OpenAI /chat/completions dialect at a base URL the
-  // participant supplies: DeepSeek, Qwen, Moonshot, GLM, a gateway, or a
-  // self-hosted server.
+  // A reviewed preset speaking the OpenAI /chat/completions dialect. Arbitrary
+  // participant-supplied base URLs are rejected at the service boundary.
   "openai_compatible",
 ]);
 
@@ -198,7 +197,7 @@ export const participantModelKeys = pgTable(
       .references(() => syllaUsers.id, { onDelete: "cascade" }),
     provider: modelProvider("provider").notNull(),
     model: text("model").notNull(),
-    /** Only for openai_compatible. Validated as a public HTTPS origin. */
+    /** Only for openai_compatible. Must exactly match a reviewed preset. */
     baseUrl: text("base_url"),
     ciphertext: text("ciphertext").notNull(),
     iv: text("iv").notNull(),
@@ -635,6 +634,9 @@ export const eventInvitations = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
+    // A short spoken form of the same invitation, for handing over in person
+    // or reading down a phone. Nullable so invitations predating it still work.
+    codeHash: text("code_hash"),
     label: text("label"),
     maxUses: integer("max_uses").default(1).notNull(),
     useCount: integer("use_count").default(0).notNull(),
@@ -647,6 +649,7 @@ export const eventInvitations = pgTable(
   (table) => [
     index("event_invitations_event_idx").on(table.eventId),
     uniqueIndex("event_invitations_token_unique").on(table.tokenHash),
+    uniqueIndex("event_invitations_code_unique").on(table.codeHash),
   ],
 );
 
