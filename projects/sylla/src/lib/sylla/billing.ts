@@ -25,10 +25,55 @@ export const OPERATION_CREDITS = {
 } as const;
 
 /**
- * What a participant can buy.
+ * The standing tiers.
  *
- * One-off credit packs rather than a subscription: an agent's cost is the work
- * it does, and nobody should pay for a month in which they asked for nothing.
+ * Split along Sylla's actual cost structure rather than by volume. The society
+ * — the agent, its memory, boundaries, invitations, introductions — is rows in
+ * Postgres and costs almost nothing per person, so it is free forever and is
+ * never withheld for non-payment. Solari compute has a real unit cost, so that
+ * is what a subscription buys.
+ *
+ * This is also the only pricing that fits the problem: a coordination network
+ * is worth what its density is worth, and a paywall at the door is the most
+ * effective way to prevent density.
+ */
+export const TIERS = {
+  resident: {
+    name: "Resident",
+    priceInCents: 0,
+    monthlyCredits: 0,
+    blurb: "Your agent, your memory, your boundaries, and the people. Always free.",
+  },
+  working: {
+    name: "Working",
+    priceInCents: 1_200,
+    monthlyCredits: 2_000,
+    blurb: "Research, workspaces, and work that finishes after you close the chat.",
+  },
+  deep: {
+    name: "Deep",
+    priceInCents: 4_000,
+    monthlyCredits: 10_000,
+    blurb: "For an agent that is working most days.",
+  },
+} as const;
+
+export type TierKey = keyof typeof TIERS;
+
+export function isTierKey(value: unknown): value is TierKey {
+  return typeof value === "string" && value in TIERS;
+}
+
+export function isPaidTier(value: unknown): value is Exclude<TierKey, "resident"> {
+  return isTierKey(value) && value !== "resident";
+}
+
+/**
+ * One-off credit packs, kept alongside the tiers.
+ *
+ * Someone with a burst of work should not have to take on a monthly
+ * commitment, and a subscriber who runs dry mid-week should be able to top up
+ * without changing tier.
  */
 export const PLANS = {
   starter: { name: "Sylla starter", credits: 2_000, priceInCents: 1_200 },
@@ -45,11 +90,17 @@ export type BillableOperation = keyof typeof OPERATION_CREDITS;
 
 export type BillingSummary = {
   planKey: string;
+  tierKey: TierKey;
+  tierName: string;
   status: "trialing" | "active" | "inactive" | "exhausted" | "canceled";
   creditLimit: number;
   creditsUsed: number;
   creditsReserved: number;
   creditsAvailable: number;
+  /** Always true. Stated explicitly so no surface has to infer it. */
+  societyIncluded: true;
+  monthlyCredits: number;
+  renewsAt: string | null;
 };
 
 export type UsageReservation = {
@@ -59,12 +110,22 @@ export type UsageReservation = {
   alreadyProcessed: boolean;
 };
 
+/**
+ * Not enough credits for one piece of compute.
+ *
+ * Worded carefully, because this is the only moment money is ever mentioned to
+ * someone using Sylla, and it must not read as an account being cut off. Only
+ * the Solari machine is unavailable: the agent, its memory, the boundaries and
+ * everyone the participant knows here are unaffected and always will be.
+ */
 export class EntitlementRequiredError extends Error {
   constructor(
     readonly summary: BillingSummary,
     readonly checkoutUrl: string,
   ) {
-    super("This operation needs additional Sylla work credits.");
+    super(
+      "This particular job needs work credits. Everything else — your agent, what it remembers, your boundaries, and the people here — keeps working as it is.",
+    );
   }
 }
 
@@ -87,8 +148,13 @@ function summary(row: typeof entitlements.$inferSelect): BillingSummary {
     0,
     row.creditLimit - row.creditsUsed - row.creditsReserved,
   );
+  const tierKey = (isTierKey(row.tierKey) ? row.tierKey : "resident") as TierKey;
   return {
     planKey: row.planKey,
+    tierKey,
+    tierName: TIERS[tierKey].name,
+    // "exhausted" describes the credit balance, never the account. Someone at
+    // zero still has their agent, their memory, and everyone they know here.
     status:
       creditsAvailable === 0 &&
       (row.status === "trialing" || row.status === "active")
@@ -98,7 +164,107 @@ function summary(row: typeof entitlements.$inferSelect): BillingSummary {
     creditsUsed: row.creditsUsed,
     creditsReserved: row.creditsReserved,
     creditsAvailable,
+    societyIncluded: true,
+    monthlyCredits: TIERS[tierKey].monthlyCredits,
+    renewsAt: row.periodEndsAt?.toISOString() ?? null,
   };
+}
+
+/**
+ * Credit a paid period.
+ *
+ * Added to whatever is left rather than replacing it. Expiring the remainder
+ * each month would recreate exactly the "I paid for a month I did not use"
+ * resentment that packs were chosen to avoid, and it costs Sylla nothing to
+ * carry it: an unspent credit is compute that was never bought.
+ */
+export async function grantSubscriptionPeriod(input: {
+  userId: string;
+  tierKey: TierKey;
+  providerSubscriptionId?: string | null;
+  periodEndsAt?: Date | null;
+}) {
+  const database = getDatabase();
+  const credits = TIERS[input.tierKey].monthlyCredits;
+  const [existing] = await database
+    .select()
+    .from(entitlements)
+    .where(eq(entitlements.userId, input.userId))
+    .limit(1);
+
+  if (existing) {
+    await database
+      .update(entitlements)
+      .set({
+        status: "active",
+        tierKey: input.tierKey,
+        creditLimit: existing.creditLimit + credits,
+        providerSubscriptionId:
+          input.providerSubscriptionId ?? existing.providerSubscriptionId,
+        periodStartedAt: new Date(),
+        periodEndsAt: input.periodEndsAt ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(entitlements.id, existing.id));
+  } else {
+    await database.insert(entitlements).values({
+      userId: input.userId,
+      status: "active",
+      tierKey: input.tierKey,
+      planKey: input.tierKey,
+      creditLimit: credits,
+      providerSubscriptionId: input.providerSubscriptionId ?? null,
+      periodEndsAt: input.periodEndsAt ?? null,
+    });
+  }
+  return credits;
+}
+
+/** Link a subscription to its entitlement without granting anything. */
+export async function attachSubscription(input: {
+  userId: string;
+  tierKey: TierKey;
+  providerSubscriptionId: string;
+}) {
+  await getDatabase()
+    .update(entitlements)
+    .set({
+      tierKey: input.tierKey,
+      providerSubscriptionId: input.providerSubscriptionId,
+      updatedAt: new Date(),
+    })
+    .where(eq(entitlements.userId, input.userId));
+}
+
+/**
+ * A subscription ended.
+ *
+ * The tier drops to Resident and nothing else is taken away. Credits already
+ * paid for stay: they were bought, not rented. The society was never
+ * conditional on payment in the first place.
+ */
+export async function endSubscription(providerSubscriptionId: string) {
+  const [ended] = await getDatabase()
+    .update(entitlements)
+    .set({
+      tierKey: "resident",
+      providerSubscriptionId: null,
+      periodEndsAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(entitlements.providerSubscriptionId, providerSubscriptionId))
+    .returning({ userId: entitlements.userId });
+  return ended?.userId ?? null;
+}
+
+/** Find whose entitlement a renewal belongs to. */
+export async function userForSubscription(providerSubscriptionId: string) {
+  const [row] = await getDatabase()
+    .select({ userId: entitlements.userId, tierKey: entitlements.tierKey })
+    .from(entitlements)
+    .where(eq(entitlements.providerSubscriptionId, providerSubscriptionId))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function getBillingSummary(

@@ -96,11 +96,16 @@ const leaseToken = "lease-token-that-is-long-enough-for-validation";
 const idempotencyKey = "test-operation-0001";
 const billing = {
   planKey: "starter-trial",
+  tierKey: "resident" as const,
+  tierName: "Resident",
   status: "trialing" as const,
   creditLimit: 500,
   creditsUsed: 100,
   creditsReserved: 0,
   creditsAvailable: 400,
+  societyIncluded: true as const,
+  monthlyCredits: 0,
+  renewsAt: null,
 };
 const agentRun: AgentRunView = {
   id: "a4a0b4f0-8d08-45e2-a6dc-9a7323caa67d",

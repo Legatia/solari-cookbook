@@ -391,6 +391,15 @@ export const entitlements = pgTable(
       .notNull()
       .references(() => syllaUsers.id, { onDelete: "cascade" }),
     planKey: text("plan_key").default("starter-trial").notNull(),
+    /**
+     * The standing tier. "resident" is the free floor everyone keeps forever:
+     * the agent, memory, boundaries, invitations and introductions cost Sylla
+     * almost nothing to run, so they are never withheld for non-payment. Paid
+     * tiers buy Solari compute, which is the only thing with a real unit cost.
+     */
+    tierKey: text("tier_key").default("resident").notNull(),
+    /** The provider's subscription, so a renewal can find this row again. */
+    providerSubscriptionId: text("provider_subscription_id"),
     status: entitlementStatus("status").default("trialing").notNull(),
     creditLimit: integer("credit_limit").default(500).notNull(),
     creditsUsed: integer("credits_used").default(0).notNull(),
@@ -406,7 +415,12 @@ export const entitlements = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [uniqueIndex("entitlements_user_unique").on(table.userId)],
+  (table) => [
+    uniqueIndex("entitlements_user_unique").on(table.userId),
+    // A renewal must land on exactly one entitlement, so two rows can never
+    // claim the same subscription.
+    uniqueIndex("entitlements_subscription_unique").on(table.providerSubscriptionId),
+  ],
 );
 
 export const usageLedger = pgTable(

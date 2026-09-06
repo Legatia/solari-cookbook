@@ -5,7 +5,7 @@ import Stripe from "stripe";
 
 import { getDatabase } from "@/db";
 import { syllaUsers } from "@/db/schema";
-import { PLANS, type PlanKey } from "@/lib/sylla/billing";
+import { PLANS, type PlanKey, TIERS, type TierKey } from "@/lib/sylla/billing";
 
 /**
  * Payment, kept outside the conversation.
@@ -66,6 +66,48 @@ export async function createHostedCheckout(input: {
           product_data: {
             name: plan.name,
             description: `${plan.credits.toLocaleString()} work credits for your Sylla agent.`,
+          },
+        },
+      },
+    ],
+    success_url: `${appBaseUrl()}/checkout/${input.checkoutToken}?paid=1`,
+    cancel_url: `${appBaseUrl()}/checkout/${input.checkoutToken}?cancelled=1`,
+  });
+  if (!session.url) throw new Error("Stripe returned a checkout without a URL.");
+  return { url: session.url, sessionId: session.id };
+}
+
+/**
+ * Start a recurring tier.
+ *
+ * The user id and tier ride on the subscription itself, not only on the
+ * checkout session, so a renewal invoice months later is self-describing and
+ * does not depend on a row written by a different webhook arriving first.
+ */
+export async function createSubscriptionCheckout(input: {
+  checkoutToken: string;
+  tierKey: Exclude<TierKey, "resident">;
+  userId: string;
+}) {
+  const tier = TIERS[input.tierKey];
+  const stripe = stripeClient();
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    client_reference_id: input.checkoutToken,
+    metadata: { syllaUserId: input.userId, tierKey: input.tierKey },
+    subscription_data: {
+      metadata: { syllaUserId: input.userId, tierKey: input.tierKey },
+    },
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: tier.priceInCents,
+          recurring: { interval: "month" },
+          product_data: {
+            name: `Sylla ${tier.name}`,
+            description: `${tier.monthlyCredits.toLocaleString()} work credits a month, carried over if unused.`,
           },
         },
       },
