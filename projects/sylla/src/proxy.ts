@@ -16,6 +16,10 @@ const UNLOCKED_API_PATHS = [
   "/api/health",
   "/api/billing/webhook",
   "/api/join",
+  // Opened from a mail client, which cannot type a demo password. Both carry
+  // their own single-purpose token.
+  "/api/notifications/verify",
+  "/api/notifications/unsubscribe",
 ];
 
 export function proxy(request: NextRequest) {

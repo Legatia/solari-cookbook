@@ -1230,6 +1230,43 @@ export const approvedSources = pgTable(
  * never enter matching, and never appear in a disclosure envelope. The
  * participant is the controller of this data and can empty it in one action.
  */
+/**
+ * Where to reach someone, if they asked to be reachable.
+ *
+ * Sylla holds no email address by default — that is why recovery codes exist
+ * instead of a reset link — so this is strictly opt in, one address per account,
+ * and useless until the address has been proved. Proving it is what stops Sylla
+ * being turned into a way to mail a stranger.
+ */
+export const emailContacts = pgTable(
+  "email_contacts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    address: text("address").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verificationTokenHash: text("verification_token_hash"),
+    verificationExpiresAt: timestamp("verification_expires_at", {
+      withTimezone: true,
+    }),
+    /** Lets someone stop this without signing in, which is the point of it. */
+    unsubscribeTokenHash: text("unsubscribe_token_hash").notNull(),
+    notifyWorkFinished: boolean("notify_work_finished").default(true).notNull(),
+    notifyNeedsYou: boolean("notify_needs_you").default(true).notNull(),
+    /** Enforces the quiet period, so a busy agent cannot become a mailing list. */
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("email_contacts_user_unique").on(table.userId)],
+);
+
 export const subjects = pgTable(
   "subjects",
   {
