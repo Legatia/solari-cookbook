@@ -6,6 +6,7 @@
 export const CONTROL_ROOM_VIEWS = [
   "overview",
   "memory",
+  "dossiers",
   "connections",
   "workspace",
   "account",

@@ -520,6 +520,10 @@ function services(
       mostRecentAt: null,
     }),
     setBoundary: vi.fn().mockResolvedValue([]),
+    noteAboutSubject: vi
+      .fn()
+      .mockResolvedValue({ subjectId: "11111111-2222-3333-4444-555555555555", opened: true }),
+    readDossier: vi.fn().mockResolvedValue({ dossiers: [] }),
     releaseBoundary: vi.fn().mockResolvedValue([]),
     createReferralInvitation: vi.fn().mockResolvedValue({
       invitationId: "inv_1",

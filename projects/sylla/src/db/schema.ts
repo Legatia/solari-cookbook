@@ -41,6 +41,9 @@ export const observationStatus = pgEnum("observation_status", [
 
 export const visibility = pgEnum("visibility", ["private", "shareable"]);
 
+/** A dossier is kept on a person or on an organization; nothing else. */
+export const subjectKind = pgEnum("subject_kind", ["person", "organization"]);
+
 export const workspaceStatus = pgEnum("workspace_status", [
   "unprovisioned",
   "starting",
@@ -1196,6 +1199,48 @@ export const approvedSources = pgTable(
   ],
 );
 
+/**
+ * A person or organization the participant's agent keeps a book on.
+ *
+ * Everything else Sylla remembers is about the participant themselves. This is
+ * the first record that is about someone else, which is why it is fenced:
+ * subjects belong to exactly one participant, are never pooled across accounts,
+ * never enter matching, and never appear in a disclosure envelope. The
+ * participant is the controller of this data and can empty it in one action.
+ */
+export const subjects = pgTable(
+  "subjects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    kind: subjectKind("kind").notNull(),
+    name: text("name").notNull(),
+    /** Lowercased name, so the same firm typed twice is one dossier. */
+    normalizedName: text("normalized_name").notNull(),
+    /** How the participant describes the relationship, in their own words. */
+    relationship: text("relationship"),
+    nextAction: text("next_action"),
+    nextActionAt: timestamp("next_action_at", { withTimezone: true }),
+    lastContactAt: timestamp("last_contact_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("subjects_participant_idx").on(table.participantId),
+    uniqueIndex("subjects_participant_name_unique").on(
+      table.participantId,
+      table.normalizedName,
+    ),
+  ],
+);
+
 export const observations = pgTable(
   "observations",
   {
@@ -1209,6 +1254,16 @@ export const observations = pgTable(
     agentRunId: uuid("agent_run_id").references(() => agentRuns.id, {
       onDelete: "set null",
     }),
+    /**
+     * Who the claim is about.
+     *
+     * Null means the participant themselves, which is every claim written
+     * before dossiers existed and every claim Sylla may ever disclose. A claim
+     * with a subject is about a third party and never leaves this account.
+     */
+    subjectId: uuid("subject_id").references(() => subjects.id, {
+      onDelete: "cascade",
+    }),
     claim: text("claim").notNull(),
     evidenceExcerpt: text("evidence_excerpt"),
     origin: observationOrigin("origin").notNull(),
@@ -1221,6 +1276,7 @@ export const observations = pgTable(
   },
   (table) => [
     index("observations_participant_idx").on(table.participantId),
+    index("observations_subject_idx").on(table.subjectId),
     index("observations_agent_run_idx").on(table.agentRunId),
   ],
 );

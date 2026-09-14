@@ -344,6 +344,9 @@ export async function loadSessionState(
         and(
           inArray(observations.participantId, ownedParticipantIds),
           ne(observations.status, "forgotten"),
+          // "What Sylla knows" means what it knows about them. A book kept on
+          // someone else belongs in that dossier, not in their own record.
+          isNull(observations.subjectId),
         ),
       )
       .orderBy(asc(observations.observedAt)),

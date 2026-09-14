@@ -4,6 +4,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useStat
 import {
   ArrowRight,
   ArrowUpRight,
+  BookUser,
   Brain,
   Check,
   CheckCircle2,
@@ -38,6 +39,7 @@ import { isControlRoomView } from "@/lib/sylla/control-room";
 import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { RecoveryCodesPanel } from "@/components/recovery-codes";
+import { DossierBoard } from "@/components/dossier-board";
 import { ReferralPanel } from "@/components/referral-panel";
 import { ShieldPanel } from "@/components/shield-panel";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,7 +50,13 @@ import type {
 } from "@/lib/sylla/contracts";
 import { cn } from "@/lib/utils";
 
-type View = "overview" | "connections" | "workspace" | "memory" | "account";
+type View =
+  | "overview"
+  | "connections"
+  | "workspace"
+  | "memory"
+  | "dossiers"
+  | "account";
 type SourceDraft = { url: string; label: string };
 type ApiResponse = {
   state?: SyllaSessionState;
@@ -75,6 +83,7 @@ class SyllaApiError extends Error {
 const navigation = [
   { id: "overview" as const, label: "Overview", icon: Sparkles },
   { id: "memory" as const, label: "What Sylla knows", icon: Brain },
+  { id: "dossiers" as const, label: "Dossiers", icon: BookUser },
   { id: "connections" as const, label: "Connected AI", icon: Plug },
   { id: "workspace" as const, label: "Agent computer", icon: Monitor },
   { id: "account" as const, label: "Account & privacy", icon: KeyRound },
@@ -2538,6 +2547,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
           {view === "overview" && (
             <ConversationView state={state} onChange={setState} openMemory={() => setView("memory")} openWorkspace={() => setView("workspace")} />
           )}
+          {view === "dossiers" && <DossierBoard />}
           {view === "connections" && <ConnectionsView agentName={state.agentName} />}
           {view === "memory" && (
             <MemoryView state={state} onChange={setState} openWorkspace={() => setView("workspace")} />

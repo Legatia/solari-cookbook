@@ -159,6 +159,11 @@ export async function approveDisclosureEnvelope(input: {
         inArray(observations.id, observationIds),
         inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
         eq(observations.visibility, "shareable"),
+        // Belt and braces: a dossier claim is written private and can never be
+        // made shareable, so this can only ever be redundant. It stays because
+        // the cost of it being wrong once is somebody else's private record
+        // arriving in a stranger's introduction.
+        isNull(observations.subjectId),
       ),
     );
   if (approved.length !== observationIds.length) {
@@ -465,6 +470,7 @@ async function loadParticipantProposalView(
             eq(observations.participantId, otherId),
             inArray(observations.id, otherEnvelope[0].observationIds),
             eq(observations.visibility, "shareable"),
+            isNull(observations.subjectId),
             inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
           ),
         )

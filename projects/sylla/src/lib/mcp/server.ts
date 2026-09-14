@@ -61,6 +61,12 @@ import {
   referralAllowance,
 } from "@/lib/sylla/referrals";
 import {
+  ensureSubject,
+  getDossier,
+  listSubjects,
+  recordSubjectClaim,
+} from "@/lib/sylla/subjects";
+import {
   acquireRuntimeLease,
   heartbeatRuntimeLease,
   releaseRuntimeLease,
@@ -339,6 +345,21 @@ export type SyllaMcpServices = {
   ) => ReturnType<typeof listIntroductionsForParticipant>;
   referralAllowance: (participantId: string) => ReturnType<typeof referralAllowance>;
   reviewShield: (participantId: string) => ReturnType<typeof reviewShield>;
+  noteAboutSubject: (input: {
+    participantId: string;
+    name: string;
+    kind: "person" | "organization";
+    note?: string;
+    relationship?: string;
+    contact?: boolean;
+  }) => Promise<{ subjectId: string; opened: boolean }>;
+  readDossier: (
+    participantId: string,
+    subjectId?: string,
+  ) => Promise<
+    | { dossier: Awaited<ReturnType<typeof getDossier>> }
+    | { dossiers: Awaited<ReturnType<typeof listSubjects>> }
+  >;
   setBoundary: (
     participantId: string,
     input: { kind: BoundaryKind; threshold?: number; until?: Date },
@@ -481,6 +502,28 @@ const defaultServices: SyllaMcpServices = {
   reviewShield,
   setBoundary,
   releaseBoundary,
+  async noteAboutSubject(input) {
+    const subject = await ensureSubject(input.participantId, {
+      kind: input.kind,
+      name: input.name,
+      relationship: input.relationship ?? null,
+    });
+    if (input.note?.trim()) {
+      await recordSubjectClaim({
+        participantId: input.participantId,
+        subjectId: subject.id,
+        claim: input.note,
+        origin: "told_to_me",
+        contact: input.contact,
+      });
+    }
+    return { subjectId: subject.id, opened: subject.created };
+  },
+  async readDossier(participantId, subjectId) {
+    return subjectId
+      ? { dossier: await getDossier(participantId, subjectId) }
+      : { dossiers: await listSubjects(participantId) };
+  },
   requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
@@ -1458,6 +1501,85 @@ export function createSyllaMcpServer(
         viewAt: viewAt("overview", "Their own control room."),
       });
     },
+  );
+
+  server.registerTool(
+    "sylla_note_about",
+    {
+      title: "Keep a record on someone",
+      description:
+        "Write what the participant knows about a person or organization into a dossier their agent keeps for them, opening one if none exists. Use it whenever they mention a fact about somebody else worth remembering — who an investor is, what a firm asked for, what was agreed in a meeting. Do not ask permission to remember something they just told you; do say afterwards that it is in the dossier. These records are private to them, never shared with anyone, never used for matching, and never disclosed in an introduction. Say that plainly the first time they use it.",
+      inputSchema: z.object({
+        name: z.string().min(2).max(120).describe("Who or what the record is about."),
+        kind: z
+          .enum(["person", "organization"])
+          .describe("Whether this is a person or a company, fund, or team."),
+        note: z
+          .string()
+          .max(600)
+          .optional()
+          .describe("The fact to record, in the participant's own terms."),
+        relationship: z
+          .string()
+          .max(160)
+          .optional()
+          .describe("How the participant would describe this relationship."),
+        contact: z
+          .boolean()
+          .optional()
+          .describe("True if this note comes from actually speaking to them."),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ name, kind, note, relationship, contact }) => {
+      const written = await services.noteAboutSubject({
+        participantId,
+        name,
+        kind,
+        note,
+        relationship,
+        contact,
+      });
+      return result({
+        ...written,
+        privateToThem: true,
+        neverSharedOrMatched: true,
+        viewAt: viewAt("dossiers", "The dossier, with every source."),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_read_dossier",
+    {
+      title: "Read what they know about someone",
+      description:
+        "Return one dossier with every recorded claim and where each came from, or the list of dossiers when no id is given. Use it before a meeting, when the participant asks what they know about someone, or before answering a question about a person or firm — what is written here outranks anything you infer. Each claim carries how it was learned: told_to_me came from the participant, observed came from an approved source, inferred is the agent's own reasoning and is the weakest. Say which when it matters.",
+      inputSchema: z.object({
+        subjectId: z
+          .string()
+          .uuid()
+          .optional()
+          .describe("Omit to list every dossier they keep."),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ subjectId }) =>
+      result({
+        ...(await services.readDossier(participantId, subjectId)),
+        privateToThem: true,
+        viewAt: viewAt("dossiers", "The dossier, with every source."),
+      }),
   );
 
   server.registerTool(

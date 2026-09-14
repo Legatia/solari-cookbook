@@ -35,7 +35,8 @@
     "verify:circle": "tsx scripts/verify-circle.ts",
     "verify:referrals": "tsx scripts/verify-referrals.ts",
     "verify:shield": "tsx scripts/verify-shield.ts",
-    "verify:subscription": "tsx scripts/verify-subscription.ts"
+    "verify:subscription": "tsx scripts/verify-subscription.ts",
+    "verify:dossier": "tsx scripts/verify-dossier.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

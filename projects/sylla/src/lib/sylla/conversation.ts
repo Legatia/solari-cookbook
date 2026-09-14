@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as z from "zod/v4";
 
 import { getDatabase } from "@/db";
@@ -337,6 +337,9 @@ export async function prepareConversationBrief(
           and(
             inArray(observations.participantId, participantIds),
             inArray(observations.status, ["confirmed", "edited"]),
+            // Briefing context is the participant's own account of themselves.
+            // Dossiers are read deliberately, never folded into every reply.
+            isNull(observations.subjectId),
           ),
         )
     : [];
