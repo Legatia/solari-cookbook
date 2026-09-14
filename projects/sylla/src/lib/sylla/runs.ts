@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
+import { mapWithConcurrency, sweepConcurrency } from "@/lib/sylla/concurrency";
 import { markNotified, prepareNotification } from "@/lib/sylla/notifications";
 import {
   agentRuns,
@@ -735,7 +736,12 @@ export async function sweepFallbackRuns(input: {
   /** Per participant, so one message covers a sweep rather than each run. */
   const finishedFor = new Map<string, number>();
 
-  for (const candidate of candidates.rows) {
+  await mapWithConcurrency(
+    candidates.rows,
+    // These are model calls, not machines: they contend for a provider rate
+    // limit rather than for Solari's concurrency, so they can run wider.
+    sweepConcurrency("SYLLA_SUMMARY_SWEEP_CONCURRENCY", 6),
+    async (candidate) => {
     try {
       const adapter =
         explicitAdapter ??
@@ -763,7 +769,8 @@ export async function sweepFallbackRuns(input: {
         error: safeErrorMessage(error),
       });
     }
-  }
+    },
+  );
 
   await notifyParticipantsOfFinishedWork(finishedFor);
   return result;
