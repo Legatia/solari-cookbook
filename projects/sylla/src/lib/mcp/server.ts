@@ -63,8 +63,10 @@ import {
 import {
   ensureSubject,
   getDossier,
-  listSubjects,
+  pipeline,
   recordSubjectClaim,
+  updateSubject,
+  type SubjectStage,
 } from "@/lib/sylla/subjects";
 import {
   acquireRuntimeLease,
@@ -352,13 +354,16 @@ export type SyllaMcpServices = {
     note?: string;
     relationship?: string;
     contact?: boolean;
+    stage?: SubjectStage;
+    nextAction?: string;
+    nextActionAt?: Date;
   }) => Promise<{ subjectId: string; opened: boolean }>;
   readDossier: (
     participantId: string,
     subjectId?: string,
   ) => Promise<
     | { dossier: Awaited<ReturnType<typeof getDossier>> }
-    | { dossiers: Awaited<ReturnType<typeof listSubjects>> }
+    | { pipeline: Awaited<ReturnType<typeof pipeline>> }
   >;
   setBoundary: (
     participantId: string,
@@ -517,12 +522,21 @@ const defaultServices: SyllaMcpServices = {
         contact: input.contact,
       });
     }
+    if (input.stage || input.nextAction || input.nextActionAt) {
+      await updateSubject(input.participantId, subject.id, {
+        ...(input.stage ? { stage: input.stage } : {}),
+        ...(input.nextAction === undefined ? {} : { nextAction: input.nextAction }),
+        ...(input.nextActionAt === undefined
+          ? {}
+          : { nextActionAt: input.nextActionAt }),
+      });
+    }
     return { subjectId: subject.id, opened: subject.created };
   },
   async readDossier(participantId, subjectId) {
     return subjectId
       ? { dossier: await getDossier(participantId, subjectId) }
-      : { dossiers: await listSubjects(participantId) };
+      : { pipeline: await pipeline(participantId) };
   },
   requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
@@ -1528,6 +1542,23 @@ export function createSyllaMcpServer(
           .boolean()
           .optional()
           .describe("True if this note comes from actually speaking to them."),
+        stage: z
+          .enum(["new", "talking", "diligence", "committed", "passed"])
+          .optional()
+          .describe(
+            "Where it has got to. Set it when they describe movement — a first call means talking, sharing numbers means diligence, a term sheet means committed, a no means passed. Do not ask them to pick one.",
+          ),
+        nextAction: z
+          .string()
+          .max(200)
+          .optional()
+          .describe("What they said they would do next, in their own words."),
+        nextActionAt: z
+          .string()
+          .optional()
+          .describe(
+            "ISO date that action is due. Set it whenever they name a time — 'chase them Friday' is a date.",
+          ),
       }),
       annotations: {
         readOnlyHint: false,
@@ -1536,7 +1567,7 @@ export function createSyllaMcpServer(
         openWorldHint: false,
       },
     },
-    async ({ name, kind, note, relationship, contact }) => {
+    async ({ name, kind, note, relationship, contact, stage, nextAction, nextActionAt }) => {
       const written = await services.noteAboutSubject({
         participantId,
         name,
@@ -1544,6 +1575,9 @@ export function createSyllaMcpServer(
         note,
         relationship,
         contact,
+        stage,
+        nextAction,
+        ...(nextActionAt === undefined ? {} : { nextActionAt: new Date(nextActionAt) }),
       });
       return result({
         ...written,
@@ -1559,7 +1593,7 @@ export function createSyllaMcpServer(
     {
       title: "Read what they know about someone",
       description:
-        "Return one dossier with every recorded claim and where each came from, or the list of dossiers when no id is given. Use it before a meeting, when the participant asks what they know about someone, or before answering a question about a person or firm — what is written here outranks anything you infer. Each claim carries how it was learned: told_to_me came from the participant, observed came from an approved source, inferred is the agent's own reasoning and is the weakest. Say which when it matters.",
+        "Return one dossier with every recorded claim and where each came from, or, with no id, their whole pipeline including what is waiting on them. Read the pipeline at the start of a conversation and lead with needsYou if anything is there — say plainly who has gone quiet or what is overdue, using the words in each says field, before answering whatever they asked. That is the single most useful thing you do for someone running a raise or a deal flow, and they will not think to ask. Read one dossier before a meeting or before answering any question about a person or firm; what is recorded here outranks anything you infer. Each claim carries how it was learned: told_to_me came from the participant, observed came from an approved source, inferred is your own reasoning and is the weakest. Say which when it matters.",
       inputSchema: z.object({
         subjectId: z
           .string()

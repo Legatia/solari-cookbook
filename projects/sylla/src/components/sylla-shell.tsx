@@ -83,7 +83,7 @@ class SyllaApiError extends Error {
 const navigation = [
   { id: "overview" as const, label: "Overview", icon: Sparkles },
   { id: "memory" as const, label: "What Sylla knows", icon: Brain },
-  { id: "dossiers" as const, label: "Dossiers", icon: BookUser },
+  { id: "dossiers" as const, label: "People & pipeline", icon: BookUser },
   { id: "connections" as const, label: "Connected AI", icon: Plug },
   { id: "workspace" as const, label: "Agent computer", icon: Monitor },
   { id: "account" as const, label: "Account & privacy", icon: KeyRound },

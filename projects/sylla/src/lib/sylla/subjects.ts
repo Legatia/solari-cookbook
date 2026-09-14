@@ -23,6 +23,35 @@ import { recordAuditEvent } from "@/lib/sylla/participation";
 export class SubjectError extends Error {}
 
 export type SubjectKind = "person" | "organization";
+export type SubjectStage = "new" | "talking" | "diligence" | "committed" | "passed";
+
+export const STAGES: SubjectStage[] = [
+  "new",
+  "talking",
+  "diligence",
+  "committed",
+  "passed",
+];
+
+export function isSubjectStage(value: unknown): value is SubjectStage {
+  return typeof value === "string" && (STAGES as string[]).includes(value);
+}
+
+/**
+ * How long silence is normal, per stage.
+ *
+ * A relationship in diligence going quiet for a fortnight is a problem; one
+ * that has not started yet cannot go quiet at all, and one that is finished
+ * either way should never nag. Applying a single timeout to all of them is what
+ * makes pipeline tools cry wolf until people stop reading them.
+ */
+const QUIET_AFTER_DAYS: Record<SubjectStage, number | null> = {
+  new: null,
+  talking: 10,
+  diligence: 14,
+  committed: null,
+  passed: null,
+};
 
 export function normalizeSubjectName(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -32,6 +61,7 @@ export type SubjectSummary = {
   id: string;
   kind: SubjectKind;
   name: string;
+  stage: SubjectStage;
   relationship: string | null;
   nextAction: string | null;
   nextActionAt: string | null;
@@ -40,7 +70,54 @@ export type SubjectSummary = {
   known: number;
   /** Claims still waiting on them. */
   pending: number;
+  /** Days since the last recorded contact, or null if there has never been one. */
+  daysSinceContact: number | null;
+  /** Why this is on the participant's plate, if it is. */
+  needsYou: null | {
+    reason: "overdue" | "gone_quiet" | "never_contacted";
+    says: string;
+  };
 };
+
+function daysBetween(from: Date, to = new Date()) {
+  return Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1_000));
+}
+
+/**
+ * Whether this relationship is waiting on the participant.
+ *
+ * Three honest reasons and no scoring. A number nobody can derive by hand is a
+ * number nobody trusts, and the whole value of this view is that the person
+ * reading it agrees with it immediately.
+ */
+function triage(row: {
+  stage: SubjectStage;
+  nextAction: string | null;
+  nextActionAt: Date | null;
+  lastContactAt: Date | null;
+  createdAt: Date;
+}): SubjectSummary["needsYou"] {
+  if (row.nextActionAt && row.nextActionAt <= new Date()) {
+    return {
+      reason: "overdue",
+      says: row.nextAction ? `Due: ${row.nextAction}` : "Something was due",
+    };
+  }
+  if (row.stage === "new" && daysBetween(row.createdAt) >= 7) {
+    return {
+      reason: "never_contacted",
+      says: `Added ${daysBetween(row.createdAt)} days ago, still not approached`,
+    };
+  }
+  const quietAfter = QUIET_AFTER_DAYS[row.stage];
+  if (quietAfter && row.lastContactAt) {
+    const silent = daysBetween(row.lastContactAt);
+    if (silent >= quietAfter) {
+      return { reason: "gone_quiet", says: `No contact for ${silent} days` };
+    }
+  }
+  return null;
+}
 
 /**
  * Open a dossier, or return the one already open.
@@ -169,10 +246,12 @@ export async function listSubjects(participantId: string): Promise<SubjectSummar
       id: subjects.id,
       kind: subjects.kind,
       name: subjects.name,
+      stage: subjects.stage,
       relationship: subjects.relationship,
       nextAction: subjects.nextAction,
       nextActionAt: subjects.nextActionAt,
       lastContactAt: subjects.lastContactAt,
+      createdAt: subjects.createdAt,
       updatedAt: subjects.updatedAt,
       known: sql<number>`count(${observations.id}) filter (where ${observations.status} in ('confirmed','edited'))`,
       pending: sql<number>`count(${observations.id}) filter (where ${observations.status} = 'pending')`,
@@ -187,13 +266,61 @@ export async function listSubjects(participantId: string): Promise<SubjectSummar
     id: row.id,
     kind: row.kind as SubjectKind,
     name: row.name,
+    stage: row.stage as SubjectStage,
     relationship: row.relationship,
     nextAction: row.nextAction,
     nextActionAt: row.nextActionAt?.toISOString() ?? null,
     lastContactAt: row.lastContactAt?.toISOString() ?? null,
     known: Number(row.known),
     pending: Number(row.pending),
+    daysSinceContact: row.lastContactAt ? daysBetween(row.lastContactAt) : null,
+    needsYou: triage({
+      stage: row.stage as SubjectStage,
+      nextAction: row.nextAction,
+      nextActionAt: row.nextActionAt,
+      lastContactAt: row.lastContactAt,
+      createdAt: row.createdAt,
+    }),
   }));
+}
+
+export type Pipeline = {
+  /** What is waiting on the participant, most overdue first. */
+  needsYou: SubjectSummary[];
+  /** Everything, grouped by where it has got to. */
+  byStage: Array<{ stage: SubjectStage; subjects: SubjectSummary[] }>;
+  total: number;
+  open: number;
+};
+
+/**
+ * The whole book, arranged the way someone running a process reads it.
+ *
+ * What needs them comes first and everything else is grouped behind it, because
+ * the question a founder or an investor actually opens this with is never "show
+ * me my list" — it is "what have I dropped".
+ */
+export async function pipeline(participantId: string): Promise<Pipeline> {
+  const all = await listSubjects(participantId);
+  const order: Record<string, number> = {
+    overdue: 0,
+    never_contacted: 1,
+    gone_quiet: 2,
+  };
+  const needsYou = all
+    .filter((one) => one.needsYou)
+    .sort((a, b) => order[a.needsYou!.reason] - order[b.needsYou!.reason]);
+
+  return {
+    needsYou,
+    byStage: STAGES.map((stage) => ({
+      stage,
+      subjects: all.filter((one) => one.stage === stage),
+    })).filter((group) => group.subjects.length > 0),
+    total: all.length,
+    open: all.filter((one) => one.stage !== "passed" && one.stage !== "committed")
+      .length,
+  };
 }
 
 export type DossierClaim = {
@@ -242,12 +369,21 @@ export async function getDossier(
     id: subject.id,
     kind: subject.kind as SubjectKind,
     name: subject.name,
+    stage: subject.stage as SubjectStage,
     relationship: subject.relationship,
     nextAction: subject.nextAction,
     nextActionAt: subject.nextActionAt?.toISOString() ?? null,
     lastContactAt: subject.lastContactAt?.toISOString() ?? null,
     known: live.filter((one) => one.status !== "pending").length,
     pending: live.filter((one) => one.status === "pending").length,
+    daysSinceContact: subject.lastContactAt ? daysBetween(subject.lastContactAt) : null,
+    needsYou: triage({
+      stage: subject.stage as SubjectStage,
+      nextAction: subject.nextAction,
+      nextActionAt: subject.nextActionAt,
+      lastContactAt: subject.lastContactAt,
+      createdAt: subject.createdAt,
+    }),
     claims: live.map((one) => ({
       id: one.id,
       claim: one.claim,
@@ -263,7 +399,12 @@ export async function getDossier(
 export async function updateSubject(
   participantId: string,
   subjectId: string,
-  input: { relationship?: string | null; nextAction?: string | null; nextActionAt?: Date | null },
+  input: {
+    relationship?: string | null;
+    nextAction?: string | null;
+    nextActionAt?: Date | null;
+    stage?: SubjectStage;
+  },
 ) {
   const [updated] = await getDatabase()
     .update(subjects)
@@ -275,6 +416,7 @@ export async function updateSubject(
         ? {}
         : { nextAction: input.nextAction?.trim().slice(0, 200) || null }),
       ...(input.nextActionAt === undefined ? {} : { nextActionAt: input.nextActionAt }),
+      ...(input.stage === undefined ? {} : { stage: input.stage }),
       updatedAt: new Date(),
     })
     .where(and(eq(subjects.id, subjectId), eq(subjects.participantId, participantId)))

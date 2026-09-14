@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import {
   ensureSubject,
-  listSubjects,
+  pipeline,
   recordSubjectClaim,
   SubjectError,
 } from "@/lib/sylla/subjects";
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const { participant, newToken } = await resolveParticipant(request);
     return jsonWithSession(
-      { subjects: await listSubjects(participant.id), privateToYou: true },
+      { pipeline: await pipeline(participant.id), privateToYou: true },
       newToken,
     );
   } catch (error) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       });
     }
     return jsonWithSession(
-      { subjects: await listSubjects(participant.id), opened: subject.id },
+      { pipeline: await pipeline(participant.id), opened: subject.id },
       newToken,
     );
   } catch (error) {

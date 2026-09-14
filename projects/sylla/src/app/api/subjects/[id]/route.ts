@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import {
   deleteSubject,
   getDossier,
+  isSubjectStage,
   recordSubjectClaim,
   SubjectError,
   updateSubject,
@@ -42,6 +43,8 @@ export async function PATCH(
       note?: unknown;
       relationship?: unknown;
       nextAction?: unknown;
+      nextActionAt?: unknown;
+      stage?: unknown;
       contact?: unknown;
     };
 
@@ -54,7 +57,15 @@ export async function PATCH(
         contact: body.contact === true,
       });
     }
-    if (body.relationship !== undefined || body.nextAction !== undefined) {
+    if (
+      body.relationship !== undefined ||
+      body.nextAction !== undefined ||
+      body.nextActionAt !== undefined ||
+      body.stage !== undefined
+    ) {
+      if (body.stage !== undefined && !isSubjectStage(body.stage)) {
+        throw new SubjectError("That is not a stage.");
+      }
       await updateSubject(participant.id, id, {
         ...(body.relationship === undefined
           ? {}
@@ -62,6 +73,13 @@ export async function PATCH(
         ...(body.nextAction === undefined
           ? {}
           : { nextAction: String(body.nextAction) }),
+        ...(body.nextActionAt === undefined
+          ? {}
+          : {
+              nextActionAt:
+                body.nextActionAt === null ? null : new Date(String(body.nextActionAt)),
+            }),
+        ...(body.stage === undefined ? {} : { stage: body.stage }),
       });
     }
     return jsonWithSession({ dossier: await getDossier(participant.id, id) }, newToken);

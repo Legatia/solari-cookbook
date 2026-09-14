@@ -44,6 +44,28 @@ export const visibility = pgEnum("visibility", ["private", "shareable"]);
 /** A dossier is kept on a person or on an organization; nothing else. */
 export const subjectKind = pgEnum("subject_kind", ["person", "organization"]);
 
+/**
+ * Where a relationship has got to.
+ *
+ * One set for both sides of the table, because a founder tracking an investor
+ * and an investor tracking a founder are walking the same funnel from opposite
+ * ends: a term sheet is the same event whoever writes it. Deliberately short —
+ * a stage nobody can place a relationship into confidently is a stage that gets
+ * filled in wrongly.
+ */
+export const subjectStage = pgEnum("subject_stage", [
+  // On the list, not yet spoken to.
+  "new",
+  // A conversation is happening.
+  "talking",
+  // Real work is being done on both sides.
+  "diligence",
+  // Yes.
+  "committed",
+  // No, and worth keeping the record of why.
+  "passed",
+]);
+
 export const workspaceStatus = pgEnum("workspace_status", [
   "unprovisioned",
   "starting",
@@ -1221,6 +1243,7 @@ export const subjects = pgTable(
     normalizedName: text("normalized_name").notNull(),
     /** How the participant describes the relationship, in their own words. */
     relationship: text("relationship"),
+    stage: subjectStage("stage").default("new").notNull(),
     nextAction: text("next_action"),
     nextActionAt: timestamp("next_action_at", { withTimezone: true }),
     lastContactAt: timestamp("last_contact_at", { withTimezone: true }),
@@ -1234,6 +1257,7 @@ export const subjects = pgTable(
   },
   (table) => [
     index("subjects_participant_idx").on(table.participantId),
+    index("subjects_stage_idx").on(table.participantId, table.stage),
     uniqueIndex("subjects_participant_name_unique").on(
       table.participantId,
       table.normalizedName,

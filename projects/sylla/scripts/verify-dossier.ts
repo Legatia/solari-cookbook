@@ -20,8 +20,10 @@ import {
   ensureSubject,
   getDossier,
   listSubjects,
+  pipeline,
   recordSubjectClaim,
   SubjectError,
+  updateSubject,
 } from "../src/lib/sylla/subjects";
 import {
   createEventInvitation,
@@ -177,6 +179,65 @@ async function main() {
     );
     assert.equal((await listSubjects(other.participantId)).length, 0);
     observed.neverPooledAcrossAccounts = true;
+
+    // ---- Pipeline and triage -----------------------------------------------
+    //
+    // A pipeline that cries wolf stops being read, so silence has to mean
+    // different things at different stages.
+    const quiet = await ensureSubject(participantId, {
+      kind: "organization",
+      name: "Quiet Capital",
+    });
+    await updateSubject(participantId, quiet.id, { stage: "talking" });
+    await database
+      .update(subjects)
+      .set({ lastContactAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1_000) })
+      .where(eq(subjects.id, quiet.id));
+
+    const board = await pipeline(participantId);
+    const flagged = board.needsYou.find((one) => one.id === quiet.id);
+    assert.ok(flagged, "a conversation silent for three weeks must surface");
+    assert.equal(flagged.needsYou?.reason, "gone_quiet");
+    assert.match(flagged.needsYou!.says, /21 days/);
+    observed.silenceSurfacesWhileTalking = true;
+
+    // The same silence after a decision is not a problem and must not nag.
+    await updateSubject(participantId, quiet.id, { stage: "passed" });
+    const afterPass = await pipeline(participantId);
+    assert.ok(
+      !afterPass.needsYou.some((one) => one.id === quiet.id),
+      "a closed relationship must never be chased",
+    );
+    assert.equal(afterPass.open, 1, "passed and committed are not open");
+    observed.closedRelationshipsNeverNag = true;
+
+    // An overdue promise outranks silence, because the participant made it.
+    const owed = await ensureSubject(participantId, {
+      kind: "person",
+      name: "Dana Okonkwo",
+    });
+    await updateSubject(participantId, owed.id, {
+      stage: "diligence",
+      nextAction: "Send the retention cohort",
+      nextActionAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1_000),
+    });
+    const withOverdue = await pipeline(participantId);
+    assert.equal(
+      withOverdue.needsYou[0]?.id,
+      owed.id,
+      "something they promised comes before something that went quiet",
+    );
+    assert.equal(withOverdue.needsYou[0].needsYou?.reason, "overdue");
+    assert.match(withOverdue.needsYou[0].needsYou!.says, /Send the retention cohort/);
+    observed.promisesOutrankSilence = true;
+
+    // Grouping is by stage, and empty stages are not rendered as empty columns.
+    assert.ok(withOverdue.byStage.every((group) => group.subjects.length > 0));
+    assert.ok(withOverdue.byStage.some((group) => group.stage === "diligence"));
+    observed.groupedWithoutEmptyColumns = true;
+
+    await deleteSubject(participantId, quiet.id);
+    await deleteSubject(participantId, owed.id);
 
     // Closing a dossier takes its claims with it. "Forget this person" is the
     // strongest thing Sylla can be asked, and it is not hedged.
