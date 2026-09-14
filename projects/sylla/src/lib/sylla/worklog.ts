@@ -48,6 +48,14 @@ export type WorkLogEntry = {
   /** Whether a provider failure forced canned text instead of a real summary. */
   degraded: boolean;
   evidenceProduced: number;
+  /**
+   * Whether a recording of this run exists to be watched.
+   *
+   * The link itself is not here: replay URLs are presigned and short lived, so
+   * one is minted when somebody actually asks rather than baked into a list
+   * that may be read days later.
+   */
+  replayAvailable: boolean;
 };
 
 export type WorkLog = {
@@ -90,6 +98,7 @@ export async function buildWorkLog(
       fallbackCreditsUsed: agentRuns.fallbackCreditsUsed,
       fallbackProvider: agentRuns.fallbackProvider,
       fallbackModel: agentRuns.fallbackModel,
+      replaySessionId: agentRuns.replaySessionId,
     })
     .from(agentRuns)
     .where(
@@ -180,6 +189,7 @@ export async function buildWorkLog(
         null,
       degraded: Boolean(handoff?.deterministicRecoveryUsed),
       evidenceProduced: evidenceCount.get(run.id) ?? 0,
+      replayAvailable: Boolean(run.replaySessionId),
     };
   });
 

@@ -130,6 +130,25 @@ async function waitForDesktopReady(
 export class SolariBrowserResearchAdapter implements BrowserResearchAdapter {
   constructor(private readonly options: LiveAdapterOptions) {}
 
+  /**
+   * The replay of a recorded research session.
+   *
+   * Null while the provider is still processing it, which it distinguishes from
+   * a session that has nothing to show. A miss is never an error here: a
+   * recording that is late, expired past the plan's retention, or simply absent
+   * should leave the work log intact rather than failing the page.
+   */
+  async replayUrl(sessionId: string) {
+    try {
+      const replay = await new Solari(this.options).sessions.getReplayUrl(sessionId);
+      return replay?.url
+        ? { url: replay.url, expiresInSeconds: replay.expiresInSeconds }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   async research(input: unknown) {
     const request = researchRequestSchema.parse(input);
     const sources = request.sources.map((source) => ({

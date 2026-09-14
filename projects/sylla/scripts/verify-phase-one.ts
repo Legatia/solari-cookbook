@@ -197,12 +197,17 @@ async function main() {
     assert.equal(quiet.stale, true, "a silent scheduler must read as unhealthy");
     observed.silenceReadsAsUnhealthy = true;
 
+    // Scoped to this job. The table also holds rejected calls, filed under
+    // their own name, and asserting on "the newest row in the table" quietly
+    // assumed nothing else would ever write to it.
     const [latest] = await database
-      .select({ job: cronRuns.job })
+      .select({ job: cronRuns.job, ok: cronRuns.ok })
       .from(cronRuns)
+      .where(eq(cronRuns.job, "fallback-sweep"))
       .orderBy(desc(cronRuns.startedAt))
       .limit(1);
     assert.equal(latest.job, "fallback-sweep");
+    assert.equal(latest.ok, true, "the sweep this script ran is the one recorded");
 
     console.log(JSON.stringify({ verified: true, ...observed }));
   } finally {

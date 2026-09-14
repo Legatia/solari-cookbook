@@ -410,6 +410,12 @@ async function researchSource(input: {
       })
       .where(eq(approvedSources.id, source.id));
     await settleBillableOperation(reservation, result.runReference);
+    // Kept on the run so the work log can offer a replay of exactly this piece
+    // of work, rather than of whatever the agent happened to do most recently.
+    await database
+      .update(agentRuns)
+      .set({ replaySessionId: result.runReference })
+      .where(eq(agentRuns.id, input.agentRunId));
     await refreshObservationProposals(
       input.participantId,
       input.agentRunId,

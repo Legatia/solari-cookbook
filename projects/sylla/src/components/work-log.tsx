@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheck, Eye, Moon, TriangleAlert } from "lucide-react";
+import { CircleCheck, Eye, Moon, Play, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type Entry = {
@@ -18,6 +18,7 @@ type Entry = {
   ranOn: string | null;
   degraded: boolean;
   evidenceProduced: number;
+  replayAvailable: boolean;
 };
 
 type Log = {
@@ -48,6 +49,45 @@ function stamp(value: string) {
 export function WorkLog() {
   const [log, setLog] = useState<Log | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [replayNote, setReplayNote] = useState<Record<string, string>>({});
+
+  /**
+   * Fetch the link at the moment it is wanted.
+   *
+   * Opened in the same click rather than stored, because the provider issues a
+   * presigned URL that would be dead by the time a list written days ago was
+   * read.
+   */
+  function watch(runId: string) {
+    setOpening(runId);
+    setReplayNote((notes) => ({ ...notes, [runId]: "" }));
+    void (async () => {
+      try {
+        const response = await fetch(`/api/worklog/replay?runId=${runId}`);
+        const payload = (await response.json()) as {
+          url?: string;
+          message?: string;
+          error?: string;
+        };
+        if (response.ok && payload.url) {
+          window.open(payload.url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        setReplayNote((notes) => ({
+          ...notes,
+          [runId]: payload.message ?? payload.error ?? "That replay is not available.",
+        }));
+      } catch {
+        setReplayNote((notes) => ({
+          ...notes,
+          [runId]: "Could not reach the recording.",
+        }));
+      } finally {
+        setOpening(null);
+      }
+    })();
+  }
 
   useEffect(() => {
     void (async () => {
@@ -181,6 +221,23 @@ export function WorkLog() {
                           </>
                         )}
                       </p>
+
+                      {entry.replayAvailable && (
+                        <button
+                          type="button"
+                          disabled={opening === entry.id}
+                          onClick={() => watch(entry.id)}
+                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] px-3 py-1.5 text-[10px] text-stone-300 transition-colors hover:border-lime-200/40 hover:text-lime-100 disabled:opacity-60"
+                        >
+                          <Play className="size-3" />
+                          {opening === entry.id ? "Fetching…" : "Watch what it did"}
+                        </button>
+                      )}
+                      {replayNote[entry.id] && (
+                        <p className="mt-2 text-[10px] leading-5 text-stone-500">
+                          {replayNote[entry.id]}
+                        </p>
+                      )}
 
                       {entry.consequential && (
                         <p className="mt-2 rounded-lg border border-amber-200/25 bg-amber-200/[0.05] px-3 py-2 text-[11px] leading-5 text-amber-100/85">

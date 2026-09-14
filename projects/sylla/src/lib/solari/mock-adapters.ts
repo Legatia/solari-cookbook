@@ -20,6 +20,13 @@ import {
 import { assertPublicHttpUrl } from "./url-policy";
 
 export class MockBrowserResearchAdapter implements BrowserResearchAdapter {
+  async replayUrl(sessionId: string) {
+    return {
+      url: `https://mock.solari.invalid/replay/${sessionId}`,
+      expiresInSeconds: 900,
+    };
+  }
+
   async research(input: unknown) {
     const request = researchRequestSchema.parse(input);
     const observedAt = new Date().toISOString();

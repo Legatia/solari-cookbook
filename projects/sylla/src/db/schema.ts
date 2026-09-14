@@ -1100,6 +1100,14 @@ export const agentRuns = pgTable(
     fallbackClaimedAt: timestamp("fallback_claimed_at", {
       withTimezone: true,
     }),
+    /**
+     * The recorded Solari session this run produced, if any.
+     *
+     * The session id rather than a replay link: replay URLs are presigned and
+     * expire, so one stored here would rot into a dead link exactly when
+     * somebody finally went looking. A fresh one is minted on demand instead.
+     */
+    replaySessionId: text("replay_session_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

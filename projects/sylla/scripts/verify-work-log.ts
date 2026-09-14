@@ -137,6 +137,29 @@ async function main() {
     assert.notEqual(entry.completedActions[0], entry.purpose);
     observed.reportsWhatItDidNotWhatItWasAsked = true;
 
+    // ---- Replay ------------------------------------------------------------
+    //
+    // Nothing recorded means nothing offered: the log must not show a watch
+    // control that leads to a dead link.
+    assert.equal(entry.replayAvailable, false);
+
+    await database
+      .update(agentRuns)
+      .set({ replaySessionId: "synthetic-browser-session" })
+      .where(eq(agentRuns.id, run.id));
+    const withReplay = await buildWorkLog(participantId);
+    assert.equal(
+      withReplay.entries.find((one) => one.id === run.id)?.replayAvailable,
+      true,
+    );
+    // The link itself is deliberately absent: it is presigned and short lived,
+    // so it is minted when somebody presses watch rather than listed here.
+    assert.ok(
+      !JSON.stringify(withReplay).includes("http"),
+      "a work log must carry no replay URL that can go stale",
+    );
+    observed.replayOfferedNotStored = true;
+
     // A window that predates the work shows none of it.
     const narrow = await buildWorkLog(participantId, { days: 1 });
     assert.equal(narrow.runs, 1, "today's work is inside a one day window");
