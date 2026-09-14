@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, lt } from "drizzle-orm";
+import { desc, eq, lt } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
 import { authRateLimits, cronRuns } from "@/db/schema";
@@ -34,6 +34,11 @@ export function cronRunIsStale(
   return now - reference.getTime() > threshold;
 }
 
+/** Rejections live beside the job they were aimed at, never inside it. */
+function rejectedJob(job: string) {
+  return `${job}:rejected`;
+}
+
 /**
  * Record that something called the sweep and was turned away.
  *
@@ -46,7 +51,10 @@ export async function recordRejectedCronCall(job: string, detail: string) {
   const [row] = await getDatabase()
     .insert(cronRuns)
     .values({
-      job,
+      // Filed under its own name so a turned-away call never masquerades as a
+      // sweep. "Something knocked" and "the sweep ran" are different facts and
+      // mixing them would undo the point of recording this at all.
+      job: rejectedJob(job),
       finishedAt: new Date(),
       ok: false,
       detail: detail.slice(0, 500),
@@ -134,6 +142,9 @@ export function publicCronHealth(health: CronHealth) {
       lastOk: health.lastOk,
       stale: health.stale,
       neverRun: health.neverRun,
+      // A timestamp only. It says something tried and was refused, which is
+      // what separates a wrong secret from a scheduler that is not running.
+      lastRejectedAt: health.lastRejectedAt,
     },
   };
 }
@@ -157,7 +168,7 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
   const [rejected] = await getDatabase()
     .select({ startedAt: cronRuns.startedAt })
     .from(cronRuns)
-    .where(and(eq(cronRuns.job, job), eq(cronRuns.ok, false), isNotNull(cronRuns.detail)))
+    .where(eq(cronRuns.job, rejectedJob(job)))
     .orderBy(desc(cronRuns.startedAt))
     .limit(1);
   const lastRejectedAt = rejected?.startedAt.toISOString() ?? null;
