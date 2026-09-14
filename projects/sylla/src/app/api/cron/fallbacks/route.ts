@@ -1,5 +1,9 @@
 import { sweepBackgroundRuns } from "@/lib/sylla/background";
-import { beginCronRun, finishCronRun } from "@/lib/sylla/cron-health";
+import {
+  beginCronRun,
+  finishCronRun,
+  recordRejectedCronCall,
+} from "@/lib/sylla/cron-health";
 import type { FallbackSweepResult } from "@/lib/sylla/runs";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +33,26 @@ export function createFallbackCronHandler(
         { status: 503 },
       );
     }
-    if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    // Trimmed on both sides: a secret pasted into a dashboard field very
+    // easily carries a newline, and an invisible character is a miserable
+    // thing to debug through a scheduler that only speaks once a day.
+    const presented = request.headers.get("authorization")?.trim() ?? "";
+    const expected = `Bearer ${cronSecret.trim()}`;
+    if (presented !== expected) {
+      // Recorded, because a rejected call and no call at all are the same
+      // silence otherwise, and they have opposite fixes. No secret is stored —
+      // only whether a header arrived.
+      await recordRejectedCronCall(
+        "fallback-sweep",
+        presented
+          ? "A call arrived with an authorization header that did not match CRON_SECRET."
+          : "A call arrived with no authorization header.",
+      ).catch(() => null);
       return Response.json(
-        { ok: false, reason: "unauthorized" },
+        {
+          ok: false,
+          reason: presented ? "authorization_mismatch" : "no_authorization_header",
+        },
         { status: 401 },
       );
     }

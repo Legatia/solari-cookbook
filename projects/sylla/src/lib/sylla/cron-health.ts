@@ -1,4 +1,4 @@
-import { desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
 import { authRateLimits, cronRuns } from "@/db/schema";
@@ -32,6 +32,27 @@ export function cronRunIsStale(
     ? MISSED_RUN_AFTER_MS
     : UNFINISHED_RUN_AFTER_MS;
   return now - reference.getTime() > threshold;
+}
+
+/**
+ * Record that something called the sweep and was turned away.
+ *
+ * Without this, a scheduler firing into a rejected door and a scheduler that
+ * never fires produce exactly the same evidence — nothing — and the difference
+ * between them is the difference between a wrong secret and a dead cron. The
+ * row finishes immediately and carries no secret, only the fact of the attempt.
+ */
+export async function recordRejectedCronCall(job: string, detail: string) {
+  const [row] = await getDatabase()
+    .insert(cronRuns)
+    .values({
+      job,
+      finishedAt: new Date(),
+      ok: false,
+      detail: detail.slice(0, 500),
+    })
+    .returning({ id: cronRuns.id });
+  return row.id;
 }
 
 export async function beginCronRun(job: string) {
@@ -93,6 +114,11 @@ export type CronHealth = {
   lastDetail: string | null;
   stale: boolean;
   neverRun: boolean;
+  /**
+   * Something called and was refused. Distinguishes a wrong secret from a
+   * scheduler that is not running at all.
+   */
+  lastRejectedAt: string | null;
 };
 
 /** Safe shape for the unauthenticated uptime endpoint. */
@@ -128,6 +154,14 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
     .limit(1);
 
   const configured = Boolean(process.env.CRON_SECRET);
+  const [rejected] = await getDatabase()
+    .select({ startedAt: cronRuns.startedAt })
+    .from(cronRuns)
+    .where(and(eq(cronRuns.job, job), eq(cronRuns.ok, false), isNotNull(cronRuns.detail)))
+    .orderBy(desc(cronRuns.startedAt))
+    .limit(1);
+  const lastRejectedAt = rejected?.startedAt.toISOString() ?? null;
+
   if (!last) {
     return {
       job,
@@ -138,6 +172,7 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
       lastDetail: null,
       stale: true,
       neverRun: true,
+      lastRejectedAt,
     };
   }
 
@@ -150,5 +185,6 @@ export async function cronHealth(job = "fallback-sweep"): Promise<CronHealth> {
     lastDetail: last.detail,
     stale: cronRunIsStale(last),
     neverRun: false,
+    lastRejectedAt,
   };
 }

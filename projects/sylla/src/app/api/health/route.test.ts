@@ -14,6 +14,7 @@ const healthySweep: CronHealth = {
   lastDetail: "participant-sensitive provider error",
   stale: false,
   neverRun: false,
+  lastRejectedAt: null,
 };
 
 describe("public health payload", () => {
