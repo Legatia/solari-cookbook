@@ -27,6 +27,7 @@ import {
   Send,
   ShieldCheck,
   Upload,
+  ScrollText,
   Sparkles,
   Trash2,
   X,
@@ -40,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { RecoveryCodesPanel } from "@/components/recovery-codes";
 import { DossierBoard } from "@/components/dossier-board";
+import { WorkLog } from "@/components/work-log";
 import { ReferralPanel } from "@/components/referral-panel";
 import { ShieldPanel } from "@/components/shield-panel";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,6 +58,7 @@ type View =
   | "workspace"
   | "memory"
   | "dossiers"
+  | "log"
   | "account";
 type SourceDraft = { url: string; label: string };
 type ApiResponse = {
@@ -84,6 +87,7 @@ const navigation = [
   { id: "overview" as const, label: "Overview", icon: Sparkles },
   { id: "memory" as const, label: "What Sylla knows", icon: Brain },
   { id: "dossiers" as const, label: "People & pipeline", icon: BookUser },
+  { id: "log" as const, label: "What it did", icon: ScrollText },
   { id: "connections" as const, label: "Connected AI", icon: Plug },
   { id: "workspace" as const, label: "Agent computer", icon: Monitor },
   { id: "account" as const, label: "Account & privacy", icon: KeyRound },
@@ -2548,6 +2552,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
             <ConversationView state={state} onChange={setState} openMemory={() => setView("memory")} openWorkspace={() => setView("workspace")} />
           )}
           {view === "dossiers" && <DossierBoard />}
+          {view === "log" && <WorkLog />}
           {view === "connections" && <ConnectionsView agentName={state.agentName} />}
           {view === "memory" && (
             <MemoryView state={state} onChange={setState} openWorkspace={() => setView("workspace")} />

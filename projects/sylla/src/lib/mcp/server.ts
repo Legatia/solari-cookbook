@@ -60,6 +60,7 @@ import {
   createReferralInvitation,
   referralAllowance,
 } from "@/lib/sylla/referrals";
+import { buildWorkLog } from "@/lib/sylla/worklog";
 import {
   ensureSubject,
   getDossier,
@@ -347,6 +348,10 @@ export type SyllaMcpServices = {
   ) => ReturnType<typeof listIntroductionsForParticipant>;
   referralAllowance: (participantId: string) => ReturnType<typeof referralAllowance>;
   reviewShield: (participantId: string) => ReturnType<typeof reviewShield>;
+  reviewWorkLog: (
+    participantId: string,
+    days?: number,
+  ) => ReturnType<typeof buildWorkLog>;
   noteAboutSubject: (input: {
     participantId: string;
     name: string;
@@ -505,6 +510,8 @@ const defaultServices: SyllaMcpServices = {
   referralAllowance,
   createReferralInvitation,
   reviewShield,
+  reviewWorkLog: (participantId: string, days?: number) =>
+    buildWorkLog(participantId, days === undefined ? {} : { days }),
   setBoundary,
   releaseBoundary,
   async noteAboutSubject(input) {
@@ -1515,6 +1522,35 @@ export function createSyllaMcpServer(
         viewAt: viewAt("overview", "Their own control room."),
       });
     },
+  );
+
+  server.registerTool(
+    "sylla_review_work_log",
+    {
+      title: "What the agent did, watched or not",
+      description:
+        "Report every run in a window: what it was for, whether the participant was present, what it got done, what it cost, and which model stood in when one did. Use it when they ask what happened, what it has been doing, or what they have been charged for, and after any gap in the conversation. Lead with consequentialWhileAway: false is a real assurance that nothing irreversible happened unattended, so say so plainly rather than leaving it to be inferred from a short list. If an entry is degraded, the provider failed and the summary is canned rather than written — do not present it as the agent's own account.",
+      inputSchema: z.object({
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(365)
+          .optional()
+          .describe("How far back to look. Defaults to 30 days."),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ days }) =>
+      result({
+        ...(await services.reviewWorkLog(participantId, days)),
+        viewAt: viewAt("log", "The full log, with evidence."),
+      }),
   );
 
   server.registerTool(

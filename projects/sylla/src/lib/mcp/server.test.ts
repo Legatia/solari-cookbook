@@ -524,6 +524,14 @@ function services(
       .fn()
       .mockResolvedValue({ subjectId: "11111111-2222-3333-4444-555555555555", opened: true }),
     readDossier: vi.fn().mockResolvedValue({ dossiers: [] }),
+    reviewWorkLog: vi.fn().mockResolvedValue({
+      since: "2026-08-15T00:00:00.000Z",
+      runs: 0,
+      unattendedRuns: 0,
+      creditsSpent: 0,
+      consequentialWhileAway: false,
+      entries: [],
+    }),
     releaseBoundary: vi.fn().mockResolvedValue([]),
     createReferralInvitation: vi.fn().mockResolvedValue({
       invitationId: "inv_1",
