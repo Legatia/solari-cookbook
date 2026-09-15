@@ -17,11 +17,11 @@ const githubUrl = "https://github.com/Legatia/solari-cookbook";
 function Wordmark() {
   return (
     <Link href="/" className="group inline-flex items-center gap-3" aria-label="Sylla home">
-      <span className="relative grid size-8 place-items-center rounded-full border border-lime-200/25 bg-lime-200/[0.06]">
-        <span className="size-1.5 rounded-full bg-lime-200 shadow-[0_0_18px_rgba(217,249,157,0.7)]" />
-        <span className="absolute inset-1 rounded-full border border-lime-200/10 transition-transform duration-500 group-hover:rotate-45" />
+      <span className="relative grid size-8 place-items-center rounded-full border border-[#3F6212]/30 bg-[#D7F0A4]">
+        <span className="size-1.5 rounded-full bg-[#3F6212]" />
+        <span className="absolute inset-1 rounded-full border border-[#3F6212]/15 transition-transform duration-500 group-hover:rotate-45" />
       </span>
-      <span className="font-heading text-xl italic tracking-[-0.03em] text-stone-100">
+      <span className="font-heading text-xl italic tracking-[-0.03em] text-[#16190F]">
         Sylla
       </span>
     </Link>
@@ -30,8 +30,8 @@ function Wordmark() {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-lime-200/65">
-      <span className="h-px w-9 bg-lime-200/40" />
+    <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-[#4A7A12]">
+      <span className="h-px w-9 bg-[#3F6212]/45" />
       {children}
     </div>
   );
@@ -53,16 +53,16 @@ function Section({
   return (
     <section
       id={id}
-      className="relative mx-auto max-w-[92rem] border-t border-white/[0.07] px-5 py-20 sm:px-9 lg:px-14 lg:py-28"
+      className="relative mx-auto max-w-[92rem] border-t border-[#16190F]/10 px-5 py-20 sm:px-9 lg:px-14 lg:py-28"
     >
       <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
         <div>
           <Eyebrow>{eyebrow}</Eyebrow>
-          <h2 className="mt-6 font-heading text-[clamp(2.2rem,4.2vw,3.4rem)] font-normal leading-[0.95] tracking-[-0.045em] text-stone-100">
+          <h2 className="mt-6 font-heading text-[clamp(2.2rem,4.2vw,3.4rem)] font-normal leading-[0.95] tracking-[-0.045em] text-[#16190F]">
             {title}
           </h2>
           {lede && (
-            <p className="mt-6 max-w-md text-sm leading-7 text-stone-400">{lede}</p>
+            <p className="mt-6 max-w-md text-sm leading-7 text-[#555B4A]">{lede}</p>
           )}
         </div>
         {children && <div>{children}</div>}
@@ -82,13 +82,13 @@ function Beat({
   body: string;
 }) {
   return (
-    <div className="flex gap-4 border-b border-white/[0.06] py-5 last:border-b-0">
-      <span className="mt-0.5 shrink-0 text-lime-200/70">
+    <div className="flex gap-4 border-b border-[#16190F]/8 py-5 last:border-b-0">
+      <span className="mt-0.5 shrink-0 text-[#4A7A12]">
         <Icon className="size-4" />
       </span>
       <div>
-        <p className="text-sm text-stone-200">{title}</p>
-        <p className="mt-1.5 text-[13px] leading-6 text-stone-500">{body}</p>
+        <p className="text-sm text-[#22261A]">{title}</p>
+        <p className="mt-1.5 text-[13px] leading-6 text-[#6B7160]">{body}</p>
       </div>
     </div>
   );
@@ -106,13 +106,13 @@ function Card({
 }) {
   const edge =
     tone === "alert"
-      ? "border-amber-200/25 bg-amber-200/[0.05]"
+      ? "border-amber-600/25 bg-amber-100/70"
       : tone === "good"
-        ? "border-lime-200/20 bg-lime-200/[0.04]"
-        : "border-white/[0.09] bg-[#101310]";
+        ? "border-[#3F6212]/25 bg-[#E8F7CC]"
+        : "border-[#16190F]/12 bg-white";
   return (
     <div className={`rounded-2xl border p-5 ${edge}`}>
-      <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-stone-500">
+      <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[#6B7160]">
         {label}
       </p>
       <div className="mt-3">{children}</div>
@@ -122,19 +122,19 @@ function Card({
 
 export function MarketingLanding() {
   return (
-    <main className="marketing-page min-h-svh overflow-hidden bg-[#0b0e0b] text-stone-100">
+    <main className="marketing-page min-h-svh overflow-hidden bg-[#F6F7F2] text-[#16190F]">
       <nav className="relative z-30 mx-auto flex max-w-[92rem] items-center justify-between px-5 py-6 sm:px-9 lg:px-14">
         <Wordmark />
-        <div className="hidden items-center gap-8 text-[11px] text-stone-500 md:flex">
-          <a href="#book" className="transition-colors hover:text-stone-100">The book</a>
-          <a href="#slipping" className="transition-colors hover:text-stone-100">What&rsquo;s slipping</a>
-          <a href="#away" className="transition-colors hover:text-stone-100">While you&rsquo;re away</a>
-          <a href="#boundaries" className="transition-colors hover:text-stone-100">Saying no</a>
-          <a href="#circle" className="transition-colors hover:text-stone-100">The circle</a>
+        <div className="hidden items-center gap-8 text-[11px] text-[#6B7160] md:flex">
+          <a href="#book" className="transition-colors hover:text-[#16190F]">The book</a>
+          <a href="#slipping" className="transition-colors hover:text-[#16190F]">What&rsquo;s slipping</a>
+          <a href="#away" className="transition-colors hover:text-[#16190F]">While you&rsquo;re away</a>
+          <a href="#boundaries" className="transition-colors hover:text-[#16190F]">Saying no</a>
+          <a href="#circle" className="transition-colors hover:text-[#16190F]">The circle</a>
         </div>
         <Link
           href="/app"
-          className="group inline-flex h-9 items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-300 transition hover:border-lime-200/25 hover:text-lime-200"
+          className="group inline-flex h-9 items-center gap-2 rounded-full border border-[#16190F]/15 bg-white px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-[#3A4030] transition hover:border-[#3F6212]/35 hover:text-[#3F6212]"
         >
           Sign in <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </Link>
@@ -151,12 +151,12 @@ export function MarketingLanding() {
             style={{ animationDelay: "100ms" }}
           >
             Your deal book.
-            <span className="mt-3 block italic text-lime-200">
+            <span className="mt-3 block italic text-[#3F6212]">
               In the AI you already use.
             </span>
           </h1>
           <p
-            className="marketing-rise mt-8 max-w-xl text-[15px] leading-7 text-stone-400 sm:text-base sm:leading-8"
+            className="marketing-rise mt-8 max-w-xl text-[15px] leading-7 text-[#555B4A] sm:text-base sm:leading-8"
             style={{ animationDelay: "220ms" }}
           >
             A private agent you run from inside ChatGPT or Claude. It keeps a
@@ -169,13 +169,13 @@ export function MarketingLanding() {
           >
             <a
               href="#book"
-              className="group inline-flex h-12 items-center gap-3 rounded-full bg-lime-200 px-6 text-xs font-semibold text-[#111610] transition hover:bg-[#e5ffad]"
+              className="group inline-flex h-12 items-center gap-3 rounded-full bg-[#C6EC7A] px-6 text-xs font-semibold text-[#16190F] transition hover:bg-[#D7F58F]"
             >
               See what it does <MoveRight className="size-4 transition-transform group-hover:translate-x-1" />
             </a>
             <a
               href={githubUrl}
-              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/12 px-6 text-xs text-stone-400 transition hover:border-lime-200/25 hover:text-lime-200"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-[#16190F]/15 px-6 text-xs text-[#555B4A] transition hover:border-[#3F6212]/35 hover:text-[#3F6212]"
             >
               Read the source <ArrowUpRight className="size-3.5" />
             </a>
@@ -184,19 +184,19 @@ export function MarketingLanding() {
 
         <div className="marketing-rise relative z-10 space-y-3" style={{ animationDelay: "420ms" }}>
           <Card label="Waiting on you" tone="alert">
-            <p className="text-sm text-stone-100">Index Ventures</p>
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="text-sm text-[#16190F]">Index Ventures</p>
+            <p className="mt-1 text-xs text-[#6B7160]">
               Due: send the retention cohort
             </p>
           </Card>
           <Card label="Talking · no contact for 21 days">
-            <p className="text-sm text-stone-100">Mara Ellis</p>
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="text-sm text-[#16190F]">Mara Ellis</p>
+            <p className="mt-1 text-xs text-[#6B7160]">
               Asked how churn splits by cohort
             </p>
           </Card>
           <Card label="Last 30 days" tone="good">
-            <p className="text-sm leading-6 text-stone-100">
+            <p className="text-sm leading-6 text-[#16190F]">
               Nothing irreversible happened while you were away.
             </p>
           </Card>
@@ -210,12 +210,12 @@ export function MarketingLanding() {
         title={
           <>
             Every conversation
-            <span className="block italic text-stone-500">starts from nothing.</span>
+            <span className="block italic text-[#6B7160]">starts from nothing.</span>
           </>
         }
         lede="You explain your company, your stage and your terms again. It forgets when the tab closes. And whatever it did learn belongs to whoever made the model."
       >
-        <div className="rounded-2xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+        <div className="rounded-2xl border border-[#16190F]/12 bg-white p-6 sm:p-8">
           <Beat
             icon={BookUser}
             title="It remembers the people, not just the thread"
@@ -241,7 +241,7 @@ export function MarketingLanding() {
         title={
           <>
             It keeps the book
-            <span className="block italic text-lime-200">you keep meaning to keep.</span>
+            <span className="block italic text-[#3F6212]">you keep meaning to keep.</span>
           </>
         }
         lede="A record on every person and firm you deal with, built as you talk. Tell it what happened and it files it — who asked for what, what you promised, where it stands."
@@ -250,24 +250,24 @@ export function MarketingLanding() {
           <Card label="Index Ventures · in diligence">
             <ul className="space-y-3">
               <li>
-                <p className="text-[13px] leading-6 text-stone-200">
+                <p className="text-[13px] leading-6 text-[#22261A]">
                   Asked for two more months of retention before a term sheet.
                 </p>
-                <p className="mt-1 font-mono text-[10px] text-lime-200/70">
+                <p className="mt-1 font-mono text-[10px] text-[#4A7A12]">
                   You told me · 4 Sept
                 </p>
               </li>
               <li>
-                <p className="text-[13px] leading-6 text-stone-200">
+                <p className="text-[13px] leading-6 text-[#22261A]">
                   Led a Series A in a comparable company last year.
                 </p>
-                <p className="mt-1 font-mono text-[10px] text-stone-500">
+                <p className="mt-1 font-mono text-[10px] text-[#6B7160]">
                   Read from a source · 4 Sept · awaiting you
                 </p>
               </li>
             </ul>
           </Card>
-          <p className="px-1 text-[13px] leading-6 text-stone-500">
+          <p className="px-1 text-[13px] leading-6 text-[#6B7160]">
             Nothing is filed as fact because the agent guessed it. What it worked
             out on its own waits for you to confirm.
           </p>
@@ -281,7 +281,7 @@ export function MarketingLanding() {
         title={
           <>
             It opens with
-            <span className="block italic text-lime-200">what you have dropped.</span>
+            <span className="block italic text-[#3F6212]">what you have dropped.</span>
           </>
         }
         lede="Not a list of everyone. Three things only: a promise whose date has passed, a conversation gone quiet, and someone you added a week ago and never approached."
@@ -290,20 +290,20 @@ export function MarketingLanding() {
           <Card label="Three need you" tone="alert">
             <ul className="space-y-2.5 text-[13px] leading-6">
               <li className="flex items-baseline justify-between gap-4">
-                <span className="text-stone-200">Index Ventures</span>
-                <span className="font-mono text-[10px] text-amber-200/80">overdue</span>
+                <span className="text-[#22261A]">Index Ventures</span>
+                <span className="font-mono text-[10px] text-amber-800">overdue</span>
               </li>
               <li className="flex items-baseline justify-between gap-4">
-                <span className="text-stone-200">Mara Ellis</span>
-                <span className="font-mono text-[10px] text-stone-500">21 days quiet</span>
+                <span className="text-[#22261A]">Mara Ellis</span>
+                <span className="font-mono text-[10px] text-[#6B7160]">21 days quiet</span>
               </li>
               <li className="flex items-baseline justify-between gap-4">
-                <span className="text-stone-200">Halden Partners</span>
-                <span className="font-mono text-[10px] text-stone-500">never approached</span>
+                <span className="text-[#22261A]">Halden Partners</span>
+                <span className="font-mono text-[10px] text-[#6B7160]">never approached</span>
               </li>
             </ul>
           </Card>
-          <p className="px-1 text-[13px] leading-6 text-stone-500">
+          <p className="px-1 text-[13px] leading-6 text-[#6B7160]">
             Silence is read against where things stand. A fortnight without
             contact during diligence is a problem; the same fortnight after they
             passed is not. Nothing is scored, because a number you cannot work
@@ -319,12 +319,12 @@ export function MarketingLanding() {
         title={
           <>
             It keeps working
-            <span className="block italic text-lime-200">when you don&rsquo;t.</span>
+            <span className="block italic text-[#3F6212]">when you don&rsquo;t.</span>
           </>
         }
         lede="Approved research runs on real browsers in the cloud and finishes after the conversation ends. Then it shows you exactly what it did."
       >
-        <div className="rounded-2xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+        <div className="rounded-2xl border border-[#16190F]/12 bg-white p-6 sm:p-8">
           <Beat
             icon={Moon}
             title="Work that outlives the chat"
@@ -350,7 +350,7 @@ export function MarketingLanding() {
         title={
           <>
             Your agent can decline
-            <span className="block italic text-lime-200">on your behalf.</span>
+            <span className="block italic text-[#3F6212]">on your behalf.</span>
           </>
         }
         lede="Nothing right now. Nothing cold. At most a few a week. Set a boundary and things are turned away before they ever reach you."
@@ -358,13 +358,13 @@ export function MarketingLanding() {
         <div className="space-y-3">
           <Card label="In force">
             <div className="flex items-center gap-2.5">
-              <ShieldHalf className="size-3.5 text-lime-200/70" />
-              <p className="text-[13px] text-stone-200">
+              <ShieldHalf className="size-3.5 text-[#4A7A12]" />
+              <p className="text-[13px] text-[#22261A]">
                 Only when both agents arrived at it independently
               </p>
             </div>
           </Card>
-          <p className="px-1 text-[13px] leading-6 text-stone-500">
+          <p className="px-1 text-[13px] leading-6 text-[#6B7160]">
             Nobody is told you have a rule — a refusal that announced itself
             would become a signal about you. And you can always see how much was
             turned away, because a boundary you cannot inspect stops being
@@ -380,17 +380,17 @@ export function MarketingLanding() {
         title={
           <>
             And when two people
-            <span className="block italic text-lime-200">should meet.</span>
+            <span className="block italic text-[#3F6212]">should meet.</span>
           </>
         }
         lede="Both agents work it out first, using what each person allowed. Neither side's private context crosses over, and nobody is named until both say yes."
       >
-        <div className="rounded-3xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+        <div className="rounded-3xl border border-[#16190F]/12 bg-white p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <Clock className="size-4 text-lime-200/70" />
-            <p className="text-sm text-stone-200">Invitation only</p>
+            <Clock className="size-4 text-[#4A7A12]" />
+            <p className="text-sm text-[#22261A]">Invitation only</p>
           </div>
-          <p className="mt-4 text-[13px] leading-7 text-stone-500">
+          <p className="mt-4 text-[13px] leading-7 text-[#6B7160]">
             Sylla is only as good as who is in it, so members vouch for members.
             Each invitation is for one person, and a seat comes back to you when
             someone you brought in settles in.
@@ -398,13 +398,13 @@ export function MarketingLanding() {
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               href="/join"
-              className="group inline-flex h-12 items-center gap-3 rounded-full bg-lime-200 px-6 text-xs font-semibold text-[#111610] transition hover:bg-[#e5ffad]"
+              className="group inline-flex h-12 items-center gap-3 rounded-full bg-[#C6EC7A] px-6 text-xs font-semibold text-[#16190F] transition hover:bg-[#D7F58F]"
             >
               I have an invitation <MoveRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
               href="/app"
-              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/12 px-6 text-xs text-stone-400 transition hover:border-lime-200/25 hover:text-lime-200"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-[#16190F]/15 px-6 text-xs text-[#555B4A] transition hover:border-[#3F6212]/35 hover:text-[#3F6212]"
             >
               Sign in
             </Link>
@@ -412,16 +412,16 @@ export function MarketingLanding() {
         </div>
       </Section>
 
-      <footer className="mx-auto max-w-[92rem] border-t border-white/[0.07] px-5 py-12 sm:px-9 lg:px-14">
+      <footer className="mx-auto max-w-[92rem] border-t border-[#16190F]/10 px-5 py-12 sm:px-9 lg:px-14">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <Wordmark />
-          <p className="max-w-md text-[11px] leading-6 text-stone-600">
+          <p className="max-w-md text-[11px] leading-6 text-[#868C77]">
             A private agent for founders and investors. Yours rather than the
             model&rsquo;s, portable between AI apps, and readable only by you.
           </p>
           <a
             href={githubUrl}
-            className="inline-flex items-center gap-2 text-[11px] text-stone-500 transition-colors hover:text-lime-200"
+            className="inline-flex items-center gap-2 text-[11px] text-[#6B7160] transition-colors hover:text-[#3F6212]"
           >
             Public repository <ArrowUpRight className="size-3" />
           </a>
