@@ -19,6 +19,11 @@ export const OPERATION_CREDITS = {
   sandbox_evaluation: 25,
   sandbox_task: 40,
   workspace_open: 100,
+  // Waking a workspace whose machine was released. A real provision against an
+  // existing volume and snapshot, so it costs most of an open — but not the
+  // volume creation and first workbench build that an open also pays for.
+  workspace_restore: 80,
+  // The machine is still held and only needs waking, which is nearly free.
   workspace_resume: 25,
   workspace_checkpoint: 5,
   workspace_pause: 0,

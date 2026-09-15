@@ -87,9 +87,14 @@ export async function openParticipantWorkspace(
   await requireRuntimeLease(participantId, context.authorization);
   const stateBefore = await loadSessionState(participantId);
   const manifest = approvedWorkspaceManifest(stateBefore);
+  // Three genuinely different amounts of work, and the participant pays for
+  // the one that actually happens: waking a held machine, rebuilding one that
+  // was released onto its existing volume, or standing the whole thing up.
   const operation = stateBefore.workspace?.sessionId
     ? "workspace_resume"
-    : "workspace_open";
+    : stateBefore.workspace?.volumeId && stateBefore.workspace?.snapshotId
+      ? "workspace_restore"
+      : "workspace_open";
   const reservation = await reserveBillableOperation({
     participantId,
     operation,
@@ -265,13 +270,29 @@ export async function pauseParticipantWorkspace(
 
   const solari = context.adapters ?? (await createSolariAdapters());
   const replaced = workspace.snapshotId;
-  // Snapshot first, then pause: Solari refuses a snapshot on a paused machine,
-  // and pausing without one would lose the state the workbench rebuilds from.
+  // Snapshot first: Solari refuses one on a stopped machine, and releasing
+  // without it would lose the state the workbench rebuilds from.
   const snapshotId = await solari.desktop.checkpoint(
     workspace.sessionId,
     "sylla-before-pause",
   );
-  await solari.desktop.pause(workspace.sessionId);
+
+  // Then destroy rather than pause. A paused desktop keeps its concurrency
+  // slot, so one participant who opened a workspace and walked away would hold
+  // a machine indefinitely and the next person would simply be refused. The
+  // durable volume carries the state, so nothing is lost by letting the machine
+  // go — resting means the work is safe, not that a machine is idling.
+  let released = true;
+  try {
+    await solari.desktop.destroy(workspace.sessionId);
+  } catch {
+    // A failed destroy must not leave a machine running. Falling back to pause
+    // keeps the slot but at least stops the compute, and the session id is kept
+    // so the next open resumes it rather than orphaning it.
+    released = false;
+    await solari.desktop.pause(workspace.sessionId).catch(() => undefined);
+  }
+
   if (replaced && replaced !== snapshotId) {
     await solari.desktop.deleteSnapshot(replaced).catch(() => false);
   }
@@ -280,6 +301,9 @@ export async function pauseParticipantWorkspace(
     .update(agentWorkspaces)
     .set({
       solariSnapshotId: snapshotId,
+      // Cleared only when the machine really went away, so a fallback pause is
+      // not mistaken for a released slot.
+      ...(released ? { solariDesktopSessionId: null } : {}),
       status: "paused",
       pausedAt: now,
       lastActiveAt: now,
