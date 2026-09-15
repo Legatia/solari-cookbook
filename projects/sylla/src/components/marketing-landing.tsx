@@ -1,17 +1,13 @@
 import {
-  ArrowDown,
   ArrowUpRight,
-  Check,
-  CircleUserRound,
+  BookUser,
+  Clock,
   Eye,
-  Fingerprint,
-  Globe2,
   LockKeyhole,
-  MessagesSquare,
+  Moon,
   MoveRight,
-  Network,
-  Plug,
-  ShieldCheck,
+  Play,
+  ShieldHalf,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -32,218 +28,97 @@ function Wordmark() {
   );
 }
 
-function SignalLine({ delay = "0ms" }: { delay?: string }) {
+function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <span className="relative h-px flex-1 overflow-hidden bg-white/10">
-      <span
-        className="marketing-signal absolute inset-y-0 left-0 w-16 bg-lime-200"
-        style={{ animationDelay: delay }}
-      />
-    </span>
+    <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-lime-200/65">
+      <span className="h-px w-9 bg-lime-200/40" />
+      {children}
+    </div>
   );
 }
 
-function ConsentNode({
-  label,
-  detail,
-  side,
-  delay,
+function Section({
+  id,
+  eyebrow,
+  title,
+  lede,
+  children,
 }: {
-  label: string;
-  detail: string;
-  side: "left" | "right";
-  delay: string;
+  id: string;
+  eyebrow: string;
+  title: React.ReactNode;
+  lede?: string;
+  children?: React.ReactNode;
 }) {
   return (
-    <div className={`relative z-10 flex items-center gap-3 ${side === "right" ? "flex-row-reverse text-right" : ""}`}>
-      <span
-        className="marketing-node grid size-11 shrink-0 place-items-center rounded-full border border-lime-200/25 bg-[#101510] text-lime-200 shadow-[0_0_0_7px_rgba(217,249,157,0.025)]"
-        style={{ animationDelay: delay }}
-      >
-        <Check className="size-4" strokeWidth={1.8} />
-      </span>
-      <span>
-        <span className="block text-xs font-medium text-stone-200">{label}</span>
-        <span className="mt-0.5 block font-mono text-[8px] uppercase tracking-[0.18em] text-stone-600">
-          {detail}
-        </span>
-      </span>
-    </div>
-  );
-}
-
-function AgentRoom() {
-  return (
-    <div className="marketing-instrument relative isolate min-h-[34rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b0f0c] p-5 shadow-[0_45px_100px_rgba(0,0,0,0.35)] sm:p-8">
-      <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
-        <div className="flex items-center gap-3">
-          <span className="agent-orbit relative grid size-8 place-items-center rounded-full bg-lime-200 text-[#101510]">
-            <CircleUserRound className="size-4" strokeWidth={1.7} />
-          </span>
-          <div>
-            <p className="text-xs font-medium text-stone-200">Your agent</p>
-            <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.17em] text-lime-200/60">
-              present through MCP
-            </p>
-          </div>
-        </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-lime-200/15 bg-lime-200/[0.04] px-3 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-lime-200/70">
-          <span className="size-1.5 rounded-full bg-lime-200" /> You named it
-        </span>
-      </div>
-
-      <div className="mt-8 space-y-4">
-        <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-white/[0.07] bg-white/[0.035] px-4 py-3.5">
-          <p className="text-sm leading-6 text-stone-300">How did it feel meeting Ari?</p>
-        </div>
-        <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-md bg-[#dff8a7] px-4 py-3.5 text-[#151a13]">
-          <p className="text-sm leading-6">Easy. I didn’t have to perform. I’d see them again, just not in a big group.</p>
-        </div>
-        <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-white/[0.07] bg-white/[0.035] px-4 py-3.5">
-          <p className="text-sm leading-6 text-stone-300">That sounds important. Keep the feeling private, and remember that one-on-one suits you better?</p>
-        </div>
-      </div>
-
-      <div className="mt-7 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
-          <div className="flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.16em] text-stone-600">
-            <ShieldCheck className="size-3 text-lime-200/65" /> Waiting for you
-          </div>
-          <p className="mt-3 text-xs leading-5 text-stone-400">Prefers one-on-one connection after a first meeting.</p>
-          <p className="mt-2 font-mono text-[8px] uppercase tracking-[0.15em] text-lime-200/50">
-            I&rsquo;m guessing this
-          </p>
-          <div className="mt-3 flex gap-2 font-mono text-[8px] uppercase tracking-[0.14em]">
-            <span className="rounded-full bg-lime-200 px-2.5 py-1 text-[#151a13]">Keep</span>
-            <span className="rounded-full border border-white/10 px-2.5 py-1 text-stone-600">Not quite</span>
-            <span className="rounded-full border border-white/10 px-2.5 py-1 text-stone-600">Forget</span>
-          </div>
-        </div>
-        <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
-          <div className="flex items-center gap-2 font-mono text-[8px] uppercase tracking-[0.16em] text-stone-600">
-            <Plug className="size-3 text-lime-200/65" /> Relationship online
-          </div>
-          <p className="mt-3 text-xs leading-5 text-stone-400">Same agent. Same context. Whichever compatible AI you open.</p>
-          <div className="mt-3 flex items-center gap-2 text-[9px] text-stone-500">
-            <span className="size-1.5 rounded-full bg-lime-200" /> Host model connected
-          </div>
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute -bottom-32 -right-24 size-72 rounded-full border border-lime-200/[0.06]" />
-      <div className="pointer-events-none absolute -bottom-20 -right-10 size-52 rounded-full border border-lime-200/[0.08]" />
-    </div>
-  );
-}
-
-function IntroductionInstrument() {
-  return (
-    <div className="marketing-instrument relative isolate min-h-[32rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b0f0c] p-5 shadow-[0_45px_100px_rgba(0,0,0,0.35)] sm:p-8">
-      <div className="flex items-center justify-between border-b border-white/[0.07] pb-5">
+    <section
+      id={id}
+      className="relative mx-auto max-w-[92rem] border-t border-white/[0.07] px-5 py-20 sm:px-9 lg:px-14 lg:py-28"
+    >
+      <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
         <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-stone-500">
-            Private introduction · 01
-          </p>
-          <p className="mt-1.5 text-xs text-stone-300">Nobody is named until you both say yes.</p>
+          <Eyebrow>{eyebrow}</Eyebrow>
+          <h2 className="mt-6 font-heading text-[clamp(2.2rem,4.2vw,3.4rem)] font-normal leading-[0.95] tracking-[-0.045em] text-stone-100">
+            {title}
+          </h2>
+          {lede && (
+            <p className="mt-6 max-w-md text-sm leading-7 text-stone-400">{lede}</p>
+          )}
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-lime-200/15 bg-lime-200/[0.04] px-3 py-1.5 font-mono text-[8px] uppercase tracking-[0.16em] text-lime-200/70">
-          <span className="size-1.5 rounded-full bg-lime-200" /> Live hypothesis
-        </span>
+        {children && <div>{children}</div>}
       </div>
+    </section>
+  );
+}
 
-      <div className="relative mt-9 grid grid-cols-[1fr_4rem_1fr] items-center gap-y-12 sm:grid-cols-[1fr_7rem_1fr]">
-        <ConsentNode label="Your agent" detail="sees a reason" side="left" delay="300ms" />
-        <SignalLine delay="700ms" />
-        <ConsentNode label="Their agent" detail="may agree too" side="right" delay="500ms" />
-
-        <ConsentNode label="You" detail="say yes privately" side="left" delay="900ms" />
-        <div className="relative flex items-center">
-          <SignalLine delay="1300ms" />
-          <span className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-lime-200/20 bg-[#0b0f0c]">
-            <Sparkles className="size-4 text-lime-200" strokeWidth={1.5} />
-          </span>
-        </div>
-        <ConsentNode label="They" detail="say yes privately" side="right" delay="1100ms" />
+/** A claim with the thing that makes it credible sitting under it. */
+function Beat({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof BookUser;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="flex gap-4 border-b border-white/[0.06] py-5 last:border-b-0">
+      <span className="mt-0.5 shrink-0 text-lime-200/70">
+        <Icon className="size-4" />
+      </span>
+      <div>
+        <p className="text-sm text-stone-200">{title}</p>
+        <p className="mt-1.5 text-[13px] leading-6 text-stone-500">{body}</p>
       </div>
-
-      <div className="mt-12 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
-        <div className="flex items-center gap-3">
-          <span className="grid size-8 place-items-center rounded-full bg-lime-200 text-[#101510]">
-            <LockKeyhole className="size-3.5" strokeWidth={2} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs font-medium text-stone-200">Names stay sealed</p>
-              <p className="font-mono text-[8px] uppercase tracking-[0.17em] text-lime-200/60">
-                until both say yes
-              </p>
-            </div>
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
-              <div className="marketing-progress h-full w-full rounded-full bg-lime-200" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute -bottom-32 -right-24 size-72 rounded-full border border-lime-200/[0.06]" />
-      <div className="pointer-events-none absolute -bottom-20 -right-10 size-52 rounded-full border border-lime-200/[0.08]" />
     </div>
   );
 }
 
-const steps = [
-  {
-    number: "01",
-    title: "Open the AI you already use.",
-    body: "Sylla begins as an MCP connection, not another app asking you to build a new habit.",
-  },
-  {
-    number: "02",
-    title: "Bring your agent into the conversation.",
-    body: "The host model provides the intelligence. Sylla brings your identity, permissions, memory, and ongoing relationship.",
-  },
-  {
-    number: "03",
-    title: "Keep it when the model changes.",
-    body: "Your approved context stays portable—from today’s MCP hosts to Sylla’s future native app.",
-  },
-];
-
-const solariSurfaces = [
-  {
-    name: "Browser",
-    label: "Research",
-    body: "Visits only the public sources you approve and preserves evidence beside every claim.",
-  },
-  {
-    name: "Desktop",
-    label: "Home",
-    body: "A private room of its own, where the working-out lives instead of being flattened into a chat reply. Yours to walk into whenever you want to see more.",
-  },
-  {
-    name: "Sandbox",
-    label: "Judgment",
-    body: "Evaluates each side independently inside a disposable boundary, then destroys the environment.",
-  },
-];
-
-const trustPoints = [
-  {
-    Icon: Eye,
-    title: "Inspectable",
-    body: "Everything it thinks it knows says where it came from—what you told it, what it read, and what it is only guessing.",
-  },
-  {
-    Icon: LockKeyhole,
-    title: "Permissioned",
-    body: "Nothing becomes memory or crosses to another person without your approval.",
-  },
-  {
-    Icon: Globe2,
-    title: "Portable",
-    body: "Your identity and approved context belong to Sylla—not to whichever model happens to be open.",
-  },
-];
+/** A worked example, in the shape the product actually renders it. */
+function Card({
+  label,
+  children,
+  tone = "plain",
+}: {
+  label: string;
+  children: React.ReactNode;
+  tone?: "plain" | "alert" | "good";
+}) {
+  const edge =
+    tone === "alert"
+      ? "border-amber-200/25 bg-amber-200/[0.05]"
+      : tone === "good"
+        ? "border-lime-200/20 bg-lime-200/[0.04]"
+        : "border-white/[0.09] bg-[#101310]";
+  return (
+    <div className={`rounded-2xl border p-5 ${edge}`}>
+      <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-stone-500">
+        {label}
+      </p>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
 
 export function MarketingLanding() {
   return (
@@ -251,217 +126,306 @@ export function MarketingLanding() {
       <nav className="relative z-30 mx-auto flex max-w-[92rem] items-center justify-between px-5 py-6 sm:px-9 lg:px-14">
         <Wordmark />
         <div className="hidden items-center gap-8 text-[11px] text-stone-500 md:flex">
-          <a href="#relationship" className="transition-colors hover:text-stone-100">The relationship</a>
-          <a href="#mcp" className="transition-colors hover:text-stone-100">How it starts</a>
-          <a href="#introductions" className="transition-colors hover:text-stone-100">Introductions</a>
-          <a href="#trust" className="transition-colors hover:text-stone-100">Trust</a>
-          <a href="#solari" className="transition-colors hover:text-stone-100">Where it works</a>
+          <a href="#book" className="transition-colors hover:text-stone-100">The book</a>
+          <a href="#slipping" className="transition-colors hover:text-stone-100">What&rsquo;s slipping</a>
+          <a href="#away" className="transition-colors hover:text-stone-100">While you&rsquo;re away</a>
+          <a href="#boundaries" className="transition-colors hover:text-stone-100">Saying no</a>
+          <a href="#circle" className="transition-colors hover:text-stone-100">The circle</a>
         </div>
         <Link
           href="/app"
           className="group inline-flex h-9 items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-300 transition hover:border-lime-200/25 hover:text-lime-200"
         >
-          Private preview <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          Sign in <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </Link>
       </nav>
 
-      <section className="relative mx-auto grid max-w-[92rem] gap-14 px-5 pb-24 pt-14 sm:px-9 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-20 lg:px-14 lg:pb-32 lg:pt-24">
+      {/* Hero */}
+      <section className="relative mx-auto grid max-w-[92rem] gap-14 px-5 pb-20 pt-10 sm:px-9 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:px-14 lg:pb-24 lg:pt-14">
         <div className="relative z-10 max-w-4xl">
-          <div className="marketing-rise flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-lime-200/65">
-            <span className="h-px w-9 bg-lime-200/40" /> Private by permission · portable by design
+          <div className="marketing-rise">
+            <Eyebrow>Invitation only · founders &amp; investors</Eyebrow>
           </div>
-          <h1 className="marketing-rise mt-8 font-heading text-[clamp(4rem,9.4vw,9.2rem)] font-normal leading-[0.78] tracking-[-0.075em]" style={{ animationDelay: "100ms" }}>
-            The intimate agent.
-            <span className="mt-3 block italic text-lime-200">Yours, not theirs.</span>
+          <h1
+            className="marketing-rise mt-8 font-heading text-[clamp(2.9rem,6vw,5.4rem)] font-normal leading-[0.86] tracking-[-0.06em]"
+            style={{ animationDelay: "100ms" }}
+          >
+            Your deal book.
+            <span className="mt-3 block italic text-lime-200">
+              In the AI you already use.
+            </span>
           </h1>
-          <p className="marketing-rise mt-10 max-w-2xl text-base leading-8 text-stone-400 sm:text-lg sm:leading-9" style={{ animationDelay: "220ms" }}>
-            Sylla is the private layer behind the AI you already talk to. Your agent
-            remembers what you let it, and comes with you when the model changes.
-            When everyone has one, agents can find people their humans never would.
+          <p
+            className="marketing-rise mt-8 max-w-xl text-[15px] leading-7 text-stone-400 sm:text-base sm:leading-8"
+            style={{ animationDelay: "220ms" }}
+          >
+            A private agent you run from inside ChatGPT or Claude. It keeps a
+            record on everyone you are dealing with, researches them on real
+            browsers, and carries on after you close the chat.
           </p>
-          <div className="marketing-rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "320ms" }}>
+          <div
+            className="marketing-rise mt-8 flex flex-wrap items-center gap-3"
+            style={{ animationDelay: "320ms" }}
+          >
             <a
-              href="#mcp"
+              href="#book"
               className="group inline-flex h-12 items-center gap-3 rounded-full bg-lime-200 px-6 text-xs font-semibold text-[#111610] transition hover:bg-[#e5ffad]"
             >
-              See how it follows you <MoveRight className="size-4 transition-transform group-hover:translate-x-1" />
+              See what it does <MoveRight className="size-4 transition-transform group-hover:translate-x-1" />
             </a>
             <a
               href={githubUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 px-6 text-xs text-stone-400 transition hover:border-white/20 hover:text-stone-100"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/12 px-6 text-xs text-stone-400 transition hover:border-lime-200/25 hover:text-lime-200"
             >
-              See the public build <ArrowUpRight className="size-3.5" />
+              Read the source <ArrowUpRight className="size-3.5" />
             </a>
           </div>
-          <div className="marketing-rise mt-12 flex flex-wrap gap-x-7 gap-y-3 border-t border-white/[0.07] pt-5 font-mono text-[8px] uppercase tracking-[0.16em] text-stone-600" style={{ animationDelay: "420ms" }}>
-            <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You name it</span>
-            <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You teach it</span>
-            <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You take it with you</span>
-            <span className="inline-flex items-center gap-2"><span className="size-1 rounded-full bg-lime-200" /> You can walk away with it</span>
-          </div>
         </div>
 
-        <div className="marketing-rise relative z-10 lg:pt-8" style={{ animationDelay: "260ms" }}>
-          <AgentRoom />
-        </div>
-        <div className="pointer-events-none absolute -left-32 top-1/4 h-px w-[42rem] -rotate-12 bg-gradient-to-r from-transparent via-lime-200/[0.08] to-transparent" />
-      </section>
-
-      <a href="#relationship" className="mx-auto mb-12 flex w-fit flex-col items-center gap-2 font-mono text-[8px] uppercase tracking-[0.2em] text-stone-600 transition hover:text-stone-300">
-        Meet the relationship layer <ArrowDown className="size-3 animate-bounce" />
-      </a>
-
-      <section className="overflow-hidden border-y border-white/[0.07] bg-[#dff8a7] py-3 text-[#111610]">
-        <div className="marketing-marquee flex w-max items-center gap-10 whitespace-nowrap font-mono text-[9px] font-medium uppercase tracking-[0.18em]">
-          {[0, 1].map((copy) => (
-            <div key={copy} className="flex items-center gap-10" aria-hidden={copy === 1}>
-              <span>Not a feed</span><span>✦</span><span>Not a compatibility score</span><span>✦</span><span>Not another inbox</span><span>✦</span><span>Your agent, your memory, your call</span><span>✦</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="relationship" className="mx-auto max-w-[92rem] px-5 py-28 sm:px-9 lg:px-14 lg:py-40">
-        <div className="grid gap-12 lg:grid-cols-[0.7fr_1.3fr] lg:gap-24">
-          <div>
-            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-lime-200/60">A different kind of AI relationship</p>
-            <h2 className="mt-5 max-w-md font-heading text-5xl leading-[0.95] tracking-[-0.05em] sm:text-6xl">
-              The model answers. <em className="text-stone-500">Your agent knows.</em>
-            </h2>
-            <p className="mt-8 max-w-md text-sm leading-7 text-stone-500">Today’s assistants can be brilliant and still feel like strangers. They produce an answer; Sylla builds a relationship—through short, natural conversation backed by depth you can inspect when you want it.</p>
-          </div>
-          <div className="border-t border-white/10">
-            {[
-              { Icon: MessagesSquare, title: "Conversation, not a report", body: "It asks, listens, follows up, and leaves the essay on the desktop for when you want to go deeper." },
-              { Icon: Fingerprint, title: "Intimacy you can inspect", body: "Memory is proposed, sourced, editable, and approved by you. Knowing you never means quietly claiming you." },
-              { Icon: Globe2, title: "One relationship across models", body: "The expensive intelligence can come from whichever model is best. The personal continuity belongs to your agent." },
-              { Icon: Sparkles, title: "Start from your own history", body: "Hand over the download your old platforms already owe you, and your agent begins knowing you—as drafts you read, keep, or throw away. It never goes looking for anyone else." },
-            ].map(({ Icon, title, body }) => (
-              <div key={title} className="group grid gap-5 border-b border-white/10 py-8 sm:grid-cols-[4rem_1fr_1fr] sm:items-start sm:gap-8">
-                <span className="grid size-9 place-items-center rounded-full border border-white/10 text-lime-200/60"><Icon className="size-4" strokeWidth={1.4} /></span>
-                <h3 className="font-heading text-3xl tracking-[-0.035em] text-stone-200 transition-colors group-hover:text-lime-200">{title}</h3>
-                <p className="text-sm leading-7 text-stone-500">{body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="mcp" className="relative border-y border-white/[0.07] bg-[#dff8a7] text-[#151a13]">
-        <div className="mx-auto max-w-[92rem] px-5 py-24 sm:px-9 lg:px-14 lg:py-32">
-          <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-end lg:gap-24">
-            <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-black/45">MCP first · native app later</p>
-              <h2 className="mt-5 font-heading text-[clamp(3.8rem,7vw,7.8rem)] leading-[0.84] tracking-[-0.065em]">No new app habit <em>required.</em></h2>
-            </div>
-            <p className="max-w-xl text-base leading-8 text-black/55">Connect Sylla to an AI you already use. Its model powers the conversation; Sylla supplies the agent, the permissions, the memory that stays yours, and somewhere to work. Close that chat mid-task and Sylla holds your place—finishing only what you already approved, and nothing more.</p>
-          </div>
-
-          <div className="mt-16 grid overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#ecffbd] lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
-            {steps.map((step, index) => (
-              <div key={step.number} className="contents">
-                <div className="p-7 lg:min-h-64 lg:p-9">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/40">{step.number}</span>
-                    {index === 0 ? <Plug className="size-4 text-[#536b2d]" strokeWidth={1.5} /> : index === 1 ? <CircleUserRound className="size-4 text-[#536b2d]" strokeWidth={1.5} /> : <Globe2 className="size-4 text-[#536b2d]" strokeWidth={1.5} />}
-                  </div>
-                  <h3 className="mt-12 font-heading text-3xl leading-none tracking-[-0.04em]">{step.title}</h3>
-                  <p className="mt-5 text-sm leading-7 text-black/50">{step.body}</p>
-                </div>
-                {index < steps.length - 1 && <div className="hidden w-px bg-black/10 lg:block" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="introductions" className="mx-auto grid max-w-[92rem] gap-14 px-5 py-28 sm:px-9 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:gap-24 lg:px-14 lg:py-40">
-        <div>
-          <div className="flex size-12 items-center justify-center rounded-full border border-lime-200/20 bg-lime-200/[0.04] text-lime-200">
-            <Network className="size-5" strokeWidth={1.4} />
-          </div>
-          <p className="mt-8 font-mono text-[9px] uppercase tracking-[0.22em] text-lime-200/60">The flagship use case</p>
-          <h2 className="mt-5 font-heading text-5xl leading-[0.9] tracking-[-0.055em] sm:text-7xl">Every person has an agent. <em className="text-stone-500">The agents meet first.</em></h2>
-          <p className="mt-8 max-w-xl text-base leading-8 text-stone-400">A parallel society can look for human possibilities without turning people into a public marketplace. Your agent knows your inner context. Their agent knows theirs. They can privately ask whether two lives might fit—before either name is spoken.</p>
-          <p className="mt-6 max-w-xl text-sm leading-7 text-stone-500">Sometimes both agents arrive at the same idea on their own, which is worth knowing. Sometimes only one of them does, and that is enough to ask. Either way it takes two people saying yes, separately, before anyone is introduced—and a no simply closes, quietly, for both of you.</p>
-          <p className="mt-5 max-w-xl text-sm leading-7 text-stone-600">It happens inside a real gathering you chose to join, among people who also opted in. Private introductions are Sylla’s first proof: not the whole product, but the clearest reason a deeply personal agent becomes more valuable when everyone has one.</p>
-        </div>
-        <IntroductionInstrument />
-      </section>
-
-      <section id="trust" className="relative border-y border-white/[0.07] bg-[#ece8de] text-[#171b16]">
-        <div className="mx-auto grid max-w-[92rem] lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="px-5 py-24 sm:px-9 lg:border-r lg:border-black/10 lg:px-14 lg:py-36">
-            <Fingerprint className="size-7 text-[#536b2d]" strokeWidth={1.2} />
-            <blockquote className="mt-10 max-w-4xl font-heading text-[clamp(3.2rem,6vw,6.8rem)] leading-[0.88] tracking-[-0.065em]">
-              To know you deeply, an agent must let you <em>know it back.</em>
-            </blockquote>
-          </div>
-          <div className="grid border-t border-black/10 lg:border-t-0">
-            {trustPoints.map(({ Icon, title, body }) => (
-              <div key={title} className="grid grid-cols-[3rem_1fr] gap-5 border-b border-black/10 px-5 py-9 last:border-b-0 sm:px-9 lg:px-12">
-                <Icon className="mt-1 size-5 text-[#536b2d]" strokeWidth={1.3} />
-                <div>
-                  <h3 className="text-sm font-semibold">{title}</h3>
-                  <p className="mt-2 max-w-md text-sm leading-7 text-black/55">{body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="solari" className="mx-auto max-w-[92rem] px-5 py-28 sm:px-9 lg:px-14 lg:py-40">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-lime-200/60">The agent has somewhere to work</p>
-            <h2 className="mt-5 max-w-3xl font-heading text-5xl leading-[0.92] tracking-[-0.055em] sm:text-7xl">Conversation stays light. <em className="text-stone-500">The workbench holds the depth.</em></h2>
-          </div>
-          <p className="max-w-sm text-sm leading-7 text-stone-500">Solari gives the personal agent a browser for approved research, a persistent desktop for rich context, and a disposable sandbox for sensitive comparison.</p>
-        </div>
-
-        <div className="mt-16 grid border-y border-white/10 lg:grid-cols-3">
-          {solariSurfaces.map((surface, index) => (
-            <article key={surface.name} className="group relative min-h-72 overflow-hidden border-b border-white/10 p-7 last:border-b-0 lg:border-b-0 lg:border-r lg:last:border-r-0 lg:p-9">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-stone-600">0{index + 1} / {surface.label}</span>
-                <span className="size-2 rounded-full border border-lime-200/40 transition group-hover:bg-lime-200 group-hover:shadow-[0_0_18px_rgba(217,249,157,0.5)]" />
-              </div>
-              <h3 className="mt-14 font-heading text-5xl italic tracking-[-0.04em] text-stone-200">{surface.name}</h3>
-              <p className="mt-5 max-w-sm text-sm leading-7 text-stone-500">{surface.body}</p>
-              <div className="absolute -bottom-14 -right-14 size-36 rounded-full border border-white/[0.04] transition-transform duration-700 group-hover:scale-125" />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="relative mx-3 mb-3 overflow-hidden rounded-[2rem] bg-lime-200 px-5 py-24 text-[#111610] sm:mx-5 sm:px-9 lg:px-14 lg:py-32">
-        <div className="relative z-10 mx-auto flex max-w-[84rem] flex-col items-start justify-between gap-12 lg:flex-row lg:items-end">
-          <div>
-            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/50">Your model is temporary. Your relationship does not have to be.</p>
-            <h2 className="mt-5 font-heading text-[clamp(4rem,9vw,9rem)] leading-[0.8] tracking-[-0.075em]">Keep the agent.<br /><em>Change everything else.</em></h2>
-          </div>
-          <div className="max-w-sm">
-            <p className="text-sm leading-7 text-black/60">Start inside the AI you already use. Let Sylla earn context slowly. When the agent moves into an app of its own, the relationship moves with it.</p>
-            <Link href="/app" className="group mt-7 inline-flex h-12 items-center gap-3 rounded-full bg-[#111610] px-6 text-xs font-semibold text-lime-200">
-              Enter the private preview <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </Link>
-            <p className="mt-4 text-xs leading-6 text-black/45">
-              Early access is invite-only while the first gathering runs. You&rsquo;ll
-              need a password or an invitation to get in.
+        <div className="marketing-rise relative z-10 space-y-3" style={{ animationDelay: "420ms" }}>
+          <Card label="Waiting on you" tone="alert">
+            <p className="text-sm text-stone-100">Index Ventures</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Due: send the retention cohort
             </p>
-          </div>
+          </Card>
+          <Card label="Talking · no contact for 21 days">
+            <p className="text-sm text-stone-100">Mara Ellis</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Asked how churn splits by cohort
+            </p>
+          </Card>
+          <Card label="Last 30 days" tone="good">
+            <p className="text-sm leading-6 text-stone-100">
+              Nothing irreversible happened while you were away.
+            </p>
+          </Card>
         </div>
-        <div className="pointer-events-none absolute -right-28 -top-28 size-[28rem] rounded-full border border-black/10" />
-        <div className="pointer-events-none absolute -right-14 -top-14 size-[20rem] rounded-full border border-black/10" />
       </section>
 
-      <footer className="mx-auto flex max-w-[92rem] flex-col gap-6 px-5 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-9 lg:px-14">
-        <Wordmark />
-        <p className="max-w-lg text-xs leading-6 text-stone-600">The intimate, portable relationship layer for personal agents. Private introductions are the flagship proof, not the limit.</p>
-        <a href={githubUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-stone-500 transition hover:text-lime-200">Public repository <ArrowUpRight className="size-3" /></a>
+      {/* The problem */}
+      <Section
+        id="problem"
+        eyebrow="Why this exists"
+        title={
+          <>
+            Every conversation
+            <span className="block italic text-stone-500">starts from nothing.</span>
+          </>
+        }
+        lede="You explain your company, your stage and your terms again. It forgets when the tab closes. And whatever it did learn belongs to whoever made the model."
+      >
+        <div className="rounded-2xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+          <Beat
+            icon={BookUser}
+            title="It remembers the people, not just the thread"
+            body="Every claim carries where it came from: you said it, it read it in a source you approved, or it worked it out. The weakest kind is labelled the weakest."
+          />
+          <Beat
+            icon={LockKeyhole}
+            title="Private to you, and only you"
+            body="Your records are never pooled with anyone else's, never used to match you, and never disclosed in an introduction. You can export the lot or delete it in one action."
+          />
+          <Beat
+            icon={Sparkles}
+            title="It goes where you go"
+            body="Start in ChatGPT, carry on in Claude. The agent is yours rather than the model's, so changing model does not cost you the relationship."
+          />
+        </div>
+      </Section>
+
+      {/* The book */}
+      <Section
+        id="book"
+        eyebrow="The book"
+        title={
+          <>
+            It keeps the book
+            <span className="block italic text-lime-200">you keep meaning to keep.</span>
+          </>
+        }
+        lede="A record on every person and firm you deal with, built as you talk. Tell it what happened and it files it — who asked for what, what you promised, where it stands."
+      >
+        <div className="space-y-3">
+          <Card label="Index Ventures · in diligence">
+            <ul className="space-y-3">
+              <li>
+                <p className="text-[13px] leading-6 text-stone-200">
+                  Asked for two more months of retention before a term sheet.
+                </p>
+                <p className="mt-1 font-mono text-[10px] text-lime-200/70">
+                  You told me · 4 Sept
+                </p>
+              </li>
+              <li>
+                <p className="text-[13px] leading-6 text-stone-200">
+                  Led a Series A in a comparable company last year.
+                </p>
+                <p className="mt-1 font-mono text-[10px] text-stone-500">
+                  Read from a source · 4 Sept · awaiting you
+                </p>
+              </li>
+            </ul>
+          </Card>
+          <p className="px-1 text-[13px] leading-6 text-stone-500">
+            Nothing is filed as fact because the agent guessed it. What it worked
+            out on its own waits for you to confirm.
+          </p>
+        </div>
+      </Section>
+
+      {/* Triage */}
+      <Section
+        id="slipping"
+        eyebrow="What&rsquo;s slipping"
+        title={
+          <>
+            It opens with
+            <span className="block italic text-lime-200">what you have dropped.</span>
+          </>
+        }
+        lede="Not a list of everyone. Three things only: a promise whose date has passed, a conversation gone quiet, and someone you added a week ago and never approached."
+      >
+        <div className="space-y-3">
+          <Card label="Three need you" tone="alert">
+            <ul className="space-y-2.5 text-[13px] leading-6">
+              <li className="flex items-baseline justify-between gap-4">
+                <span className="text-stone-200">Index Ventures</span>
+                <span className="font-mono text-[10px] text-amber-200/80">overdue</span>
+              </li>
+              <li className="flex items-baseline justify-between gap-4">
+                <span className="text-stone-200">Mara Ellis</span>
+                <span className="font-mono text-[10px] text-stone-500">21 days quiet</span>
+              </li>
+              <li className="flex items-baseline justify-between gap-4">
+                <span className="text-stone-200">Halden Partners</span>
+                <span className="font-mono text-[10px] text-stone-500">never approached</span>
+              </li>
+            </ul>
+          </Card>
+          <p className="px-1 text-[13px] leading-6 text-stone-500">
+            Silence is read against where things stand. A fortnight without
+            contact during diligence is a problem; the same fortnight after they
+            passed is not. Nothing is scored, because a number you cannot work
+            out by hand is a number you will not trust.
+          </p>
+        </div>
+      </Section>
+
+      {/* Unattended */}
+      <Section
+        id="away"
+        eyebrow="While you&rsquo;re away"
+        title={
+          <>
+            It keeps working
+            <span className="block italic text-lime-200">when you don&rsquo;t.</span>
+          </>
+        }
+        lede="Approved research runs on real browsers in the cloud and finishes after the conversation ends. Then it shows you exactly what it did."
+      >
+        <div className="rounded-2xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+          <Beat
+            icon={Moon}
+            title="Work that outlives the chat"
+            body="Say what you want looked into and close the tab. The work continues, checkpointed, inside the budget you set."
+          />
+          <Beat
+            icon={Play}
+            title="Watchable, not just claimed"
+            body="Sessions are recorded. Every unattended run shows what it did, what it cost, which model stood in — and offers the replay."
+          />
+          <Beat
+            icon={Eye}
+            title="Nothing irreversible, by construction"
+            body="The background worker summarises and does not act. That is a property of how it is built rather than a promise about how it behaves."
+          />
+        </div>
+      </Section>
+
+      {/* Boundaries */}
+      <Section
+        id="boundaries"
+        eyebrow="Saying no"
+        title={
+          <>
+            Your agent can decline
+            <span className="block italic text-lime-200">on your behalf.</span>
+          </>
+        }
+        lede="Nothing right now. Nothing cold. At most a few a week. Set a boundary and things are turned away before they ever reach you."
+      >
+        <div className="space-y-3">
+          <Card label="In force">
+            <div className="flex items-center gap-2.5">
+              <ShieldHalf className="size-3.5 text-lime-200/70" />
+              <p className="text-[13px] text-stone-200">
+                Only when both agents arrived at it independently
+              </p>
+            </div>
+          </Card>
+          <p className="px-1 text-[13px] leading-6 text-stone-500">
+            Nobody is told you have a rule — a refusal that announced itself
+            would become a signal about you. And you can always see how much was
+            turned away, because a boundary you cannot inspect stops being
+            protection and becomes an algorithm choosing for you.
+          </p>
+        </div>
+      </Section>
+
+      {/* Second act */}
+      <Section
+        id="circle"
+        eyebrow="The circle"
+        title={
+          <>
+            And when two people
+            <span className="block italic text-lime-200">should meet.</span>
+          </>
+        }
+        lede="Both agents work it out first, using what each person allowed. Neither side's private context crosses over, and nobody is named until both say yes."
+      >
+        <div className="rounded-3xl border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+          <div className="flex items-center gap-3">
+            <Clock className="size-4 text-lime-200/70" />
+            <p className="text-sm text-stone-200">Invitation only</p>
+          </div>
+          <p className="mt-4 text-[13px] leading-7 text-stone-500">
+            Sylla is only as good as who is in it, so members vouch for members.
+            Each invitation is for one person, and a seat comes back to you when
+            someone you brought in settles in.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <Link
+              href="/join"
+              className="group inline-flex h-12 items-center gap-3 rounded-full bg-lime-200 px-6 text-xs font-semibold text-[#111610] transition hover:bg-[#e5ffad]"
+            >
+              I have an invitation <MoveRight className="size-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+            <Link
+              href="/app"
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-white/12 px-6 text-xs text-stone-400 transition hover:border-lime-200/25 hover:text-lime-200"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </Section>
+
+      <footer className="mx-auto max-w-[92rem] border-t border-white/[0.07] px-5 py-12 sm:px-9 lg:px-14">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <Wordmark />
+          <p className="max-w-md text-[11px] leading-6 text-stone-600">
+            A private agent for founders and investors. Yours rather than the
+            model&rsquo;s, portable between AI apps, and readable only by you.
+          </p>
+          <a
+            href={githubUrl}
+            className="inline-flex items-center gap-2 text-[11px] text-stone-500 transition-colors hover:text-lime-200"
+          >
+            Public repository <ArrowUpRight className="size-3" />
+          </a>
+        </div>
       </footer>
     </main>
   );
