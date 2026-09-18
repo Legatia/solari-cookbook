@@ -47,7 +47,7 @@ export function AcceptInvitation({ credential }: { credential: string }) {
         Take my seat
       </Button>
       {error && <p className="mt-4 text-xs leading-5 text-red-300/80">{error}</p>}
-      <p className="mt-5 text-[10px] leading-5 text-stone-600">
+      <p className="mt-5 text-[10px] leading-5 text-stone-400">
         Nothing is created until you press this. Your agent is yours, it starts
         empty, and you decide what it is allowed to remember.
       </p>
@@ -87,7 +87,7 @@ export function EnterInvitationCode() {
         placeholder="XXXX-XXXX-XXXX"
         autoComplete="off"
         spellCheck={false}
-        className="w-full rounded-xl border border-white/[0.1] bg-black/25 px-4 py-3 text-center font-mono text-base tracking-[0.18em] text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
+        className="w-full rounded-xl border border-white/[0.2] bg-black/25 px-4 py-3 text-center font-mono text-base tracking-[0.18em] text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
       />
       <Button
         type="button"

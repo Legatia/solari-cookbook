@@ -84,8 +84,11 @@
 }
 
 .dark {
-  --background: oklch(0.105 0.012 145);
-  --foreground: oklch(0.93 0.012 90);
+  /* Lifted off near-black. At 0.105 the ground and the panels were within a
+     couple of percent of each other, so nothing read as a surface and the whole
+     room looked like fog rather than a set of objects. */
+  --background: oklch(0.135 0.012 145);
+  --foreground: oklch(0.96 0.012 90);
   --card: oklch(0.145 0.012 145);
   --card-foreground: oklch(0.93 0.012 90);
   --popover: oklch(0.145 0.012 145);
@@ -95,7 +98,7 @@
   --secondary: oklch(0.19 0.013 145);
   --secondary-foreground: oklch(0.9 0.012 90);
   --muted: oklch(0.18 0.01 145);
-  --muted-foreground: oklch(0.62 0.012 90);
+  --muted-foreground: oklch(0.76 0.012 90);
   --accent: oklch(0.22 0.02 130);
   --accent-foreground: oklch(0.93 0.012 90);
   --destructive: oklch(0.704 0.191 22.216);
@@ -146,7 +149,7 @@
   inset: 0;
   pointer-events: none;
   content: "";
-  opacity: 0.2;
+  opacity: 0.12;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
   mix-blend-mode: soft-light;
 }

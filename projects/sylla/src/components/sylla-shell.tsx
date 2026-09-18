@@ -133,7 +133,7 @@ function OriginBadge({ origin }: { origin: SyllaObservation["origin"] }) {
     <Badge
       variant="outline"
       className={cn(
-        "border-white/10 bg-white/[0.025] text-[9px] uppercase tracking-[0.12em]",
+        "border-white/10 bg-white/[0.05] text-[9px] uppercase tracking-[0.12em]",
         origin === "inferred" ? "text-amber-200/75" : "text-stone-400",
       )}
     >
@@ -180,7 +180,7 @@ function ErrorScreen({ error, retry }: { error: string; retry: () => void }) {
         <h1 className="mt-8 font-heading text-4xl italic text-stone-100">
           The room did not open.
         </h1>
-        <p className="mt-4 text-sm leading-6 text-stone-500">{error}</p>
+        <p className="mt-4 text-sm leading-6 text-stone-400">{error}</p>
         <Button onClick={retry} className="mt-7 rounded-full bg-lime-200 text-stone-950">
           Try again <RefreshCw />
         </Button>
@@ -200,7 +200,7 @@ function WithdrawnScreen({ eventName }: { eventName: string }) {
         <h1 className="mt-4 font-heading text-5xl italic text-stone-100">
           You are out of the matching pool.
         </h1>
-        <p className="mt-5 text-sm leading-7 text-stone-500">
+        <p className="mt-5 text-sm leading-7 text-stone-400">
           Sylla released active work, revoked event access, and will not use you
           for introductions at {eventName}. Your withdrawal remains auditable.
         </p>
@@ -289,7 +289,7 @@ function ConsentScreen({
           <h1 className="mt-5 font-heading text-[clamp(3.4rem,7vw,6.5rem)] leading-[0.88] tracking-[-0.05em] text-stone-100">
             Enter on your own terms.
           </h1>
-          <p className="mt-7 max-w-sm text-sm leading-7 text-stone-500">
+          <p className="mt-7 max-w-sm text-sm leading-7 text-stone-400">
             Sylla is an agent you keep, not a social feed. It researches only what
             you approve, proposes memory for review, and never introduces you
             without a separate yes.
@@ -303,50 +303,50 @@ function ConsentScreen({
           </button>
           <a
             href="/login"
-            className="ml-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+            className="ml-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-stone-400 transition-colors hover:text-lime-200"
           >
             <KeyRound className="size-3.5" /> I already have an agent
           </a>
-          <p className="mt-3 max-w-xs text-[10px] leading-5 text-stone-600">
+          <p className="mt-3 max-w-xs text-[10px] leading-5 text-stone-400">
             Your AI can meet the agent now. Private actions unlock only after you choose the permissions here.
           </p>
         </div>
-        <div className="space-y-8 rounded-[2rem] border border-white/[0.09] bg-black/15 p-6 sm:p-9">
+        <div className="space-y-8 rounded-[2rem] border border-white/[0.18] bg-black/15 p-6 sm:p-9">
           <label className="block">
-            <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">How should people know you?</span>
-            <Input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your display name" className="mt-3 border-white/10 bg-white/[0.025]" />
+            <span className="text-[10px] uppercase tracking-[0.18em] text-stone-400">How should people know you?</span>
+            <Input required maxLength={80} value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your display name" className="mt-3 border-white/10 bg-white/[0.05]" />
           </label>
           <fieldset>
-            <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Your explicit permissions</legend>
+            <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-400">Your explicit permissions</legend>
             <div className="mt-4 space-y-3">
               {choices.map(([checked, setChecked, label]) => (
-                <label key={label} className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-xs leading-5 text-stone-400">
+                <label key={label} className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.16] bg-white/[0.045] p-4 text-xs leading-5 text-stone-400">
                   <input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)} className="mt-1 accent-lime-200" />
                   <span>{label}</span>
                 </label>
               ))}
             </div>
           </fieldset>
-          <fieldset className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
-            <legend className="px-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">Optional · private introductions</legend>
+          <fieldset className="rounded-2xl border border-white/[0.16] bg-white/[0.045] p-4">
+            <legend className="px-2 text-[10px] uppercase tracking-[0.18em] text-stone-400">Optional · private introductions</legend>
             <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-stone-400">
               <input type="checkbox" checked={matching} onChange={(event) => setMatching(event.target.checked)} className="mt-1 accent-lime-200" />
               <span>Let my agent look for people I may genuinely want to meet. Nothing identifying is shared unless both people separately say yes.</span>
             </label>
             {matching && (
-              <div className="mt-5 grid gap-3 border-t border-white/[0.07] pt-5 sm:grid-cols-2">
-                <label className="text-[10px] text-stone-500">Available from<Input required type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
-                <label className="text-[10px] text-stone-500">Available until<Input required type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-2 border-white/10 bg-white/[0.025]" /></label>
+              <div className="mt-5 grid gap-3 border-t border-white/[0.14] pt-5 sm:grid-cols-2">
+                <label className="text-[10px] text-stone-400">Available from<Input required type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className="mt-2 border-white/10 bg-white/[0.05]" /></label>
+                <label className="text-[10px] text-stone-400">Available until<Input required type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className="mt-2 border-white/10 bg-white/[0.05]" /></label>
               </div>
             )}
           </fieldset>
-          <label className="flex items-start gap-3 border-t border-white/[0.07] pt-6 text-xs leading-5 text-stone-500">
+          <label className="flex items-start gap-3 border-t border-white/[0.14] pt-6 text-xs leading-5 text-stone-400">
             <input type="checkbox" checked={background} onChange={(event) => setBackground(event.target.checked)} className="mt-1 accent-lime-200" />
             <span><b className="font-medium text-stone-300">Optional:</b> let Sylla finish already-approved public-source research if my LLM disconnects. This never permits introductions or disclosures.</span>
           </label>
           {error && <p className="text-xs text-red-300/80">{error}</p>}
           <div className="flex items-center justify-between gap-5">
-            <p className="max-w-xs text-[10px] leading-4 text-stone-600">Policy 2026-09-01 · You can withdraw and release active access at any time.</p>
+            <p className="max-w-xs text-[10px] leading-4 text-stone-400">Policy 2026-09-01 · You can withdraw and release active access at any time.</p>
             <Button type="submit" disabled={busy || !mandatoryAccepted || !displayName.trim()} className="rounded-full bg-lime-200 text-stone-950">
               {busy ? <LoaderCircle className="animate-spin" /> : <ShieldCheck />} Accept and continue
             </Button>
@@ -445,8 +445,8 @@ function FirstSession({
               <div
                 key={label}
                 className={cn(
-                  "flex items-center gap-4 border-b border-white/[0.07] py-4 text-sm transition-colors",
-                  index <= step ? "text-stone-300" : "text-stone-600",
+                  "flex items-center gap-4 border-b border-white/[0.14] py-4 text-sm transition-colors",
+                  index <= step ? "text-stone-300" : "text-stone-400",
                 )}
               >
                 <span
@@ -469,7 +469,7 @@ function FirstSession({
               </div>
             ))}
           </div>
-          <p className="mt-7 text-xs leading-5 text-stone-500">
+          <p className="mt-7 text-xs leading-5 text-stone-400">
             Page content is treated as untrusted evidence. Nothing becomes memory
             until you approve it.
           </p>
@@ -488,7 +488,7 @@ function FirstSession({
             </span>
             <div>
               <p className="font-heading italic text-stone-100">Sylla</p>
-              <p className="text-[8px] uppercase tracking-[0.2em] text-stone-500">
+              <p className="text-[8px] uppercase tracking-[0.2em] text-stone-400">
                 First session
               </p>
             </div>
@@ -504,7 +504,7 @@ function FirstSession({
             <button
               type="button"
               onClick={loadDemo}
-              className="text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+              className="text-[10px] uppercase tracking-[0.16em] text-stone-400 transition-colors hover:text-lime-200"
             >
               Load demo identity
             </button>
@@ -522,15 +522,15 @@ function FirstSession({
             <h1 className="mt-5 max-w-md font-heading text-[clamp(3.2rem,7vw,6.7rem)] leading-[0.85] tracking-[-0.055em] text-stone-100">
               Let your agent begin to know you.
             </h1>
-            <p className="mt-8 max-w-sm text-sm leading-7 text-stone-500">
+            <p className="mt-8 max-w-sm text-sm leading-7 text-stone-400">
               Name the agent you will keep. Give it one live question and a few
               public traces. You decide what becomes memory.
             </p>
           </div>
 
-          <div className="space-y-8 rounded-[2rem] border border-white/[0.09] bg-black/15 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.2)] sm:p-9">
+          <div className="space-y-8 rounded-[2rem] border border-white/[0.18] bg-black/15 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.2)] sm:p-9">
             <label className="block">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
                 What will you call your agent?
               </span>
               <Input
@@ -544,7 +544,7 @@ function FirstSession({
             </label>
 
             <label className="block">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
                 What should it understand about you now?
               </span>
               <Textarea
@@ -554,19 +554,19 @@ function FirstSession({
                 maxLength={280}
                 rows={3}
                 placeholder="A question, transition, ambition, or tension in your life…"
-                className="mt-3 resize-none rounded-xl border-white/10 bg-white/[0.025] text-sm leading-6 text-stone-200 placeholder:text-stone-600 focus-visible:border-lime-200/30 focus-visible:ring-0"
+                className="mt-3 resize-none rounded-xl border-white/10 bg-white/[0.05] text-sm leading-6 text-stone-200 placeholder:text-stone-400 focus-visible:border-lime-200/30 focus-visible:ring-0"
               />
             </label>
 
             <fieldset>
-              <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+              <legend className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
                 Approve 1–3 public sources
               </legend>
               <div className="mt-3 space-y-3">
                 {sources.map((source, index) => (
-                  <div key={index} className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                  <div key={index} className="group rounded-xl border border-white/[0.16] bg-white/[0.045] p-3">
                     <div className="flex items-center gap-3">
-                      <Globe2 className="size-4 shrink-0 text-stone-600" />
+                      <Globe2 className="size-4 shrink-0 text-stone-400" />
                       <Input
                         type="url"
                         value={source.url}
@@ -582,7 +582,7 @@ function FirstSession({
                             setSources((current) => current.filter((_, itemIndex) => itemIndex !== index))
                           }
                           aria-label={`Remove source ${index + 1}`}
-                          className="text-stone-600 hover:text-stone-300"
+                          className="text-stone-400 hover:text-stone-300"
                         >
                           <X className="size-3.5" />
                         </button>
@@ -592,7 +592,7 @@ function FirstSession({
                       value={source.label}
                       onChange={(event) => updateSource(index, "label", event.target.value)}
                       placeholder="Optional: why this source represents you"
-                      className="mt-1 h-7 border-0 bg-transparent pl-7 text-[10px] text-stone-500 shadow-none focus-visible:ring-0"
+                      className="mt-1 h-7 border-0 bg-transparent pl-7 text-[10px] text-stone-400 shadow-none focus-visible:ring-0"
                     />
                   </div>
                 ))}
@@ -601,7 +601,7 @@ function FirstSession({
                 <button
                   type="button"
                   onClick={() => setSources((current) => [...current, { url: "", label: "" }])}
-                  className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-stone-500 hover:text-lime-200"
+                  className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-stone-400 hover:text-lime-200"
                 >
                   <Plus className="size-3" /> Add another source
                 </button>
@@ -610,8 +610,8 @@ function FirstSession({
 
             {error && <p className="text-xs leading-5 text-red-300/80">{error}</p>}
 
-            <div className="flex flex-col-reverse gap-4 border-t border-white/[0.07] pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="max-w-xs text-[10px] leading-4 text-stone-600">
+            <div className="flex flex-col-reverse gap-4 border-t border-white/[0.14] pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-xs text-[10px] leading-4 text-stone-400">
                 Public URLs only. No accounts, private profiles, or physical desktop access.
               </p>
               <Button
@@ -663,7 +663,7 @@ function ObservationCard({
         "group rounded-2xl border p-5 transition-colors sm:p-6",
         observation.status === "pending"
           ? "border-amber-200/15 bg-amber-50/[0.025]"
-          : "border-white/[0.09] bg-white/[0.025]",
+          : "border-white/[0.18] bg-white/[0.05]",
       )}
     >
       <div className="flex items-start gap-4">
@@ -689,7 +689,7 @@ function ObservationCard({
               className={cn(
                 "text-[9px] uppercase tracking-[0.1em]",
                 observation.visibility === "private"
-                  ? "bg-stone-200/[0.06] text-stone-500"
+                  ? "bg-stone-200/[0.06] text-stone-400"
                   : "bg-lime-200/[0.08] text-lime-100",
               )}
             >
@@ -720,7 +720,7 @@ function ObservationCard({
                     setEditing(false);
                     setClaim(observation.claim);
                   }}
-                  className="text-[10px] text-stone-500"
+                  className="text-[10px] text-stone-400"
                 >
                   Cancel
                 </Button>
@@ -733,7 +733,7 @@ function ObservationCard({
           )}
 
           {observation.evidenceExcerpt && !editing && (
-            <p className="mt-3 max-w-2xl border-l border-white/10 pl-4 text-xs leading-5 text-stone-500">
+            <p className="mt-3 max-w-2xl border-l border-white/10 pl-4 text-xs leading-5 text-stone-400">
               {humanizePreviewCopy(observation.evidenceExcerpt)}
             </p>
           )}
@@ -743,7 +743,7 @@ function ObservationCard({
               href={observation.sourceUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-1.5 text-[10px] text-stone-500 hover:text-lime-200"
+              className="mt-4 inline-flex items-center gap-1.5 text-[10px] text-stone-400 hover:text-lime-200"
             >
               {observation.sourceTitle ?? "Open evidence"} <ExternalLink className="size-3" />
             </a>
@@ -752,7 +752,7 @@ function ObservationCard({
           {error && <p className="mt-3 text-xs text-red-300/80">{error}</p>}
 
           {!editing && (
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-4">
+            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.14] pt-4">
               {observation.status === "pending" && (
                 <Button
                   size="sm"
@@ -768,7 +768,7 @@ function ObservationCard({
                 variant="ghost"
                 disabled={busy}
                 onClick={() => setEditing(true)}
-                className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+                className="h-8 text-[10px] text-stone-400 hover:text-stone-200"
               >
                 <Pencil /> Correct
               </Button>
@@ -782,7 +782,7 @@ function ObservationCard({
                       observation.visibility === "private" ? "shareable" : "private",
                   })
                 }
-                className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+                className="h-8 text-[10px] text-stone-400 hover:text-stone-200"
               >
                 {observation.visibility === "private" ? <Eye /> : <EyeOff />}
                 {observation.visibility === "private" ? "Make shareable" : "Make private"}
@@ -792,7 +792,7 @@ function ObservationCard({
                 variant="ghost"
                 disabled={busy}
                 onClick={() => mutate("DELETE")}
-                className="ml-auto h-8 text-[10px] text-stone-600 hover:text-red-300"
+                className="ml-auto h-8 text-[10px] text-stone-400 hover:text-red-300"
               >
                 <Trash2 /> Forget
               </Button>
@@ -843,13 +843,13 @@ function PersonalMemoryCard({
         "rounded-2xl border p-5 sm:p-6",
         memory.status === "proposed"
           ? "border-amber-200/15 bg-amber-50/[0.025]"
-          : "border-white/[0.09] bg-white/[0.025]",
+          : "border-white/[0.18] bg-white/[0.05]",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge
           variant="outline"
-          className="border-white/10 bg-white/[0.025] text-[9px] uppercase tracking-[0.12em] text-stone-400"
+          className="border-white/10 bg-white/[0.05] text-[9px] uppercase tracking-[0.12em] text-stone-400"
         >
           {memory.source === "introduction_debrief"
             ? "After a meeting"
@@ -859,13 +859,13 @@ function PersonalMemoryCard({
           className={cn(
             "text-[9px] uppercase tracking-[0.1em]",
             memory.visibility === "private"
-              ? "bg-stone-200/[0.06] text-stone-500"
+              ? "bg-stone-200/[0.06] text-stone-400"
               : "bg-lime-200/[0.08] text-lime-100",
           )}
         >
           {memory.visibility}
         </Badge>
-        <span className="text-[9px] uppercase tracking-[0.1em] text-stone-600">
+        <span className="text-[9px] uppercase tracking-[0.1em] text-stone-400">
           {memory.status}
         </span>
       </div>
@@ -896,7 +896,7 @@ function PersonalMemoryCard({
                 setEditing(false);
                 setSummary(memory.summary);
               }}
-              className="text-[10px] text-stone-500"
+              className="text-[10px] text-stone-400"
             >
               Cancel
             </Button>
@@ -911,7 +911,7 @@ function PersonalMemoryCard({
       {error && <p className="mt-3 text-xs text-red-300/80">{error}</p>}
 
       {!editing && (
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.14] pt-4">
           {memory.status === "proposed" && (
             <Button
               size="sm"
@@ -927,7 +927,7 @@ function PersonalMemoryCard({
             variant="ghost"
             disabled={busy}
             onClick={() => setEditing(true)}
-            className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+            className="h-8 text-[10px] text-stone-400 hover:text-stone-200"
           >
             <Pencil /> Correct
           </Button>
@@ -941,7 +941,7 @@ function PersonalMemoryCard({
                   memory.visibility === "private" ? "shareable" : "private",
               })
             }
-            className="h-8 text-[10px] text-stone-500 hover:text-stone-200"
+            className="h-8 text-[10px] text-stone-400 hover:text-stone-200"
           >
             {memory.visibility === "private" ? <Eye /> : <EyeOff />}
             {memory.visibility === "private" ? "Make shareable" : "Make private"}
@@ -951,7 +951,7 @@ function PersonalMemoryCard({
             variant="ghost"
             disabled={busy}
             onClick={() => mutate({ decision: "forget" })}
-            className="ml-auto h-8 text-[10px] text-stone-600 hover:text-red-300"
+            className="ml-auto h-8 text-[10px] text-stone-400 hover:text-red-300"
           >
             <Trash2 /> Forget
           </Button>
@@ -1008,9 +1008,9 @@ function IntroductionInboxPanel() {
 
   const waiting = inbox?.filter((item) => item.awaitingMyAnswer) ?? [];
   return (
-    <div className="mt-8 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+    <div className="mt-8 rounded-2xl border border-white/[0.16] bg-white/[0.05] p-4">
       <div className="flex items-center justify-between gap-4">
-        <p className="flex items-center gap-2 text-[9px] uppercase tracking-[0.17em] text-stone-500">
+        <p className="flex items-center gap-2 text-[9px] uppercase tracking-[0.17em] text-stone-400">
           <ShieldCheck className="size-3.5" /> Private introductions
         </p>
         {waiting.length > 0 && (
@@ -1022,9 +1022,9 @@ function IntroductionInboxPanel() {
       {error ? (
         <p className="mt-3 text-xs leading-5 text-red-300/80">{error}</p>
       ) : inbox === null ? (
-        <p className="mt-3 text-xs text-stone-600">Checking quietly…</p>
+        <p className="mt-3 text-xs text-stone-400">Checking quietly…</p>
       ) : inbox.length === 0 ? (
-        <p className="mt-3 text-xs leading-5 text-stone-600">
+        <p className="mt-3 text-xs leading-5 text-stone-400">
           Nothing is waiting. Sylla will not invent a match to fill this space.
         </p>
       ) : (
@@ -1032,12 +1032,12 @@ function IntroductionInboxPanel() {
           {inbox.slice(-3).reverse().map((item) => (
             <div
               key={item.introductionProposalId}
-              className="rounded-xl border border-white/[0.07] bg-black/15 px-3 py-3"
+              className="rounded-xl border border-white/[0.14] bg-black/15 px-3 py-3"
             >
               <p className="text-xs leading-5 text-stone-300">
                 {item.preview[0]?.claim ?? "A private possibility"}
               </p>
-              <p className="mt-1 text-[10px] leading-4 text-stone-600">
+              <p className="mt-1 text-[10px] leading-4 text-stone-400">
                 {item.origin.explanation}
               </p>
               {item.awaitingMyAnswer && (
@@ -1100,7 +1100,7 @@ function ConversationView({
               <p className="font-heading text-xl italic text-stone-200">
                 {pending ? "I found a few possible memories." : "I know enough to ask better questions."}
               </p>
-              <p className="mt-1 text-xs text-stone-500">
+              <p className="mt-1 text-xs text-stone-400">
                 {state.agentName} · {state.research.provider === "solari" ? "researched with Solari Browser" : "earlier preview research"}
               </p>
             </div>
@@ -1112,7 +1112,7 @@ function ConversationView({
                 ? "Before I remember you, tell me what I got right."
                 : "What did I miss that would change who I should introduce you to?"}
             </h1>
-            <p className="mt-7 max-w-xl text-sm leading-7 text-stone-500">
+            <p className="mt-7 max-w-xl text-sm leading-7 text-stone-400">
               {pending
                 ? `${pending} proposal${pending === 1 ? " needs" : "s need"} your decision. Evidence stays beside every observation; inference is always labeled.`
                 : `You have approved ${approved} ${approved === 1 ? "memory" : "memories"}. Add a private correction now, or open the workbench to inspect the complete picture.`}
@@ -1149,8 +1149,8 @@ function ConversationView({
         </div>
       </div>
 
-      <form onSubmit={sendReflection} className="border-t border-white/[0.07] p-4 sm:px-8 sm:py-5">
-        <div className="mx-auto flex max-w-2xl items-end gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2 pl-4 focus-within:border-lime-200/25">
+      <form onSubmit={sendReflection} className="border-t border-white/[0.14] p-4 sm:px-8 sm:py-5">
+        <div className="mx-auto flex max-w-2xl items-end gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-2 pl-4 focus-within:border-lime-200/25">
           <label htmlFor="reflection" className="sr-only">
             Tell {state.agentName} what it missed
           </label>
@@ -1161,7 +1161,7 @@ function ConversationView({
             rows={1}
             maxLength={280}
             placeholder="Write one exact sentence to propose as memory…"
-            className="max-h-32 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-stone-200 outline-none placeholder:text-stone-600"
+            className="max-h-32 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-stone-200 outline-none placeholder:text-stone-400"
           />
           <Button
             type="submit"
@@ -1173,7 +1173,7 @@ function ConversationView({
             {sending ? <LoaderCircle className="animate-spin" /> : <Send />}
           </Button>
         </div>
-        <p className="mx-auto mt-2.5 max-w-2xl px-1 text-[10px] tracking-wide text-stone-600">
+        <p className="mx-auto mt-2.5 max-w-2xl px-1 text-[10px] tracking-wide text-stone-400">
           Only this exact sentence is stored as a private proposal. Do not paste a raw debrief; it still waits for your approval.
         </p>
         {error && <p className="mx-auto mt-2 max-w-2xl px-1 text-xs text-red-300/80">{error}</p>}
@@ -1203,7 +1203,7 @@ function MemoryView({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
       <div className="mx-auto max-w-3xl animate-rise">
-        <div className="flex flex-col gap-5 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-5 border-b border-white/[0.16] pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
               {state.agentName}&apos;s memory ledger
@@ -1212,7 +1212,7 @@ function MemoryView({
               What stays is your decision.
             </h1>
           </div>
-          <div className="flex gap-5 text-xs text-stone-500">
+          <div className="flex gap-5 text-xs text-stone-400">
             <span><b className="mr-1 font-heading text-xl text-stone-200">{kept.length + keptPersonal.length}</b> kept</span>
             <span><b className="mr-1 font-heading text-xl text-amber-200/70">{pending.length + proposedPersonal.length}</b> pending</span>
           </div>
@@ -1233,13 +1233,13 @@ function MemoryView({
 
         <div className="mt-10">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">Approved memory</p>
+            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">Approved memory</p>
             {kept.length > 0 && (
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={openWorkspace}
-                className="text-[10px] text-stone-500 hover:text-lime-200"
+                className="text-[10px] text-stone-400 hover:text-lime-200"
               >
                 See in workbench <ArrowUpRight />
               </Button>
@@ -1251,7 +1251,7 @@ function MemoryView({
                 <ObservationCard key={observation.id} observation={observation} onChange={onChange} />
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 px-6 py-10 text-center text-xs text-stone-600">
+              <div className="rounded-2xl border border-dashed border-white/10 px-6 py-10 text-center text-xs text-stone-400">
                 Nothing is remembered until you keep it.
               </div>
             )}
@@ -1259,19 +1259,19 @@ function MemoryView({
         </div>
 
         {state.personalMemories.length > 0 && (
-          <div className="mt-10 border-t border-white/[0.08] pt-10">
+          <div className="mt-10 border-t border-white/[0.16] pt-10">
             <div className="mb-3 flex items-end justify-between gap-5">
               <div>
-                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
                   Relationship memory
                 </p>
-                <p className="mt-2 max-w-xl text-xs leading-5 text-stone-600">
+                <p className="mt-2 max-w-xl text-xs leading-5 text-stone-400">
                   Things you deliberately told your agent to keep, including
                   distilled reflections after an introduction. Raw debriefs are
                   never stored here.
                 </p>
               </div>
-              <span className="text-[10px] text-stone-600">
+              <span className="text-[10px] text-stone-400">
                 {state.personalMemories.length} total
               </span>
             </div>
@@ -1324,8 +1324,8 @@ function DesktopStream({ streamUrl }: { streamUrl: string }) {
   }, [streamUrl]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#101310]">
-      <div className="flex h-9 items-center justify-between border-b border-white/[0.08] px-3">
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#1e241d]">
+      <div className="flex h-9 items-center justify-between border-b border-white/[0.16] px-3">
         <div className="flex gap-1.5">
           <span className="size-1.5 rounded-full bg-red-300/40" />
           <span className="size-1.5 rounded-full bg-amber-300/40" />
@@ -1342,21 +1342,21 @@ function WorkspaceBoard({ state, compact = false }: { state: SyllaSessionState; 
   const approved = state.observations.filter((item) => item.status !== "pending");
 
   return (
-    <div className={cn("paper-grid relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#101310]", compact ? "aspect-[4/3] p-4" : "aspect-video p-5 sm:p-7")}>
+    <div className={cn("paper-grid relative overflow-hidden rounded-2xl border border-white/[0.18] bg-[#1e241d]", compact ? "aspect-[4/3] p-4" : "aspect-video p-5 sm:p-7")}>
       <div className="flex items-center justify-between">
         <div className="flex gap-1.5">
           <span className="size-1.5 rounded-full bg-red-300/40" />
           <span className="size-1.5 rounded-full bg-amber-300/40" />
           <span className="size-1.5 rounded-full bg-lime-300/40" />
         </div>
-        {!compact && <span className="text-[8px] uppercase tracking-[0.16em] text-stone-600">Reconstructible preview</span>}
+        {!compact && <span className="text-[8px] uppercase tracking-[0.16em] text-stone-400">Reconstructible preview</span>}
       </div>
       <div className={cn("grid h-[calc(100%-2rem)]", compact ? "mt-5 grid-cols-1" : "mt-7 grid-cols-[0.32fr_1fr] gap-5")}>
         {!compact && (
-          <div className="border-r border-white/[0.07] pr-4">
+          <div className="border-r border-white/[0.14] pr-4">
             <p className="font-heading text-xl italic text-stone-200">{state.agentName}</p>
             <p className="mt-2 text-[9px] uppercase tracking-[0.16em] text-lime-200/50">Private workbench</p>
-            <div className="mt-6 space-y-2 text-[9px] text-stone-600">
+            <div className="mt-6 space-y-2 text-[9px] text-stone-400">
               <p>{state.sources.length} approved sources</p>
               <p>{approved.length} approved memories</p>
             </div>
@@ -1364,9 +1364,9 @@ function WorkspaceBoard({ state, compact = false }: { state: SyllaSessionState; 
         )}
         <div className="min-w-0 space-y-2 overflow-hidden">
           {approved.slice(0, compact ? 2 : 3).map((observation, index) => (
-            <div key={observation.id} className="rounded-lg border border-white/[0.07] bg-black/15 p-3">
+            <div key={observation.id} className="rounded-lg border border-white/[0.14] bg-black/15 p-3">
               <p className="line-clamp-2 font-heading text-xs leading-4 text-stone-300">
-                <span className="mr-2 text-stone-600">0{index + 1}</span>{humanizePreviewCopy(observation.claim)}
+                <span className="mr-2 text-stone-400">0{index + 1}</span>{humanizePreviewCopy(observation.claim)}
               </p>
             </div>
           ))}
@@ -1431,7 +1431,7 @@ function WorkspaceView({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
       <div className="mx-auto max-w-5xl animate-rise">
-        <div className="flex flex-col gap-6 border-b border-white/[0.08] pb-7 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-6 border-b border-white/[0.16] pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
               <span className="size-1.5 rounded-full bg-lime-200" />
@@ -1483,7 +1483,7 @@ function WorkspaceView({
                 Continue to Sylla checkout <ArrowUpRight className="size-3" />
               </a>
             )}
-            <p className="mt-4 flex items-start gap-2 text-[10px] leading-4 text-stone-600">
+            <p className="mt-4 flex items-start gap-2 text-[10px] leading-4 text-stone-400">
               <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
               This workbench is reconstructed from approved database records. It cannot see your physical computer, raw private chats, or forgotten memories.
             </p>
@@ -1491,12 +1491,12 @@ function WorkspaceView({
 
           <aside className="space-y-3">
             <ArchiveImport onImported={onChange} />
-            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-stone-500">Current question</p>
+            <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+              <p className="text-[9px] uppercase tracking-[0.16em] text-stone-400">Current question</p>
               <p className="mt-4 font-heading text-xl italic leading-6 text-stone-200">{state.focus}</p>
             </div>
-            <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-stone-500">Approved material</p>
+            <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+              <p className="text-[9px] uppercase tracking-[0.16em] text-stone-400">Approved material</p>
               <div className="mt-5 space-y-4">
                 {state.sources.map((source) => (
                   <a
@@ -1504,7 +1504,7 @@ function WorkspaceView({
                     href={source.url ?? undefined}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-3 text-xs text-stone-500 hover:text-lime-200"
+                    className="flex items-center gap-3 text-xs text-stone-400 hover:text-lime-200"
                   >
                     <FileSearch className="size-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">
@@ -1533,9 +1533,9 @@ function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openW
     state.observations.filter((item) => item.status === "pending").length +
     state.personalMemories.filter((item) => item.status === "proposed").length;
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-l border-white/[0.07] bg-black/10 p-5 xl:flex">
+    <aside className="hidden w-72 shrink-0 flex-col border-l border-white/[0.14] bg-black/10 p-5 xl:flex">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] uppercase tracking-[0.2em] text-stone-500">Agent computer</p>
+        <p className="text-[9px] uppercase tracking-[0.2em] text-stone-400">Agent computer</p>
         <span className="flex items-center gap-1.5 text-[9px] text-lime-200/70">
           <span className="size-1.5 rounded-full bg-lime-200" /> Inspectable
         </span>
@@ -1552,18 +1552,18 @@ function RuntimeRail({ state, openWorkspace }: { state: SyllaSessionState; openW
           const RuntimeIcon = Icon as typeof Globe2;
           return (
             <div key={label as string} className="flex items-center gap-3">
-              <span className="grid size-7 place-items-center rounded-full border border-white/10 text-stone-500">
+              <span className="grid size-7 place-items-center rounded-full border border-white/10 text-stone-400">
                 <RuntimeIcon className="size-3.5" />
               </span>
               <div>
                 <p className="text-[11px] text-stone-300">{label as ReactNode}</p>
-                <p className="mt-0.5 text-[9px] text-stone-600">{detail as ReactNode}</p>
+                <p className="mt-0.5 text-[9px] text-stone-400">{detail as ReactNode}</p>
               </div>
             </div>
           );
         })}
       </div>
-      <div className="mt-auto border-t border-white/[0.07] pt-5 text-[10px] leading-4 text-stone-600">
+      <div className="mt-auto border-t border-white/[0.14] pt-5 text-[10px] leading-4 text-stone-400">
         Nothing becomes memory without your approval. Forgotten items are removed from the durable ledger.
       </div>
     </aside>
@@ -1641,28 +1641,28 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
   }
 
   const connectedClients = (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+    <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
         Connected AI
       </p>
-      <p className="mt-3 text-xs leading-5 text-stone-500">
+      <p className="mt-3 text-xs leading-5 text-stone-400">
         Every AI that can reach your agent. Disconnect one without disconnecting
         the rest — it stops working on its very next request.
       </p>
       <div className="mt-4 space-y-2">
         {clients.length === 0 && (
-          <p className="text-xs text-stone-600">Nothing is connected yet.</p>
+          <p className="text-xs text-stone-400">Nothing is connected yet.</p>
         )}
         {clients.map((client) => (
           <div
             key={client.clientId}
-            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3"
+            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.14] bg-black/15 px-4 py-3"
           >
             <div className="min-w-0">
               <p className="truncate text-xs text-stone-300">
                 {client.clientName ?? client.clientId}
               </p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-400">
                 {client.lastUsedAt
                   ? `last used ${new Date(client.lastUsedAt).toLocaleDateString()}`
                   : "not used yet"}
@@ -1673,7 +1673,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
               type="button"
               onClick={() => void disconnect(client.clientId)}
               disabled={busy}
-              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-500 hover:text-red-300"
+              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-400 hover:text-red-300"
             >
               Disconnect
             </button>
@@ -1686,7 +1686,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
       <div className="mx-auto max-w-5xl animate-rise">
-        <div className="grid gap-8 border-b border-white/[0.08] pb-9 lg:grid-cols-[1fr_0.7fr] lg:items-end">
+        <div className="grid gap-8 border-b border-white/[0.16] pb-9 lg:grid-cols-[1fr_0.7fr] lg:items-end">
           <div>
             <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
               <span className="size-1.5 rounded-full bg-lime-200" /> MCP connection
@@ -1695,25 +1695,25 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
               Bring {agentName ?? "your agent"} into the AI you already use.
             </h1>
           </div>
-          <p className="text-sm leading-7 text-stone-500">
+          <p className="text-sm leading-7 text-stone-400">
             The host model supplies active reasoning. Sylla supplies your approved memory, identity, permissions, introductions, and Solari tools.
           </p>
         </div>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
-          <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+          <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-600">Your Sylla MCP endpoint</p>
+                <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">Your Sylla MCP endpoint</p>
                 <p className="mt-2 text-xs text-stone-400">OAuth 2.1 · PKCE · portable identity</p>
               </div>
-              <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px]", connection?.connected ? "border-lime-200/20 bg-lime-200/[0.06] text-lime-200" : "border-white/10 text-stone-500")}>
+              <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px]", connection?.connected ? "border-lime-200/20 bg-lime-200/[0.06] text-lime-200" : "border-white/10 text-stone-400")}>
                 <span className={cn("size-1.5 rounded-full", connection?.connected ? "bg-lime-200" : "bg-stone-600")} />
                 {connection?.connected ? `${connection.connectionCount} connected` : "Ready to connect"}
               </span>
             </div>
 
-            <div className="mt-7 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 p-3">
+            <div className="mt-7 flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.16] bg-black/20 p-3">
               <code className="min-w-0 flex-1 truncate text-xs text-stone-300">{connection?.endpoint ?? "Loading endpoint…"}</code>
               <Button type="button" variant="ghost" size="sm" onClick={() => void copyEndpoint()} disabled={!connection?.endpoint} className="shrink-0 text-stone-400 hover:text-lime-200">
                 {copied ? <CheckCircle2 /> : <Copy />} {copied ? "Copied" : "Copy"}
@@ -1731,13 +1731,13 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
                   <span className="font-mono text-[9px] text-lime-200/50">{number}</span>
                   <div>
                     <p className="text-sm font-medium text-stone-200">{title}</p>
-                    <p className="mt-1.5 text-xs leading-6 text-stone-500">{body}</p>
+                    <p className="mt-1.5 text-xs leading-6 text-stone-400">{body}</p>
                   </div>
                 </li>
               ))}
             </ol>
 
-            <div className="mt-8 flex flex-wrap gap-3 border-t border-white/[0.07] pt-6">
+            <div className="mt-8 flex flex-wrap gap-3 border-t border-white/[0.14] pt-6">
               <a href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-lime-200 px-5 text-xs font-semibold text-stone-950">
                 Open ChatGPT Plugins <ArrowUpRight className="size-3.5" />
               </a>
@@ -1750,7 +1750,7 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
                 </Button>
               )}
             </div>
-            {connection?.lastUsedAt && <p className="mt-4 text-[9px] text-stone-600">Last used {new Date(connection.lastUsedAt).toLocaleString()}</p>}
+            {connection?.lastUsedAt && <p className="mt-4 text-[9px] text-stone-400">Last used {new Date(connection.lastUsedAt).toLocaleString()}</p>}
             {error && <p className="mt-4 text-xs text-red-300/80">{error}</p>}
             <div className="mt-6">{connectedClients}</div>
           </div>
@@ -1766,11 +1766,11 @@ function ConnectionsView({ agentName }: { agentName: string | null }) {
                   [ShieldCheck, "Introduce", "Look privately for one human possibility, with consent on both sides."],
                 ].map(([Icon, title, body]) => {
                   const ActionIcon = Icon as typeof Brain;
-                  return <div key={title as string} className="grid grid-cols-[2.25rem_1fr] gap-3"><span className="grid size-8 place-items-center rounded-full border border-white/10 text-lime-200/70"><ActionIcon className="size-3.5" /></span><div><p className="text-xs font-medium text-stone-200">{title as ReactNode}</p><p className="mt-1 text-[11px] leading-5 text-stone-500">{body as ReactNode}</p></div></div>;
+                  return <div key={title as string} className="grid grid-cols-[2.25rem_1fr] gap-3"><span className="grid size-8 place-items-center rounded-full border border-white/10 text-lime-200/70"><ActionIcon className="size-3.5" /></span><div><p className="text-xs font-medium text-stone-200">{title as ReactNode}</p><p className="mt-1 text-[11px] leading-5 text-stone-400">{body as ReactNode}</p></div></div>;
                 })}
               </div>
             </div>
-            <p className="px-2 text-[10px] leading-5 text-stone-600">Sylla never receives the host’s subscription credentials. The host uses its own model allowance while the conversation is active; Sylla meters only its own Solari and fallback work.</p>
+            <p className="px-2 text-[10px] leading-5 text-stone-400">Sylla never receives the host’s subscription credentials. The host uses its own model allowance while the conversation is active; Sylla meters only its own Solari and fallback work.</p>
           </aside>
         </div>
       </div>
@@ -1934,11 +1934,11 @@ function ModelAccessPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">
+    <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-400">
         <KeyRound className="size-3.5" /> Model access for background work
       </p>
-      <p className="mt-3 text-xs leading-5 text-stone-500">
+      <p className="mt-3 text-xs leading-5 text-stone-400">
         While your AI is connected, it does the thinking on your own
         subscription. If that chat closes with approved work still waiting, Sylla
         needs a key to finish it. Stored encrypted, never shown again, used only
@@ -1946,18 +1946,18 @@ function ModelAccessPanel() {
       </p>
 
       {!loaded ? (
-        <p className="mt-4 text-xs text-stone-600">Loading model access…</p>
+        <p className="mt-4 text-xs text-stone-400">Loading model access…</p>
       ) : stored ? (
         <div className="mt-4 rounded-xl border border-lime-200/20 bg-lime-200/[0.04] p-4">
           <p className="text-xs text-stone-300">
             {stored.providerLabel} · {stored.model}
           </p>
           {stored.baseUrl && (
-            <p className="mt-1 truncate font-mono text-[10px] text-stone-500">
+            <p className="mt-1 truncate font-mono text-[10px] text-stone-400">
               {stored.baseUrl}
             </p>
           )}
-          <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+          <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-400">
             key ending {stored.keyHint} ·{" "}
             {stored.lastUsedAt ? "used at least once" : "not used yet"}
           </p>
@@ -1965,7 +1965,7 @@ function ModelAccessPanel() {
             type="button"
             onClick={() => void remove()}
             disabled={busy}
-            className="mt-3 text-[10px] uppercase tracking-[0.16em] text-stone-500 hover:text-red-300"
+            className="mt-3 text-[10px] uppercase tracking-[0.16em] text-stone-400 hover:text-red-300"
           >
             Remove this key
           </button>
@@ -1983,7 +1983,7 @@ function ModelAccessPanel() {
               setModel(firstPreset?.model ?? "");
               setBaseUrl(firstPreset?.baseUrl ?? "");
             }}
-            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
+            className="w-full rounded-xl border border-white/[0.2] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
           >
             {providers.map((option) => (
               <option key={option.provider} value={option.provider}>
@@ -2004,7 +2004,7 @@ function ModelAccessPanel() {
                   setBaseUrl(next?.baseUrl ?? "");
                   setModel(next?.model ?? "");
                 }}
-                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
+                className="w-full rounded-xl border border-white/[0.2] bg-black/20 px-3 py-2.5 text-xs text-stone-200"
               >
                 {presets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
@@ -2018,7 +2018,7 @@ function ModelAccessPanel() {
                 readOnly
                 aria-label="Reviewed provider endpoint"
                 spellCheck={false}
-                className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-500"
+                className="w-full rounded-xl border border-white/[0.2] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-400"
               />
             </>
           )}
@@ -2028,14 +2028,14 @@ function ModelAccessPanel() {
             onChange={(event) => setApiKey(event.target.value)}
             placeholder={`${selected?.prefixHint ?? "sk-"}…`}
             autoComplete="off"
-            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+            className="w-full rounded-xl border border-white/[0.2] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-400"
           />
           <input
             type="text"
             value={model}
             onChange={(event) => setModel(event.target.value)}
             placeholder={selected?.defaultModel ?? ""}
-            className="w-full rounded-xl border border-white/[0.1] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-600"
+            className="w-full rounded-xl border border-white/[0.2] bg-black/20 px-3 py-2.5 font-mono text-xs text-stone-200 placeholder:text-stone-400"
           />
           <Button
             type="button"
@@ -2056,12 +2056,12 @@ function ModelAccessPanel() {
               href={selected.keysAt}
               target="_blank"
               rel="noreferrer"
-              className="block text-[10px] uppercase tracking-[0.14em] text-stone-600 hover:text-lime-200"
+              className="block text-[10px] uppercase tracking-[0.14em] text-stone-400 hover:text-lime-200"
             >
               Get a {selected.label} key ↗
             </a>
           ) : (
-            <p className="text-[10px] leading-4 text-stone-600">
+            <p className="text-[10px] leading-4 text-stone-400">
               Choose a reviewed provider endpoint for the pilot. The model name
               remains editable; custom server targets stay disabled.
             </p>
@@ -2161,31 +2161,31 @@ function ConnectedDevicesPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-500">
+    <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+      <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-stone-400">
         <Monitor className="size-3.5" /> Connected devices
       </p>
-      <p className="mt-3 text-xs leading-5 text-stone-500">
+      <p className="mt-3 text-xs leading-5 text-stone-400">
         Every browser signed in to your agent. Sign any of them out from here,
         including one you no longer have.
       </p>
       <div className="mt-4 space-y-2">
         {!loaded && (
-          <p className="text-xs text-stone-600">Loading connected devices…</p>
+          <p className="text-xs text-stone-400">Loading connected devices…</p>
         )}
         {loaded && !error && sessions.length === 0 && (
-          <p className="text-xs text-stone-600">No other browser is signed in.</p>
+          <p className="text-xs text-stone-400">No other browser is signed in.</p>
         )}
         {sessions.map((session) => (
           <div
             key={session.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3"
+            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.14] bg-black/15 px-4 py-3"
           >
             <div className="min-w-0">
               <p className="text-xs text-stone-300">
                 {session.current ? "This browser" : "Another browser"}
               </p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-stone-400">
                 last used {new Date(session.lastUsedAt).toLocaleDateString()} · expires{" "}
                 {new Date(session.expiresAt).toLocaleDateString()}
               </p>
@@ -2194,7 +2194,7 @@ function ConnectedDevicesPanel() {
               type="button"
               onClick={() => void revoke(session.id, session.current)}
               disabled={busy === session.id}
-              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-500 hover:text-red-300"
+              className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-400 hover:text-red-300"
             >
               {busy === session.id ? "Ending…" : session.current ? "Sign out" : "Revoke"}
             </button>
@@ -2240,7 +2240,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
   return (
     <section className="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-10 lg:px-12">
       <div className="mx-auto max-w-5xl animate-rise">
-        <div className="grid gap-8 border-b border-white/[0.08] pb-9 lg:grid-cols-[1fr_0.72fr] lg:items-end">
+        <div className="grid gap-8 border-b border-white/[0.16] pb-9 lg:grid-cols-[1fr_0.72fr] lg:items-end">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-lime-200/60">
               Account & privacy
@@ -2249,7 +2249,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
               Everything Sylla holds about you.
             </h1>
           </div>
-          <p className="text-sm leading-7 text-stone-500">
+          <p className="text-sm leading-7 text-stone-400">
             This is the control surface for your portable agent—not a second
             chat app. See the data, its origin, its permissions, and the way back
             into the same agent.
@@ -2267,13 +2267,13 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
             return (
               <div
                 key={label as string}
-                className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5"
+                className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5"
               >
                 <ItemIcon className="size-4 text-lime-200/60" />
                 <p className="mt-5 font-heading text-4xl italic text-stone-100">
                   {value as ReactNode}
                 </p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-600">
+                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-stone-400">
                   {label as ReactNode}
                 </p>
               </div>
@@ -2282,8 +2282,8 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-          <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
-            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+          <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
               Current permissions
             </p>
             <div className="mt-6 divide-y divide-white/[0.07]">
@@ -2298,18 +2298,18 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-4">
                       <p className="text-xs text-stone-300">{label}</p>
-                      <span className="text-[9px] uppercase tracking-[0.12em] text-stone-600">
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-stone-400">
                         {enabled ? "On" : "Off"}
                       </span>
                     </div>
-                    <p className="mt-1 text-[10px] leading-4 text-stone-600">
+                    <p className="mt-1 text-[10px] leading-4 text-stone-400">
                       {detail}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="mt-4 border-t border-white/[0.07] pt-5 text-[10px] leading-5 text-stone-600">
+            <p className="mt-4 border-t border-white/[0.14] pt-5 text-[10px] leading-5 text-stone-400">
               Your current chat host&apos;s retention policy remains separate.
               Sylla stores no complete host transcript and no raw meeting debrief.
             </p>
@@ -2325,21 +2325,21 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
           <ModelAccessPanel />
         </div>
 
-        <div className="mt-6 rounded-[2rem] border border-white/[0.09] bg-[#101310] p-6 sm:p-8">
+        <div className="mt-6 rounded-[2rem] border border-white/[0.18] bg-[#1e241d] p-6 sm:p-8">
           <div className="grid gap-6 lg:grid-cols-[0.72fr_1.28fr]">
             <div>
-              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
                 Portable identity
               </p>
               <p className="mt-3 font-heading text-3xl italic text-stone-100">
                 {state.agentName}
               </p>
-              <p className="mt-2 text-[10px] text-stone-600">
+              <p className="mt-2 text-[10px] text-stone-400">
                 Agent reference · {state.identity.agentId.slice(0, 8)}
               </p>
             </div>
-            <div className="border-l border-white/[0.07] pl-6">
-              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+            <div className="border-l border-white/[0.14] pl-6">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
                 What it is trying to understand now
               </p>
               <p className="mt-3 max-w-2xl font-heading text-xl italic leading-7 text-stone-300">
@@ -2392,16 +2392,16 @@ function ArchiveImport({
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-5">
-      <p className="text-[9px] uppercase tracking-[0.16em] text-stone-500">
+    <div className="rounded-2xl border border-white/[0.18] bg-white/[0.05] p-5">
+      <p className="text-[9px] uppercase tracking-[0.16em] text-stone-400">
         Bring your own history
       </p>
-      <p className="mt-3 text-xs leading-5 text-stone-500">
+      <p className="mt-3 text-xs leading-5 text-stone-400">
         Drop the export LinkedIn or X gave you. Sylla reads only your profile,
         roles, education and skills, and turns them into private drafts you review.
         It never reads anyone else&apos;s.
       </p>
-      <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-full border border-white/[0.12] px-4 py-2.5 text-xs text-stone-300 hover:bg-white/[0.04]">
+      <label className="mt-4 flex cursor-pointer items-center justify-center gap-2 rounded-full border border-white/[0.22] px-4 py-2.5 text-xs text-stone-300 hover:bg-white/[0.04]">
         {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
         {busy ? "Reading your export…" : "Choose a .zip export"}
         <input
@@ -2451,19 +2451,19 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
 
   return (
     <main className="observatory-shell relative flex min-h-svh overflow-hidden bg-background text-foreground">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-white/[0.07] bg-black/20 p-4 md:flex lg:w-64 lg:p-5">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-white/[0.14] bg-black/20 p-4 md:flex lg:w-64 lg:p-5">
         <div className="flex items-center gap-3 px-1 py-1">
           <span className="relative grid size-7 place-items-center rounded-full border border-lime-200/25">
             <span className="size-1.5 rounded-full bg-lime-200" />
           </span>
           <div>
             <p className="font-heading text-base italic text-stone-100">Sylla</p>
-            <p className="text-[8px] uppercase tracking-[0.2em] text-stone-500">Relationship layer</p>
+            <p className="text-[8px] uppercase tracking-[0.2em] text-stone-400">Relationship layer</p>
           </div>
         </div>
 
-        <div className="mt-8 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3">
-          <p className="text-[8px] uppercase tracking-[0.18em] text-stone-600">Your agent</p>
+        <div className="mt-8 rounded-xl border border-white/[0.14] bg-white/[0.05] px-3 py-3">
+          <p className="text-[8px] uppercase tracking-[0.18em] text-stone-400">Your agent</p>
           <p className="mt-1 font-heading text-xl italic text-stone-200">{state.agentName}</p>
         </div>
 
@@ -2479,7 +2479,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors",
-                  active ? "bg-white/[0.065] text-stone-100" : "text-stone-500 hover:bg-white/[0.035] hover:text-stone-300",
+                  active ? "bg-white/[0.065] text-stone-100" : "text-stone-400 hover:bg-white/[0.06] hover:text-stone-300",
                 )}
               >
                 <Icon className="size-3.5" /> {item.label}
@@ -2492,25 +2492,25 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
           })}
         </nav>
 
-        <div className="mt-auto rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+        <div className="mt-auto rounded-2xl border border-white/[0.14] bg-white/[0.05] p-3.5">
           <div className="flex items-center gap-2.5">
             <span className={cn("size-2 rounded-full", paused ? "bg-amber-300" : "bg-lime-200")} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[11px] text-stone-300">{paused ? `${state.agentName} is paused` : `${state.agentName} is available`}</p>
-              <p className="mt-0.5 text-[9px] text-stone-600">No hidden background tasks</p>
+              <p className="mt-0.5 text-[9px] text-stone-400">No hidden background tasks</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setPaused((value) => !value)} className="mt-3 w-full justify-start text-[10px] text-stone-500">
+          <Button variant="ghost" size="sm" onClick={() => setPaused((value) => !value)} className="mt-3 w-full justify-start text-[10px] text-stone-400">
             {paused ? <CirclePlay /> : <CirclePause />} {paused ? "Resume agent" : "Pause agent"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void withdraw()} className="mt-1 w-full justify-start text-[10px] text-stone-600 hover:text-red-300">
+          <Button variant="ghost" size="sm" onClick={() => void withdraw()} className="mt-1 w-full justify-start text-[10px] text-stone-400 hover:text-red-300">
             <X /> Withdraw from event
           </Button>
         </div>
       </aside>
 
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center border-b border-white/[0.07] px-4 sm:px-6">
+        <header className="flex h-14 shrink-0 items-center border-b border-white/[0.14] px-4 sm:px-6">
           <div className="flex items-center gap-2 md:hidden">
             <span className="size-2 rounded-full bg-lime-200" />
             <span className="font-heading italic">{state.agentName}</span>
@@ -2519,7 +2519,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
             {navigation.map((item) => {
               const Icon = item.icon;
               return (
-                <button key={item.id} type="button" aria-label={item.label} onClick={() => setView(item.id)} className={cn("relative grid size-8 place-items-center rounded-lg", view === item.id ? "bg-white/[0.07] text-lime-200" : "text-stone-500")}>
+                <button key={item.id} type="button" aria-label={item.label} onClick={() => setView(item.id)} className={cn("relative grid size-8 place-items-center rounded-lg", view === item.id ? "bg-white/[0.07] text-lime-200" : "text-stone-400")}>
                   <Icon className="size-3.5" />
                   {item.id === "memory" && pending > 0 && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-amber-200" />}
                 </button>
@@ -2537,7 +2537,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
                   ? "This agent's research ran on Solari."
                   : "This agent has not run research on Solari yet."
               }
-              className="border-white/10 bg-white/[0.02] text-[9px] text-stone-500"
+              className="border-white/10 bg-white/[0.045] text-[9px] text-stone-400"
             >
               {state.research.provider === "solari"
                 ? "Researched on Solari"
@@ -2545,7 +2545,7 @@ function AppShell({ initialState }: { initialState: SyllaSessionState }) {
                   ? "Earlier run, not on Solari"
                   : "No research yet"}
             </Badge>
-            <Badge variant="outline" className="hidden border-white/10 bg-white/[0.02] text-[9px] text-stone-600 sm:inline-flex">
+            <Badge variant="outline" className="hidden border-white/10 bg-white/[0.045] text-[9px] text-stone-400 sm:inline-flex">
               Private session
             </Badge>
           </div>
@@ -2611,11 +2611,11 @@ export function SyllaShell() {
   if (showOnboardingConnections && (state.stage === "consent" || state.stage === "new")) {
     return (
       <main className="observatory-shell min-h-svh bg-background text-foreground">
-        <header className="flex h-14 items-center border-b border-white/[0.07] px-5 sm:px-10">
+        <header className="flex h-14 items-center border-b border-white/[0.14] px-5 sm:px-10">
           <button
             type="button"
             onClick={() => setShowOnboardingConnections(false)}
-            className="text-[10px] uppercase tracking-[0.16em] text-stone-500 transition-colors hover:text-lime-200"
+            className="text-[10px] uppercase tracking-[0.16em] text-stone-400 transition-colors hover:text-lime-200"
           >
             ← Back to setup
           </button>

@@ -148,7 +148,7 @@ export function PasskeyAccountPanel() {
   }
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -163,13 +163,13 @@ export function PasskeyAccountPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         A passkey lets this device—or your synced password manager—recover the
         same portable Sylla agent. Sylla stores a public key, never your face,
         fingerprint, or device PIN.
       </p>
 
-      <div className="mt-7 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+      <div className="mt-7 rounded-2xl border border-white/[0.16] bg-black/15 p-4">
         <div className="flex items-center gap-3">
           <ShieldCheck className="size-4 text-lime-200/70" />
           <div>
@@ -182,7 +182,7 @@ export function PasskeyAccountPanel() {
                   ? "No recovery passkey yet"
                   : "Passkey status is unavailable"}
             </p>
-            <p className="mt-1 text-[10px] text-stone-600">
+            <p className="mt-1 text-[10px] text-stone-400">
               {status?.credentials[0]?.lastUsedAt
                 ? `Last used ${new Date(status.credentials[0].lastUsedAt).toLocaleString()}`
                 : "Protected by your device's own verification"}
@@ -206,7 +206,7 @@ export function PasskeyAccountPanel() {
           variant="ghost"
           onClick={() => void signOut()}
           disabled={busy}
-          className="rounded-full text-xs text-stone-500 hover:text-stone-200"
+          className="rounded-full text-xs text-stone-400 hover:text-stone-200"
         >
           <LogOut /> Sign out on this device
         </Button>

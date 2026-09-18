@@ -149,7 +149,7 @@ export function DossierBoard() {
   return (
     <div className="space-y-5">
       {/* What you have dropped, before anything else. */}
-      <div className="rounded-[2rem] border border-white/[0.09] bg-[#101310] p-6 sm:p-7">
+      <div className="rounded-[2rem] border border-white/[0.18] bg-[#1e241d] p-6 sm:p-7">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -164,7 +164,7 @@ export function DossierBoard() {
             </h2>
           </div>
           {board && (
-            <p className="font-mono text-[11px] tabular-nums text-stone-600">
+            <p className="font-mono text-[11px] tabular-nums text-stone-400">
               {board.open} open · {board.total} tracked
             </p>
           )}
@@ -183,21 +183,21 @@ export function DossierBoard() {
                     className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                       urgent
                         ? "border-amber-200/25 bg-amber-200/[0.05] hover:bg-amber-200/[0.08]"
-                        : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.045]"
+                        : "border-white/[0.16] bg-white/[0.045] hover:bg-white/[0.045]"
                     }`}
                   >
                     <Icon
-                      className={`size-3.5 shrink-0 ${urgent ? "text-amber-200/80" : "text-stone-500"}`}
+                      className={`size-3.5 shrink-0 ${urgent ? "text-amber-200/80" : "text-stone-400"}`}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs text-stone-100">
                         {subject.name}
                       </span>
-                      <span className="block truncate text-[10px] text-stone-500">
+                      <span className="block truncate text-[10px] text-stone-400">
                         {subject.needsYou!.says}
                       </span>
                     </span>
-                    <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-stone-600">
+                    <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-stone-400">
                       {STAGE_LABEL[subject.stage]}
                     </span>
                   </button>
@@ -208,14 +208,14 @@ export function DossierBoard() {
         )}
 
         {board && board.needsYou.length === 0 && board.total > 0 && (
-          <p className="mt-4 text-xs leading-6 text-stone-600">
+          <p className="mt-4 text-xs leading-6 text-stone-400">
             Nothing is overdue and nothing has gone quiet. Your agent watches
             this between conversations.
           </p>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/[0.07] pt-5">
-          <div className="flex rounded-full border border-white/[0.1] p-0.5">
+        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/[0.14] pt-5">
+          <div className="flex rounded-full border border-white/[0.2] p-0.5">
             {(["person", "organization"] as const).map((option) => (
               <button
                 key={option}
@@ -224,7 +224,7 @@ export function DossierBoard() {
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-colors ${
                   kind === option
                     ? "bg-white/[0.07] text-stone-100"
-                    : "text-stone-500 hover:text-stone-300"
+                    : "text-stone-400 hover:text-stone-300"
                 }`}
               >
                 {option === "person" ? (
@@ -256,7 +256,7 @@ export function DossierBoard() {
               }
             }}
             placeholder={kind === "person" ? "Add a person" : "Add a firm"}
-            className="min-w-[10rem] flex-1 rounded-full border border-white/[0.1] bg-black/25 px-4 py-2 text-xs text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
+            className="min-w-[10rem] flex-1 rounded-full border border-white/[0.2] bg-black/25 px-4 py-2 text-xs text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
           />
           <Button
             type="button"
@@ -289,11 +289,11 @@ export function DossierBoard() {
 
       <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
         {/* The pipeline, grouped by where things stand. */}
-        <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.02] p-3">
+        <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.045] p-3">
           {board === null ? (
-            <p className="p-4 text-xs text-stone-600">Loading…</p>
+            <p className="p-4 text-xs text-stone-400">Loading…</p>
           ) : board.total === 0 ? (
-            <p className="p-4 text-xs leading-6 text-stone-600">
+            <p className="p-4 text-xs leading-6 text-stone-400">
               Nobody tracked yet. Your agent adds people here as you mention
               them — tell it who you met and what they said.
             </p>
@@ -301,7 +301,7 @@ export function DossierBoard() {
             <div className="space-y-4">
               {board.byStage.map((group) => (
                 <div key={group.stage}>
-                  <p className="px-3 pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-stone-600">
+                  <p className="px-3 pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-stone-400">
                     {STAGE_LABEL[group.stage]} · {group.subjects.length}
                   </p>
                   <ul>
@@ -313,10 +313,10 @@ export function DossierBoard() {
                           className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors ${
                             open?.id === subject.id
                               ? "bg-white/[0.06]"
-                              : "hover:bg-white/[0.03]"
+                              : "hover:bg-white/[0.055]"
                           }`}
                         >
-                          <span className="text-stone-600">
+                          <span className="text-stone-400">
                             {subject.kind === "person" ? (
                               <User className="size-3" />
                             ) : (
@@ -329,7 +329,7 @@ export function DossierBoard() {
                           {subject.needsYou && (
                             <span className="size-1.5 shrink-0 rounded-full bg-amber-200/70" />
                           )}
-                          <span className="shrink-0 font-mono text-[10px] tabular-nums text-stone-600">
+                          <span className="shrink-0 font-mono text-[10px] tabular-nums text-stone-400">
                             {subject.daysSinceContact === null
                               ? "—"
                               : `${subject.daysSinceContact}d`}
@@ -345,9 +345,9 @@ export function DossierBoard() {
         </div>
 
         {/* One record, with provenance on every line. */}
-        <div className="rounded-[2rem] border border-white/[0.09] bg-[#101310] p-6 sm:p-7">
+        <div className="rounded-[2rem] border border-white/[0.18] bg-[#1e241d] p-6 sm:p-7">
           {!open ? (
-            <p className="text-xs leading-6 text-stone-600">
+            <p className="text-xs leading-6 text-stone-400">
               Open a record to see everything you know and where each line came
               from.
             </p>
@@ -358,7 +358,7 @@ export function DossierBoard() {
                   <h3 className="font-heading text-2xl italic text-stone-100">
                     {open.name}
                   </h3>
-                  <p className="mt-1 text-[10px] text-stone-600">
+                  <p className="mt-1 text-[10px] text-stone-400">
                     {open.relationship ?? "No note on the relationship"} · last
                     spoke {when(open.lastContactAt)}
                   </p>
@@ -377,7 +377,7 @@ export function DossierBoard() {
                       await loadBoard();
                     })
                   }
-                  className="shrink-0 rounded-full text-[11px] text-stone-600 hover:text-red-300"
+                  className="shrink-0 rounded-full text-[11px] text-stone-400 hover:text-red-300"
                 >
                   <Trash2 /> Remove
                 </Button>
@@ -393,7 +393,7 @@ export function DossierBoard() {
                     className={`rounded-full px-3 py-1.5 text-[10px] transition-colors ${
                       open.stage === stage
                         ? "bg-lime-200 text-stone-950"
-                        : "border border-white/[0.1] text-stone-500 hover:text-stone-200"
+                        : "border border-white/[0.2] text-stone-400 hover:text-stone-200"
                     }`}
                   >
                     {STAGE_LABEL[stage]}
@@ -413,9 +413,9 @@ export function DossierBoard() {
                 </p>
               )}
 
-              <ul className="mt-6 border-t border-white/[0.07]">
+              <ul className="mt-6 border-t border-white/[0.14]">
                 {open.claims.length === 0 && (
-                  <li className="py-5 text-xs text-stone-600">
+                  <li className="py-5 text-xs text-stone-400">
                     Nothing recorded yet.
                   </li>
                 )}
@@ -425,9 +425,9 @@ export function DossierBoard() {
                     tone: "text-stone-400",
                   };
                   return (
-                    <li key={claim.id} className="border-b border-white/[0.05] py-3.5">
+                    <li key={claim.id} className="border-b border-white/[0.22] py-3.5">
                       <p className="text-xs leading-6 text-stone-200">{claim.claim}</p>
-                      <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10px] text-stone-600">
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10px] text-stone-400">
                         <span className={provenance.tone}>{provenance.label}</span>
                         <span>·</span>
                         <span className="tabular-nums">{when(claim.observedAt)}</span>
@@ -439,7 +439,7 @@ export function DossierBoard() {
                         )}
                       </p>
                       {claim.evidenceExcerpt && (
-                        <p className="mt-2 border-l border-white/[0.1] pl-3 text-[11px] leading-5 text-stone-500">
+                        <p className="mt-2 border-l border-white/[0.2] pl-3 text-[11px] leading-5 text-stone-400">
                           {claim.evidenceExcerpt}
                         </p>
                       )}

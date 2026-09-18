@@ -35,7 +35,7 @@ export function DemoResetPanel() {
   if (!isDemo) return null;
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -50,7 +50,7 @@ export function DemoResetPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         This agent is a demo, so it can be erased and begun again. Everything
         goes — memory, dossiers, boundaries, the agent itself — and the next
         visit starts a genuinely first session. Real agents do not have this
@@ -96,7 +96,7 @@ export function DemoResetPanel() {
             <button
               type="button"
               onClick={() => setArmed(false)}
-              className="text-[11px] text-stone-500 hover:text-stone-200"
+              className="text-[11px] text-stone-400 hover:text-stone-200"
             >
               Keep it
             </button>
@@ -106,7 +106,7 @@ export function DemoResetPanel() {
             type="button"
             variant="ghost"
             onClick={() => setArmed(true)}
-            className="rounded-full border border-white/[0.12] text-xs text-stone-400 hover:text-stone-100"
+            className="rounded-full border border-white/[0.22] text-xs text-stone-400 hover:text-stone-100"
           >
             <RotateCcw /> Reset for the next demo
           </Button>

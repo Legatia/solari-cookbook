@@ -78,7 +78,7 @@ export function RecoveryCodesPanel() {
   const hasCodes = (status?.remaining ?? 0) > 0;
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -93,14 +93,14 @@ export function RecoveryCodesPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         Sylla holds no email address, so there is no reset link to send you.
         These codes are the only way back to the same agent if your passkey and
         every connected AI host are gone. Print them or keep them somewhere that
         is not the device you sign in from.
       </p>
 
-      <div className="mt-7 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+      <div className="mt-7 rounded-2xl border border-white/[0.16] bg-black/15 p-4">
         <p className="text-xs text-stone-300">
           {!statusLoaded
             ? "Checking recovery codes…"
@@ -112,7 +112,7 @@ export function RecoveryCodesPanel() {
                 : "No recovery codes yet"
             : "Recovery-code status is unavailable"}
         </p>
-        <p className="mt-1 text-[10px] text-stone-600">
+        <p className="mt-1 text-[10px] text-stone-400">
           Each code works once. Generating a new set cancels the old one.
         </p>
       </div>
@@ -197,7 +197,7 @@ export function RecoveryRedeemPanel() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full text-left text-[11px] text-stone-600 underline-offset-4 hover:text-stone-300 hover:underline"
+        className="w-full text-left text-[11px] text-stone-400 underline-offset-4 hover:text-stone-300 hover:underline"
       >
         Lost your passkey and every connected AI? Use a recovery code.
       </button>
@@ -205,7 +205,7 @@ export function RecoveryRedeemPanel() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.09] bg-white/[0.02] p-4">
+    <div className="rounded-2xl border border-white/[0.18] bg-white/[0.045] p-4">
       <p className="text-[10px] uppercase tracking-[0.16em] text-lime-200/60">
         Recovery code
       </p>
@@ -218,7 +218,7 @@ export function RecoveryRedeemPanel() {
         placeholder="XXXX-XXXX-XXXX"
         autoComplete="one-time-code"
         spellCheck={false}
-        className="mt-3 w-full rounded-xl border border-white/[0.1] bg-black/25 px-3 py-2.5 font-mono text-sm tracking-[0.12em] text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
+        className="mt-3 w-full rounded-xl border border-white/[0.2] bg-black/25 px-3 py-2.5 font-mono text-sm tracking-[0.12em] text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
       />
       <div className="mt-3 flex items-center gap-3">
         <Button
@@ -233,7 +233,7 @@ export function RecoveryRedeemPanel() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[11px] text-stone-600 hover:text-stone-300"
+          className="text-[11px] text-stone-400 hover:text-stone-300"
         >
           Cancel
         </button>

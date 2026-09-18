@@ -58,7 +58,7 @@ export function EmailNotificationsPanel() {
   }
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -73,7 +73,7 @@ export function EmailNotificationsPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         Sylla holds no address unless you give it one. If you do, it can tell you
         when your agent finishes something or when the pipeline needs you — and
         only that. A message says something happened, never what it was. The
@@ -86,7 +86,7 @@ export function EmailNotificationsPanel() {
         </p>
       )}
 
-      <div className="mt-7 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+      <div className="mt-7 rounded-2xl border border-white/[0.16] bg-black/15 p-4">
         <p className="text-xs text-stone-300">
           {contact === null
             ? "Checking…"
@@ -96,7 +96,7 @@ export function EmailNotificationsPanel() {
                 ? `Waiting on you to confirm ${contact.address}`
                 : "No address on file"}
         </p>
-        <p className="mt-1 text-[10px] text-stone-600">
+        <p className="mt-1 text-[10px] text-stone-400">
           {contact?.verified
             ? "At most one message a day. Every one has a way out."
             : "Nothing is sent until you open the link Sylla mails you."}
@@ -113,7 +113,7 @@ export function EmailNotificationsPanel() {
           ).map(([key, label]) => (
             <label
               key={key}
-              className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-black/15 px-4 py-3"
+              className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.16] bg-black/15 px-4 py-3"
             >
               <input
                 type="checkbox"
@@ -146,7 +146,7 @@ export function EmailNotificationsPanel() {
           placeholder={contact?.address ?? "you@example.com"}
           inputMode="email"
           autoComplete="email"
-          className="min-w-[12rem] flex-1 rounded-full border border-white/[0.1] bg-black/25 px-4 py-2 text-xs text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
+          className="min-w-[12rem] flex-1 rounded-full border border-white/[0.2] bg-black/25 px-4 py-2 text-xs text-stone-100 outline-none placeholder:text-stone-700 focus:border-lime-200/40"
         />
         <Button
           type="button"
@@ -189,7 +189,7 @@ export function EmailNotificationsPanel() {
                 setSent(false);
               })
             }
-            className="rounded-full text-[11px] text-stone-500 hover:text-stone-200"
+            className="rounded-full text-[11px] text-stone-400 hover:text-stone-200"
           >
             Forget my address
           </Button>

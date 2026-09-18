@@ -68,25 +68,25 @@ export function CheckoutOptions({
             <p className="text-sm text-stone-200">{resident.name}</p>
             <p className="text-xs text-lime-200/80">Already yours</p>
           </div>
-          <p className="mt-2 text-xs leading-5 text-stone-500">{resident.blurb}</p>
+          <p className="mt-2 text-xs leading-5 text-stone-400">{resident.blurb}</p>
         </div>
       )}
 
       <div className="space-y-3">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-600">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
           Monthly, for the work your agent does
         </p>
         {paid.map((tier) => (
           <div
             key={tier.key}
-            className="rounded-2xl border border-white/[0.08] bg-black/20 p-4"
+            className="rounded-2xl border border-white/[0.16] bg-black/20 p-4"
           >
             <div className="flex items-baseline justify-between gap-4">
               <p className="text-sm text-stone-200">{tier.name}</p>
               <p className="text-sm text-stone-300">{money(tier.priceInCents)}/mo</p>
             </div>
-            <p className="mt-2 text-xs leading-5 text-stone-500">{tier.blurb}</p>
-            <p className="mt-1 text-[10px] text-stone-600">
+            <p className="mt-2 text-xs leading-5 text-stone-400">{tier.blurb}</p>
+            <p className="mt-1 text-[10px] text-stone-400">
               {tier.monthlyCredits.toLocaleString()} credits a month. Unused ones
               carry over.
             </p>
@@ -103,15 +103,15 @@ export function CheckoutOptions({
         ))}
       </div>
 
-      <div className="space-y-3 border-t border-white/[0.07] pt-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-600">
+      <div className="space-y-3 border-t border-white/[0.14] pt-5">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
           Or a one-off top-up, with no commitment
         </p>
         {packs.map((pack) => (
           <div key={pack.key} className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs text-stone-300">{pack.name}</p>
-              <p className="text-[10px] text-stone-600">
+              <p className="text-[10px] text-stone-400">
                 {pack.credits.toLocaleString()} credits, once
               </p>
             </div>

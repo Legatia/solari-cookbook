@@ -95,7 +95,7 @@ export function ShieldPanel() {
   const inForce = new Set(shield?.boundaries.map((one) => one.kind) ?? []);
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -110,7 +110,7 @@ export function ShieldPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         Set a boundary and your agent turns things away before you ever see
         them. Nobody is told you have a rule — they get the same answer as
         anyone Sylla could not introduce, and nothing is closed permanently, so
@@ -126,12 +126,12 @@ export function ShieldPanel() {
               className={`flex items-center justify-between gap-4 rounded-2xl border p-4 ${
                 on
                   ? "border-lime-200/25 bg-lime-200/[0.05]"
-                  : "border-white/[0.08] bg-black/15"
+                  : "border-white/[0.16] bg-black/15"
               }`}
             >
               <div className="min-w-0">
                 <p className="text-xs text-stone-200">{option.label}</p>
-                <p className="mt-1 text-[10px] leading-4 text-stone-600">
+                <p className="mt-1 text-[10px] leading-4 text-stone-400">
                   {shield?.boundaries.find((one) => one.kind === option.kind)?.says ??
                     option.blurb}
                 </p>
@@ -142,7 +142,7 @@ export function ShieldPanel() {
                 disabled={busy !== null}
                 onClick={() => toggle(option.kind, on)}
                 className={`shrink-0 rounded-full text-[11px] ${
-                  on ? "text-lime-200/80" : "text-stone-500 hover:text-stone-200"
+                  on ? "text-lime-200/80" : "text-stone-400 hover:text-stone-200"
                 }`}
               >
                 {busy === option.kind ? (
@@ -158,8 +158,8 @@ export function ShieldPanel() {
         })}
       </div>
 
-      <div className="mt-6 border-t border-white/[0.07] pt-5">
-        <p className="text-[9px] uppercase tracking-[0.18em] text-stone-600">
+      <div className="mt-6 border-t border-white/[0.14] pt-5">
+        <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
           What it turned away
         </p>
         <p className="mt-3 text-xs leading-6 text-stone-400">
@@ -176,7 +176,7 @@ export function ShieldPanel() {
                 }.`}
         </p>
         {shield !== null && shield.turnedAwayTotal > 0 && (
-          <p className="mt-2 text-[10px] leading-5 text-stone-600">
+          <p className="mt-2 text-[10px] leading-5 text-stone-400">
             Who they were is deliberately not shown. You declined these without
             being asked, and naming them would hand you back the decision the
             boundary existed to spare you.

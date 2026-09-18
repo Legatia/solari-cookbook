@@ -111,7 +111,7 @@ export function WorkLog() {
       <div
         className={`rounded-[2rem] border p-6 sm:p-7 ${
           log === null
-            ? "border-white/[0.09] bg-[#101310]"
+            ? "border-white/[0.18] bg-[#1e241d]"
             : clear
               ? "border-lime-200/20 bg-lime-200/[0.035]"
               : "border-amber-200/25 bg-amber-200/[0.05]"
@@ -128,7 +128,7 @@ export function WorkLog() {
             )}
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-500">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-stone-400">
               Last 30 days
             </p>
             <h2 className="mt-2.5 font-heading text-3xl italic leading-tight text-stone-100">
@@ -139,7 +139,7 @@ export function WorkLog() {
                   : "Your agent took a consequential action alone."}
             </h2>
             {log && (
-              <p className="mt-3 font-mono text-[11px] tabular-nums text-stone-500">
+              <p className="mt-3 font-mono text-[11px] tabular-nums text-stone-400">
                 {log.runs} run{log.runs === 1 ? "" : "s"} · {log.unattendedRuns}{" "}
                 unattended · {log.creditsSpent} credits
               </p>
@@ -149,11 +149,11 @@ export function WorkLog() {
         {error && <p className="mt-4 text-xs leading-5 text-red-300/80">{error}</p>}
       </div>
 
-      <div className="rounded-[2rem] border border-white/[0.09] bg-[#101310] p-2 sm:p-3">
+      <div className="rounded-[2rem] border border-white/[0.18] bg-[#1e241d] p-2 sm:p-3">
         {log === null ? (
-          <p className="p-5 text-xs text-stone-600">Loading…</p>
+          <p className="p-5 text-xs text-stone-400">Loading…</p>
         ) : log.entries.length === 0 ? (
-          <p className="p-5 text-xs leading-6 text-stone-600">
+          <p className="p-5 text-xs leading-6 text-stone-400">
             Nothing yet. Work your agent does for you — research, workspaces,
             anything it finishes after you close the chat — is recorded here with
             what it cost.
@@ -165,11 +165,11 @@ export function WorkLog() {
               return (
                 <li
                   key={entry.id}
-                  className="border-b border-white/[0.05] px-4 py-4 last:border-b-0"
+                  className="border-b border-white/[0.22] px-4 py-4 last:border-b-0"
                 >
                   <div className="flex items-start gap-3">
                     <span
-                      className={`mt-0.5 shrink-0 ${away ? "text-stone-400" : "text-stone-600"}`}
+                      className={`mt-0.5 shrink-0 ${away ? "text-stone-400" : "text-stone-400"}`}
                       title={away ? "While you were away" : "With you"}
                     >
                       {away ? <Moon className="size-3.5" /> : <Eye className="size-3.5" />}
@@ -184,7 +184,7 @@ export function WorkLog() {
                           {entry.completedActions.map((action) => (
                             <li
                               key={action}
-                              className="border-l border-white/[0.1] pl-3 text-[11px] leading-5 text-stone-500"
+                              className="border-l border-white/[0.2] pl-3 text-[11px] leading-5 text-stone-400"
                             >
                               {action}
                             </li>
@@ -192,7 +192,7 @@ export function WorkLog() {
                         </ul>
                       )}
 
-                      <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10px] text-stone-600">
+                      <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[10px] text-stone-400">
                         <span className="tabular-nums">{stamp(entry.startedAt)}</span>
                         <span>·</span>
                         <span>{away ? "while you were away" : "with you"}</span>
@@ -217,7 +217,7 @@ export function WorkLog() {
                         {entry.ranOn && (
                           <>
                             <span>·</span>
-                            <span className="text-stone-500">ran on {entry.ranOn}</span>
+                            <span className="text-stone-400">ran on {entry.ranOn}</span>
                           </>
                         )}
                       </p>
@@ -227,14 +227,14 @@ export function WorkLog() {
                           type="button"
                           disabled={opening === entry.id}
                           onClick={() => watch(entry.id)}
-                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] px-3 py-1.5 text-[10px] text-stone-300 transition-colors hover:border-lime-200/40 hover:text-lime-100 disabled:opacity-60"
+                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-white/[0.22] px-3 py-1.5 text-[10px] text-stone-300 transition-colors hover:border-lime-200/40 hover:text-lime-100 disabled:opacity-60"
                         >
                           <Play className="size-3" />
                           {opening === entry.id ? "Fetching…" : "Watch what it did"}
                         </button>
                       )}
                       {replayNote[entry.id] && (
-                        <p className="mt-2 text-[10px] leading-5 text-stone-500">
+                        <p className="mt-2 text-[10px] leading-5 text-stone-400">
                           {replayNote[entry.id]}
                         </p>
                       )}
@@ -246,7 +246,7 @@ export function WorkLog() {
                         </p>
                       )}
                       {entry.degraded && (
-                        <p className="mt-2 text-[10px] leading-5 text-stone-600">
+                        <p className="mt-2 text-[10px] leading-5 text-stone-400">
                           The model was unavailable, so this summary is
                           Sylla&apos;s own fallback rather than the agent&apos;s
                           account.

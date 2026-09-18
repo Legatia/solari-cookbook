@@ -98,7 +98,7 @@ export function ReferralPanel() {
   }
 
   return (
-    <div className="rounded-[2rem] border border-white/[0.09] bg-white/[0.025] p-6 sm:p-8">
+    <div className="rounded-[2rem] border border-white/[0.18] bg-white/[0.05] p-6 sm:p-8">
       <div className="flex items-start justify-between gap-5">
         <div>
           <p className="text-[9px] uppercase tracking-[0.18em] text-lime-200/60">
@@ -113,13 +113,13 @@ export function ReferralPanel() {
         </span>
       </div>
 
-      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-500">
+      <p className="mt-5 max-w-xl text-xs leading-6 text-stone-400">
         Sylla only works as well as the people in it. Each invitation is for one
         person and expires in two weeks — and a seat comes back to you when
         someone you invited settles in, so vouching well is what earns more.
       </p>
 
-      <div className="mt-7 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+      <div className="mt-7 rounded-2xl border border-white/[0.16] bg-black/15 p-4">
         <p className="text-xs text-stone-300">
           {allowance
             ? allowance.granted === 0
@@ -128,7 +128,7 @@ export function ReferralPanel() {
             : "Checking your seats…"}
         </p>
         {allowance && allowance.earned > 0 && (
-          <p className="mt-1 text-[10px] text-stone-600">
+          <p className="mt-1 text-[10px] text-stone-400">
             {allowance.base} to start, {allowance.earned} earned back
             {allowance.atCeiling ? " — at the ceiling for now" : ""}
           </p>
@@ -163,18 +163,18 @@ export function ReferralPanel() {
       )}
 
       {referrals.length > 0 && (
-        <ul className="mt-6 space-y-2 border-t border-white/[0.07] pt-5">
+        <ul className="mt-6 space-y-2 border-t border-white/[0.14] pt-5">
           {referrals.map((referral) => (
             <li
               key={referral.invitationId}
               className="flex items-center justify-between gap-4 text-[11px]"
             >
-              <span className="truncate text-stone-500">
+              <span className="truncate text-stone-400">
                 {referral.label ?? "Invitation"}
               </span>
               <span
                 className={
-                  referral.settledIn ? "text-lime-200/80" : "text-stone-600"
+                  referral.settledIn ? "text-lime-200/80" : "text-stone-400"
                 }
               >
                 {standing(referral)}
