@@ -65,9 +65,15 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       shadcn:
         specifier: ^4.19.1
         version: 4.19.1(typescript@5.9.3)
+      stripe:
+        specifier: ^22.6.1
+        version: 22.6.1(@types/node@20.19.43)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -3562,6 +3568,9 @@ packages:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
 
+  server-only@0.0.1:
+    resolution: {integrity: sha512-qepMx2JxAa5jjfzxG79yPPq+8BuFToHd1hm7kI+Z4zAq1ftQiP7HcxMhDDItrbtwVeLg/cY2JnKnrcFkmiswNA==}
+
   set-function-length@1.2.2:
     resolution: {integrity: sha512-pgRc4hJ4/sNjWCSS9AmnS40x3bNMDTknHgL5UaMBTMyJnU90EgWh1Rz+MC9eFu4BuN/UwZjKQuY/1v3rM7HMfg==}
     engines: {node: '>= 0.4'}
@@ -3722,6 +3731,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@22.6.1:
+    resolution: {integrity: sha512-hAKSkGeVt2u46TRYhmnvwmVHxBNtOCJnPjc+SH5sP2B2ypElYzAAY3Ljx0Ar8C2w8nfpFQiZ95qoDCDsFkXMTA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   styled-jsx@5.1.6:
     resolution: {integrity: sha512-qSVyDTeMotdvQYoHWLNGwRFJHC+i+ZvdBRYosOFgC+Wg1vx4frN2/RG/NA7SYqqvKNLf39P2LSRA2pu6n0XYZA==}
@@ -7388,6 +7406,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  server-only@0.0.1: {}
+
   set-function-length@1.2.2:
     dependencies:
       define-data-property: 1.1.4
@@ -7638,6 +7658,10 @@ snapshots:
   strip-final-newline@4.0.0: {}
 
   strip-json-comments@3.1.1: {}
+
+  stripe@22.6.1(@types/node@20.19.43):
+    optionalDependencies:
+      '@types/node': 20.19.43
 
   styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.2.8):
     dependencies:

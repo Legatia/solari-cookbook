@@ -130,6 +130,25 @@ async function waitForDesktopReady(
 export class SolariBrowserResearchAdapter implements BrowserResearchAdapter {
   constructor(private readonly options: LiveAdapterOptions) {}
 
+  /**
+   * The replay of a recorded research session.
+   *
+   * Null while the provider is still processing it, which it distinguishes from
+   * a session that has nothing to show. A miss is never an error here: a
+   * recording that is late, expired past the plan's retention, or simply absent
+   * should leave the work log intact rather than failing the page.
+   */
+  async replayUrl(sessionId: string) {
+    try {
+      const replay = await new Solari(this.options).sessions.getReplayUrl(sessionId);
+      return replay?.url
+        ? { url: replay.url, expiresInSeconds: replay.expiresInSeconds }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   async research(input: unknown) {
     const request = researchRequestSchema.parse(input);
     const sources = request.sources.map((source) => ({
@@ -137,7 +156,18 @@ export class SolariBrowserResearchAdapter implements BrowserResearchAdapter {
       url: assertPublicHttpUrl(source.url).toString(),
     }));
     const client = new Solari(this.options);
-    const browser = await client.launch({ recording: true });
+    const browser = await client.launch({
+      recording: true,
+      // Included from the Starter tier up. It makes a real-desktop fingerprint
+      // so approved public sources stop refusing a datacenter browser, which is
+      // a research-success problem rather than an access-control one.
+      //
+      // Managed captcha solving is available alongside it and is deliberately
+      // not enabled: a site putting a challenge in front of the agent is saying
+      // it does not want automated access, and Sylla only ever reads sources a
+      // participant has approved — that is not a mandate to argue with the site.
+      ...(process.env.SYLLA_BROWSER_STEALTH === "true" ? { stealth: true } : {}),
+    });
     const runReference = browser.id;
 
     try {

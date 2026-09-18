@@ -5,7 +5,7 @@ import { MarketingLanding } from "@/components/marketing-landing";
 export const metadata: Metadata = {
   title: "Sylla — the intimate agent",
   description:
-    "A personal agent that is yours, not the model's. It remembers what you let it, comes with you across AI models, and privately introduces people worth knowing.",
+    "A private, portable personal agent that lives inside the AI you already use, remembers with permission, works while you are away, and makes private introductions through a society of agents.",
 };
 
 export default function Home() {

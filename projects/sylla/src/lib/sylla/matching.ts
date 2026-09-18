@@ -158,6 +158,7 @@ export async function getCandidateShortlist(
             inArray(observations.participantId, candidateIds),
             inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
             eq(observations.visibility, "shareable"),
+            isNull(observations.subjectId),
           ),
         ),
       database
@@ -444,6 +445,10 @@ export async function evaluatePairDirection(input: {
         and(
           eq(observations.participantId, input.subjectParticipantId),
           inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
+          // This side is unfiltered by visibility on purpose: an agent may use
+          // its own human's private context. A dossier is not that — it is a
+          // third party's record, and it must not enter an evaluation.
+          isNull(observations.subjectId),
         ),
       ),
     database
@@ -453,6 +458,7 @@ export async function evaluatePairDirection(input: {
         and(
           eq(observations.participantId, candidateParticipantId),
           inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
+          isNull(observations.subjectId),
           eq(observations.visibility, "shareable"),
         ),
       ),

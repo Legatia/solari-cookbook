@@ -38,6 +38,10 @@ import {
 import { yieldAgentRunToBackground } from "../src/lib/sylla/runs";
 
 class RecordingBrowserAdapter implements BrowserResearchAdapter {
+  async replayUrl(sessionId: string) {
+    return { url: `https://mock.solari.invalid/replay/${sessionId}`, expiresInSeconds: 900 };
+  }
+
   readonly visits: string[] = [];
 
   async research(request: ResearchRequest) {

@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
+import { mapWithConcurrency, sweepConcurrency } from "@/lib/sylla/concurrency";
+import { markNotified, prepareNotification } from "@/lib/sylla/notifications";
 import {
   agentRuns,
   runCheckpoints,
@@ -731,8 +733,15 @@ export async function sweepFallbackRuns(input: {
     failed: 0,
     failures: [],
   };
+  /** Per participant, so one message covers a sweep rather than each run. */
+  const finishedFor = new Map<string, number>();
 
-  for (const candidate of candidates.rows) {
+  await mapWithConcurrency(
+    candidates.rows,
+    // These are model calls, not machines: they contend for a provider rate
+    // limit rather than for Solari's concurrency, so they can run wider.
+    sweepConcurrency("SYLLA_SUMMARY_SWEEP_CONCURRENCY", 6),
+    async (candidate) => {
     try {
       const adapter =
         explicitAdapter ??
@@ -746,8 +755,13 @@ export async function sweepFallbackRuns(input: {
         workerId: input.workerId,
         adapter,
       });
-      if (processed.executed) result.executed += 1;
-      else result.skipped += 1;
+      if (processed.executed) {
+        result.executed += 1;
+        finishedFor.set(
+          candidate.participant_id,
+          (finishedFor.get(candidate.participant_id) ?? 0) + 1,
+        );
+      } else result.skipped += 1;
     } catch (error) {
       result.failed += 1;
       result.failures.push({
@@ -755,9 +769,47 @@ export async function sweepFallbackRuns(input: {
         error: safeErrorMessage(error),
       });
     }
-  }
+    },
+  );
 
+  await notifyParticipantsOfFinishedWork(finishedFor);
   return result;
+}
+
+/**
+ * Tell people their work is done, if they asked to be told.
+ *
+ * Deliberately after the sweep and deliberately swallowing its own failures: a
+ * mail provider being down must not roll back work that already completed, and
+ * a participant who never asked for email must not slow the sweep. One message
+ * per participant per sweep, carrying a count and nothing else.
+ */
+async function notifyParticipantsOfFinishedWork(finishedFor: Map<string, number>) {
+  for (const [participantId, count] of finishedFor) {
+    try {
+      const identity = await ensurePortableIdentity(participantId);
+      const message = await prepareNotification({
+        userId: identity.userId,
+        kind: "work_finished",
+        count,
+      });
+      if (!message) continue;
+      // Imported here rather than at the top because the sending module guards
+      // its provider secret with `server-only`, which refuses to load outside a
+      // server runtime. Loading it lazily keeps that guard while leaving this
+      // module importable by the verification scripts.
+      const { sendEmail } = await import("@/lib/sylla/email");
+      await sendEmail({
+        to: message.address,
+        subject: message.subject,
+        text: message.text,
+        unsubscribeUrl: message.unsubscribeUrl,
+      });
+      await markNotified(identity.userId);
+    } catch {
+      // Nothing here is worth failing a completed run over.
+    }
+  }
 }
 
 export async function getAgentRun(

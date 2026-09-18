@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { DeviceLoginPanel } from "@/components/device-login";
 import { PasskeyLoginButton } from "@/components/passkey-controls";
+import { RecoveryRedeemPanel } from "@/components/recovery-codes";
 
 export const metadata: Metadata = {
   title: "Return to your agent — Sylla",
@@ -39,6 +40,7 @@ export default function LoginPage() {
         <div className="mt-9 space-y-3">
           <PasskeyLoginButton />
           <DeviceLoginPanel />
+          <RecoveryRedeemPanel />
         </div>
         <p className="mt-7 border-t border-white/[0.07] pt-5 text-[10px] leading-5 text-stone-600">
           New here? Connect Sylla from your AI or open a valid invitation first.

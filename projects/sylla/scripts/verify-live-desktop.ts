@@ -185,8 +185,10 @@ async function main() {
     );
     observed.replacedSnapshotPruned = true;
 
-    // 3. Pause snapshots first, then pauses. Order matters: Solari refuses a
-    //    snapshot on a paused machine.
+    // 3. Resting snapshots first, then releases the machine. Order matters:
+    //    Solari refuses a snapshot on a stopped machine. Releasing rather than
+    //    pausing matters more: a paused desktop keeps its concurrency slot, so
+    //    one participant who walked away would hold a machine forever.
     const paused = await pauseParticipantWorkspace(participantId, {
       ...context,
       idempotencyKey: `live-desktop-pause-${syntheticId}`,
@@ -197,8 +199,15 @@ async function main() {
     assert.equal(
       await snapshotExists(secondSnapshot),
       false,
-      "pausing must prune the checkpoint it superseded",
+      "resting must prune the checkpoint it superseded",
     );
+    assert.equal(
+      paused.workspace?.sessionId ?? null,
+      null,
+      "resting must let the machine go, or the concurrency slot is held forever",
+    );
+    assert.ok(pauseSnapshot, "the state has to survive the machine");
+    observed.restingReleasesTheSlot = true;
 
     // 4. The guard added for the new 409: refuse before spending a credit.
     await assert.rejects(

@@ -1,0 +1,16 @@
+:root {
+  --sylla-obsidian: #0b0b0a;
+  --sylla-bone: #f4f0e8;
+  --sylla-paper: #eae7e0;
+  --sylla-graphite: #32302c;
+  --sylla-mist: #b8b3aa;
+  --sylla-white: #fffdf8;
+
+  --sylla-font-display: "Newsreader", Georgia, serif;
+  --sylla-font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --sylla-font-mono: "Geist Mono", "SFMono-Regular", Consolas, monospace;
+
+  --sylla-radius-control: 999px;
+  --sylla-radius-card: 24px;
+  --sylla-radius-panel: 32px;
+}

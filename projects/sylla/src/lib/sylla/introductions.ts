@@ -1,6 +1,7 @@
 import { and, asc, count, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
+import { evaluateShield, recordShieldDecline } from "@/lib/sylla/boundaries";
 import {
   availabilityWindows,
   candidatePairs,
@@ -158,6 +159,11 @@ export async function approveDisclosureEnvelope(input: {
         inArray(observations.id, observationIds),
         inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
         eq(observations.visibility, "shareable"),
+        // Belt and braces: a dossier claim is written private and can never be
+        // made shareable, so this can only ever be redundant. It stays because
+        // the cost of it being wrong once is somebody else's private record
+        // arriving in a stranger's introduction.
+        isNull(observations.subjectId),
       ),
     );
   if (approved.length !== observationIds.length) {
@@ -298,6 +304,25 @@ export async function createIntroductionProposal(input: {
   }
   const originTier =
     pair.status === "recommended" && envelopes.length === 2 ? "mutual" : "one_sided";
+
+  // The recipient's standing boundaries, applied before anything reaches them.
+  //
+  // Refused with the same generic message the gate gives for every other
+  // reason, so nobody can infer from the outside that a rule exists — and
+  // without creating a proposal, so a boundary that meant "not now" does not
+  // permanently consume the pair the way a real decline does.
+  const recipientParticipantId = otherParticipant(pair, input.participantId);
+  const shield = await evaluateShield(recipientParticipantId, { originTier });
+  if (shield.refused) {
+    await recordShieldDecline({
+      participantId: recipientParticipantId,
+      candidatePairId: pair.id,
+      kind: shield.kind,
+      originTier,
+    });
+    throw new IntroductionGateError("This pair is not ready for a proposal.");
+  }
+
   await assertProposalCapacity({
     eventId: pair.eventId,
     initiatorParticipantId: input.participantId,
@@ -445,6 +470,7 @@ async function loadParticipantProposalView(
             eq(observations.participantId, otherId),
             inArray(observations.id, otherEnvelope[0].observationIds),
             eq(observations.visibility, "shareable"),
+            isNull(observations.subjectId),
             inArray(observations.status, [...APPROVED_OBSERVATION_STATUSES]),
           ),
         )

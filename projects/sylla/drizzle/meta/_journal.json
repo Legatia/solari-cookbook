@@ -155,6 +155,69 @@
       "when": 1788451235940,
       "tag": "0021_cute_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788616317733,
+      "tag": "0022_slow_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788621549180,
+      "tag": "0023_chief_captain_britain",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788646660006,
+      "tag": "0024_normal_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788647646011,
+      "tag": "0025_nappy_sleeper",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788684039541,
+      "tag": "0026_amazing_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789392611294,
+      "tag": "0027_optimal_toro",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789394422095,
+      "tag": "0028_rapid_ben_urich",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789396090419,
+      "tag": "0029_certain_big_bertha",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789415449393,
+      "tag": "0030_brave_reptil",
+      "breakpoints": true
     }
   ]
 }

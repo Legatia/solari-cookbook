@@ -4,11 +4,10 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-import { lookup } from "node:dns/promises";
 
 import { eq } from "drizzle-orm";
 
-import { assertPublicHttpUrl, isPrivateAddress } from "@/lib/solari/url-policy";
+import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
 
 import { getDatabase } from "@/db";
 import { participantModelKeys } from "@/db/schema";
@@ -62,11 +61,12 @@ export const PROVIDER_DEFAULTS: Record<
 };
 
 /**
- * Starting points for anything speaking the OpenAI `/chat/completions` dialect.
+ * Pilot allowlist for providers speaking the OpenAI `/chat/completions` dialect.
  *
- * These only prefill the form: both the base URL and the model stay editable,
- * so a preset that moves is a one-line correction for the participant rather
- * than a dead end, and anything not listed works through Custom.
+ * The model stays editable, but the server target does not. An arbitrary target
+ * would let a participant turn Sylla into a credential-bearing server-side
+ * request primitive, and a DNS check followed by an ordinary fetch still has a
+ * rebinding race. New providers are added here after review.
  */
 export const COMPATIBLE_PRESETS = [
   {
@@ -112,50 +112,13 @@ export const COMPATIBLE_PRESETS = [
     baseUrl: "https://api.together.xyz/v1",
     model: "",
   },
-  { id: "custom", label: "Custom endpoint", baseUrl: "", model: "" },
 ] as const;
 
 /**
- * Resolve a hostname and refuse it if *any* address it answers with is private.
- *
- * Checking the literal string is not enough: `evil.example.com` is a public
- * name that can resolve to 169.254.169.254, and a host with several A records
- * only needs one of them to point inward. This is the check that actually
- * closes the hole; the string check above only catches the naive case.
- */
-export type AddressResolver = (
-  hostname: string,
-) => Promise<Array<{ address: string }>>;
-
-const defaultResolver: AddressResolver = (hostname) =>
-  lookup(hostname, { all: true });
-
-async function assertPublicDestination(
-  hostname: string,
-  resolver: AddressResolver = defaultResolver,
-) {
-  let addresses: Array<{ address: string }>;
-  try {
-    addresses = await resolver(hostname);
-  } catch {
-    throw new ModelKeyError("That host could not be resolved.");
-  }
-  if (!addresses.length) {
-    throw new ModelKeyError("That host could not be resolved.");
-  }
-  for (const { address } of addresses) {
-    if (isPrivateAddress(address)) {
-      throw new ModelKeyError(
-        "That host resolves to a private address. Use the provider's public endpoint.",
-      );
-    }
-  }
-}
-
-/**
- * A participant-supplied base URL is a server-side fetch target, so it gets the
- * same treatment as an approved research source: HTTPS only, no private,
- * local, or internal addresses. Without this, the field is an SSRF hole.
+ * A participant-supplied base URL is a credential-bearing server-side fetch
+ * target. For the pilot it must exactly match a reviewed preset. This removes
+ * the DNS-rebinding window inherent in resolving a custom host and fetching it
+ * in two separate operations.
  */
 function assertCompatibleBaseUrl(value: string) {
   const trimmed = value.trim();
@@ -173,7 +136,16 @@ function assertCompatibleBaseUrl(value: string) {
   if (url.protocol !== "https:") {
     throw new ModelKeyError("The base URL must use HTTPS.");
   }
-  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+  if (url.search || url.hash) {
+    throw new ModelKeyError("Choose one of Sylla's reviewed provider endpoints.");
+  }
+  const normalized = `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+  if (!COMPATIBLE_PRESETS.some((preset) => preset.baseUrl === normalized)) {
+    throw new ModelKeyError(
+      "Choose one of Sylla's reviewed provider endpoints. Custom endpoints are disabled during the pilot.",
+    );
+  }
+  return normalized;
 }
 
 function encryptionKey() {
@@ -228,15 +200,14 @@ export async function verifyModelKey(input: {
   baseUrl?: string;
   model?: string;
   fetchImpl?: typeof fetch;
-  /** Injectable so tests stay hermetic; production uses the real resolver. */
-  resolver?: AddressResolver;
 }) {
   const { provider, apiKey } = input;
   const label = PROVIDER_DEFAULTS[provider].label;
   const fetchImpl = input.fetchImpl ?? fetch;
-  if (provider === "openai_compatible" && input.baseUrl) {
-    await assertPublicDestination(new URL(input.baseUrl).hostname, input.resolver);
-  }
+  const compatibleBaseUrl =
+    provider === "openai_compatible"
+      ? assertCompatibleBaseUrl(input.baseUrl ?? "")
+      : null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
 
@@ -258,7 +229,7 @@ export async function verifyModelKey(input: {
             },
           ]
         : [
-            `${input.baseUrl}/chat/completions`,
+            `${compatibleBaseUrl}/chat/completions`,
             {
               method: "POST",
               headers: {
@@ -326,7 +297,6 @@ export async function saveModelKey(input: {
   baseUrl?: string;
   apiKey: string;
   fetchImpl?: typeof fetch;
-  resolver?: AddressResolver;
 }): Promise<ModelKeyView> {
   const apiKey = input.apiKey.trim();
   if (apiKey.length < 12) throw new ModelKeyError("That does not look like an API key.");
@@ -349,7 +319,6 @@ export async function saveModelKey(input: {
     baseUrl: baseUrl ?? undefined,
     model,
     fetchImpl: input.fetchImpl,
-    resolver: input.resolver,
   });
 
   const identity = await ensurePortableIdentity(input.participantId);
@@ -467,12 +436,10 @@ export async function resolveParticipantModelAdapter(
     return createAnthropicInternalModelAdapter({ apiKey, model: row.model });
   }
   if (row.provider === "openai_compatible") {
-    // Re-check the stored origin every time. A host that has since started
-    // resolving inward must not become a fetch target on the strength of a
-    // validation that happened once, weeks ago.
+    // Older rows may predate the preset-only boundary. Never revive one unless
+    // its target still exactly matches the current reviewed allowlist.
     try {
-      const url = assertPublicHttpUrl(row.baseUrl ?? "");
-      await assertPublicDestination(url.hostname);
+      assertCompatibleBaseUrl(row.baseUrl ?? "");
     } catch {
       return fallback();
     }

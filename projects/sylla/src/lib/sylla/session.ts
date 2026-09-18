@@ -21,7 +21,7 @@ import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 
 export const SESSION_COOKIE = "sylla_session";
-const DEMO_EVENT_SLUG = "sylla-first-session";
+export const DEMO_EVENT_SLUG = "sylla-first-session";
 /**
  * Absolute, not idle: a session expires one month after it was created no
  * matter how recently it was used, so every browser re-authenticates monthly.
@@ -30,6 +30,16 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+/** One new browser-session credential, ready for an atomic persistence path. */
+export function newUserSessionCredential() {
+  const token = randomBytes(32).toString("base64url");
+  return {
+    token,
+    tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1_000),
+  };
 }
 
 function validToken(value: string | undefined) {
@@ -152,14 +162,14 @@ export async function createUserSession(userId: string) {
     throw new Error("This passkey is not linked to an active Sylla agent.");
   }
 
-  const token = randomBytes(32).toString("base64url");
+  const credential = newUserSessionCredential();
   await database.insert(userSessions).values({
     userId,
     participantId: participant.id,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1_000),
+    tokenHash: credential.tokenHash,
+    expiresAt: credential.expiresAt,
   });
-  return { participant, token };
+  return { participant, token: credential.token };
 }
 
 export type UserSessionView = {
@@ -334,6 +344,9 @@ export async function loadSessionState(
         and(
           inArray(observations.participantId, ownedParticipantIds),
           ne(observations.status, "forgotten"),
+          // "What Sylla knows" means what it knows about them. A book kept on
+          // someone else belongs in that dossier, not in their own record.
+          isNull(observations.subjectId),
         ),
       )
       .orderBy(asc(observations.observedAt)),

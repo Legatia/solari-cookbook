@@ -6,7 +6,21 @@ import {
   hasDemoAccess,
 } from "@/lib/demo-access";
 
-const UNLOCKED_API_PATHS = ["/api/access", "/api/cron/fallbacks"];
+// Health and the Stripe webhook are machine endpoints: an uptime check and
+// Stripe cannot type a demo password. Joining is unlocked because the
+// invitation itself is the credential, and an invited friend should not need
+// to be handed a second shared secret to use the one they were given.
+const UNLOCKED_API_PATHS = [
+  "/api/access",
+  "/api/cron/fallbacks",
+  "/api/health",
+  "/api/billing/webhook",
+  "/api/join",
+  // Opened from a mail client, which cannot type a demo password. Both carry
+  // their own single-purpose token.
+  "/api/notifications/verify",
+  "/api/notifications/unsubscribe",
+];
 
 export function proxy(request: NextRequest) {
   if (!demoAccessIsConfigured() || hasDemoAccess(request)) {
@@ -14,7 +28,11 @@ export function proxy(request: NextRequest) {
   }
 
   const { pathname, search } = request.nextUrl;
-  if (UNLOCKED_API_PATHS.some((path) => pathname.startsWith(path))) {
+  if (
+    UNLOCKED_API_PATHS.some((path) => pathname.startsWith(path)) ||
+    pathname === "/join" ||
+    pathname.startsWith("/join/")
+  ) {
     return NextResponse.next();
   }
   if (pathname.startsWith("/api/")) {

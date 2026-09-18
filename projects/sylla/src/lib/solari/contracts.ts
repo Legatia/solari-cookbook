@@ -189,6 +189,14 @@ export type RepositoryTaskResult = z.infer<
 
 export interface BrowserResearchAdapter {
   research(request: ResearchRequest): Promise<ResearchResult>;
+  /**
+   * A watchable replay of one recorded session.
+   *
+   * Minted on demand because the provider returns a presigned URL with its own
+   * expiry, and returns null while the recording is still being processed —
+   * which is a different thing from there being nothing to watch.
+   */
+  replayUrl(sessionId: string): Promise<{ url: string; expiresInSeconds: number } | null>;
 }
 
 export const loginHandoffSchema = z.object({

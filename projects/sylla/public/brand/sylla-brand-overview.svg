@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Sylla brand overview</title>
+  <desc id="desc">Sylla logo, color, typography, and voice overview.</desc>
+  <rect width="1400" height="900" fill="#EAE7E0"/>
+  <rect x="42" y="42" width="1316" height="816" rx="30" fill="#FFFDF8"/>
+
+  <g transform="translate(105 110) scale(.35)">
+    <g transform="translate(0 818) scale(.1 -.1)" stroke="none">
+      <path fill="#F4F0E8" d="M7301 7704c487-515 323-1266-330-1504-163-60-167-60-1150-60-953 0-967-1-1147-49-186-51-452-214-684-419-211-187-430-385-428-388 2-1 35 4 73 12 191 37 408-4 586-112 109-66 972-930 1031-1033 98-169 88-417-24-583-28-42-432-430-734-704-373-340-773-599-1070-694-209-67-174-65-1279-65-1000 0-1000 0-1105 23-550 121-954 569-1022 1132-18 144-25-1273-8-1445 94-934 876-1709 1819-1805 180-18 4287-14 4436 5 832 104 1528 722 1734 1541 59 233 56 111 56 2549 0 2250 0 2250-22 2370-84 462-306 864-646 1173-126 114-165 140-86 56Z"/>
+      <path fill="#0B0B0A" d="M1750 8164C970 8051 303 7468 85 6709 1 6416 7 6552 3 4885c-4-1609-4-1612 52-1817 129-476 504-834 985-940 105-23 105-23 1105-23 1114 0 1070-2 1294 70 259 84 660 338 985 625 52 47 96 88 96 91 0 3-24-1-52-9-74-21-275-20-355 2-95 25-220 82-287 131-68 49-904 875-961 950-166 218-150 502 39 700 90 94 710 672 950 886 443 394 664 523 985 575 69 11 266 14 982 14 983 0 987 0 1150 60 742 271 828 1196 152 1651-254 171-576 291-857 318-179 18-4393 13-4516-5Z"/>
+    </g>
+  </g>
+
+  <text x="468" y="195" fill="#0B0B0A" font-family="serif" font-size="104" font-style="italic" letter-spacing="-5">Sylla</text>
+  <text x="473" y="245" fill="#32302C" font-family="sans-serif" font-size="20" letter-spacing="3">A PRIVATE COUNTERPART</text>
+  <text x="473" y="312" fill="#32302C" font-family="serif" font-size="35">An agent that becomes yours.</text>
+  <text x="473" y="355" fill="#7C776F" font-family="sans-serif" font-size="19">Private by permission · Portable by design</text>
+
+  <path d="M105 455H1295" stroke="#D6D1C8"/>
+  <text x="105" y="515" fill="#7C776F" font-family="sans-serif" font-size="15" letter-spacing="2">COLOR</text>
+  <g transform="translate(105 548)">
+    <rect width="180" height="105" rx="18" fill="#0B0B0A"/>
+    <text x="0" y="140" fill="#32302C" font-family="sans-serif" font-size="16">Obsidian  #0B0B0A</text>
+  </g>
+  <g transform="translate(325 548)">
+    <rect width="180" height="105" rx="18" fill="#F4F0E8" stroke="#D6D1C8"/>
+    <text x="0" y="140" fill="#32302C" font-family="sans-serif" font-size="16">Bone  #F4F0E8</text>
+  </g>
+  <g transform="translate(545 548)">
+    <rect width="180" height="105" rx="18" fill="#EAE7E0" stroke="#D6D1C8"/>
+    <text x="0" y="140" fill="#32302C" font-family="sans-serif" font-size="16">Paper  #EAE7E0</text>
+  </g>
+  <g transform="translate(765 548)">
+    <rect width="180" height="105" rx="18" fill="#32302C"/>
+    <text x="0" y="140" fill="#32302C" font-family="sans-serif" font-size="16">Graphite  #32302C</text>
+  </g>
+  <g transform="translate(985 548)">
+    <rect width="180" height="105" rx="18" fill="#B8B3AA"/>
+    <text x="0" y="140" fill="#32302C" font-family="sans-serif" font-size="16">Mist  #B8B3AA</text>
+  </g>
+
+  <text x="105" y="772" fill="#7C776F" font-family="sans-serif" font-size="15" letter-spacing="2">VOICE</text>
+  <text x="105" y="813" fill="#0B0B0A" font-family="serif" font-size="29" font-style="italic">Observant. Candid. Calm. Specific.</text>
+  <text x="760" y="772" fill="#7C776F" font-family="sans-serif" font-size="15" letter-spacing="2">TYPE</text>
+  <text x="760" y="813" fill="#0B0B0A" font-family="sans-serif" font-size="22">Newsreader · Geist · Geist Mono</text>
+</svg>

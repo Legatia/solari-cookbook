@@ -44,6 +44,11 @@ import { getPrivacySafeEventAggregate } from "../src/lib/sylla/organizer";
 
 async function main() {
   const database = getDatabase();
+  // Relative to now on purpose. This window used to be a fixed date, which
+  // meant the script passed until that day arrived and then failed for a reason
+  // that had nothing to do with introductions.
+  const availabilityStartsAt = new Date(Date.now() + 3 * 60 * 60 * 1_000);
+  const availabilityEndsAt = new Date(availabilityStartsAt.getTime() + 2 * 60 * 60 * 1_000);
   const syntheticId = randomUUID();
   const participantIds: string[] = [];
   const userIds: string[] = [];
@@ -88,8 +93,8 @@ async function main() {
         backgroundContinuation: false,
         availability: [
           {
-            startsAt: "2026-09-10T18:00:00.000Z",
-            endsAt: "2026-09-10T20:00:00.000Z",
+            startsAt: availabilityStartsAt.toISOString(),
+            endsAt: availabilityEndsAt.toISOString(),
             timezone: "Europe/Warsaw",
           },
         ],

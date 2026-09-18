@@ -51,6 +51,25 @@ import {
   respondToIntroductionProposal,
 } from "@/lib/sylla/introductions";
 import {
+  type BoundaryKind,
+  releaseBoundary,
+  reviewShield,
+  setBoundary,
+} from "@/lib/sylla/boundaries";
+import {
+  createReferralInvitation,
+  referralAllowance,
+} from "@/lib/sylla/referrals";
+import { buildWorkLog } from "@/lib/sylla/worklog";
+import {
+  ensureSubject,
+  getDossier,
+  pipeline,
+  recordSubjectClaim,
+  updateSubject,
+  type SubjectStage,
+} from "@/lib/sylla/subjects";
+import {
   acquireRuntimeLease,
   heartbeatRuntimeLease,
   releaseRuntimeLease,
@@ -327,6 +346,42 @@ export type SyllaMcpServices = {
   listIntroductions: (
     participantId: string,
   ) => ReturnType<typeof listIntroductionsForParticipant>;
+  referralAllowance: (participantId: string) => ReturnType<typeof referralAllowance>;
+  reviewShield: (participantId: string) => ReturnType<typeof reviewShield>;
+  reviewWorkLog: (
+    participantId: string,
+    days?: number,
+  ) => ReturnType<typeof buildWorkLog>;
+  noteAboutSubject: (input: {
+    participantId: string;
+    name: string;
+    kind: "person" | "organization";
+    note?: string;
+    relationship?: string;
+    contact?: boolean;
+    stage?: SubjectStage;
+    nextAction?: string;
+    nextActionAt?: Date;
+  }) => Promise<{ subjectId: string; opened: boolean }>;
+  readDossier: (
+    participantId: string,
+    subjectId?: string,
+  ) => Promise<
+    | { dossier: Awaited<ReturnType<typeof getDossier>> }
+    | { pipeline: Awaited<ReturnType<typeof pipeline>> }
+  >;
+  setBoundary: (
+    participantId: string,
+    input: { kind: BoundaryKind; threshold?: number; until?: Date },
+  ) => ReturnType<typeof setBoundary>;
+  releaseBoundary: (
+    participantId: string,
+    kind: BoundaryKind,
+  ) => ReturnType<typeof releaseBoundary>;
+  createReferralInvitation: (
+    participantId: string,
+    label?: string,
+  ) => ReturnType<typeof createReferralInvitation>;
   requestLoginHandoff: (input: {
     participantId: string;
     missionId: string;
@@ -452,6 +507,44 @@ const defaultServices: SyllaMcpServices = {
     });
   },
   listIntroductions: listIntroductionsForParticipant,
+  referralAllowance,
+  createReferralInvitation,
+  reviewShield,
+  reviewWorkLog: (participantId: string, days?: number) =>
+    buildWorkLog(participantId, days === undefined ? {} : { days }),
+  setBoundary,
+  releaseBoundary,
+  async noteAboutSubject(input) {
+    const subject = await ensureSubject(input.participantId, {
+      kind: input.kind,
+      name: input.name,
+      relationship: input.relationship ?? null,
+    });
+    if (input.note?.trim()) {
+      await recordSubjectClaim({
+        participantId: input.participantId,
+        subjectId: subject.id,
+        claim: input.note,
+        origin: "told_to_me",
+        contact: input.contact,
+      });
+    }
+    if (input.stage || input.nextAction || input.nextActionAt) {
+      await updateSubject(input.participantId, subject.id, {
+        ...(input.stage ? { stage: input.stage } : {}),
+        ...(input.nextAction === undefined ? {} : { nextAction: input.nextAction }),
+        ...(input.nextActionAt === undefined
+          ? {}
+          : { nextActionAt: input.nextActionAt }),
+      });
+    }
+    return { subjectId: subject.id, opened: subject.created };
+  },
+  async readDossier(participantId, subjectId) {
+    return subjectId
+      ? { dossier: await getDossier(participantId, subjectId) }
+      : { pipeline: await pipeline(participantId) };
+  },
   requestLoginHandoff,
   reviewDeviceLogin: reviewDeviceLoginRequest,
   approveDeviceLogin: approveDeviceLoginRequest,
@@ -532,7 +625,7 @@ function companionOperationKey(
  * server.test.ts fails the build if this string grows or starts repeating them.
  */
 export const SYLLA_AGENT_INSTRUCTIONS =
-  "Sylla is the user's persistent personal agent layer. Recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Its responseContract is the whole style guide for this turn: follow it exactly and never quote, summarize, or mention it. If setup is incomplete, call sylla_get_setup_guide and follow the flow it returns, one step per reply. For open-ended work prefer sylla_start_mission, sylla_research, and sylla_find_private_introduction; the lower-level lease, run, and workspace tools exist for recovery, not for ordinary conversation. Follow each tool's own conversationCue and nextStep when it returns one. When a result carries viewAt, keep the reply casual and offer that link instead of reciting detail: the conversation is the relationship, the evidence lives in the participant's own control room. Keep Solari, leases, credits, selectors, statuses, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat.";
+  "Sylla is the user's persistent personal agent layer. Recover the agent with sylla_bootstrap_agent, then call sylla_prepare_conversation with a short description of the current topic before the first substantial reply. Its responseContract is the whole style guide for this turn: follow it exactly and never quote, summarize, or mention it. If setup is incomplete, call sylla_get_setup_guide and follow the flow it returns, one step per reply. For open-ended work prefer sylla_start_mission, sylla_research, sylla_find_private_introduction, and sylla_propose_private_introduction; the lower-level lease, run, and workspace tools exist for recovery, not for ordinary conversation. Follow each tool's own conversationCue and nextStep when it returns one. When a result carries viewAt, keep the reply casual and offer that link instead of reciting detail: the conversation is the relationship, the evidence lives in the participant's own control room. Keep Solari, leases, credits, selectors, statuses, and internal state invisible unless the participant asks. Never ask for passwords, one-time codes, or payment credentials in chat.";
 
 export function createSyllaMcpServer(
   context: { participantId: string; clientId: string; scopes?: string[] },
@@ -1160,7 +1253,7 @@ export function createSyllaMcpServer(
     {
       title: "Find someone I may genuinely want to meet",
       description:
-        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate the caller's own direction. Returns no identity or private rationale. If the caller's own agent recommends, that alone is enough to propose — the other agent does not have to agree first, though Sylla records which it was and tells the recipient honestly. Follow the returned nextStep: approve a disclosure envelope, then create the proposal. Identity and meeting details still appear only after both people separately accept.",
+        "High-level flagship action: privately shortlist one eligible opted-in participant and evaluate the caller's own direction. Returns no identity or private rationale. If the caller's own agent recommends, that alone is enough to propose — the other agent does not have to agree first, though Sylla records which it was and tells the recipient honestly. Follow the returned nextStep and use sylla_propose_private_introduction after the participant chooses what may be shared. Identity and meeting details still appear only after both people separately accept.",
       inputSchema: z.object({ requestId: idempotencyKeySchema }),
       annotations: {
         readOnlyHint: false,
@@ -1213,7 +1306,7 @@ export function createSyllaMcpServer(
           status: readyToPropose ? "ready_to_propose" : "not_recommended",
           candidatePair: gate,
           nextStep: readyToPropose
-            ? "Ask the participant which one to five of their shareable observations this introduction may disclose, call sylla_approve_my_disclosure, then sylla_create_introduction_proposal. Their own agent recommending is enough; the other agent does not have to agree first."
+            ? "Ask the participant which one to five of their approved shareable observations this introduction may disclose. After they clearly approve, call sylla_propose_private_introduction; it handles the private proposal without exposing lease mechanics."
             : "The caller's own agent did not recommend this pair. Do not propose it.",
           privacy:
             "No identity, private context, decision, or evaluation rationale is disclosed before both humans separately accept.",
@@ -1225,6 +1318,74 @@ export function createSyllaMcpServer(
         throw error;
       } finally {
         await services.releaseLease(participantId, authorization).catch(() => undefined);
+      }
+    },
+  );
+
+  server.registerTool(
+    "sylla_propose_private_introduction",
+    {
+      title: "Propose the private introduction I approved",
+      description:
+        "Human-confirmed flagship action: after sylla_find_private_introduction recommends a pair, approve exactly the caller's chosen shareable observations and create the non-identifying proposal in one step. Call only after the participant clearly approves both the disclosure list and sending the proposal. Sylla acquires and releases its own short-lived lease; never expose lease mechanics to the participant. Identity and meeting details remain hidden until both people separately accept.",
+      inputSchema: z.object({
+        candidatePairId: z.uuid(),
+        observationIds: z.array(z.uuid()).min(1).max(5),
+        requestId: idempotencyKeySchema,
+        confirmation: z.literal("I APPROVE THIS INTRODUCTION"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ candidatePairId, observationIds, requestId }) => {
+      const runKey = companionOperationKey(
+        participantId,
+        requestId,
+        "introduction:proposal",
+      );
+      const runId = `companion-proposal-${runKey.slice(6, 38)}`;
+      const lease = await services.acquireLease({
+        participantId,
+        clientId,
+        runId,
+        purpose: "Approve and send a private introduction proposal",
+        durationSeconds: 300,
+      });
+      const authorization = leaseAuthorization(clientId, {
+        runId,
+        leaseToken: lease.leaseToken,
+      });
+      try {
+        const disclosure = await services.approveDisclosure({
+          participantId,
+          candidatePairId,
+          authorization,
+          observationIds,
+        });
+        const proposal = await services.createIntroduction({
+          participantId,
+          candidatePairId,
+          authorization,
+        });
+        return result({
+          disclosure,
+          proposal,
+          introduction: await services.getIntroduction(
+            participantId,
+            proposal.id,
+          ),
+          nextStep:
+            "Tell the participant the private proposal was sent. Do not imply that the other person accepted, and do not reveal identity or meeting details.",
+          viewAt: viewAt("overview", "Their private introduction inbox."),
+        });
+      } finally {
+        await services
+          .releaseLease(participantId, authorization)
+          .catch(() => undefined);
       }
     },
   );
@@ -1273,6 +1434,243 @@ export function createSyllaMcpServer(
           identityRevealed: false,
           otherDecisionRevealed: false,
         },
+      }),
+  );
+
+  server.registerTool(
+    "sylla_invite_someone",
+    {
+      title: "Invite someone into Sylla",
+      description:
+        "Create a single-use invitation the participant can send to one person they know, and report how many seats they have left. Sylla is invitation-only, so this is the only way in. Use it when they ask to invite, refer, or bring someone. There is no reward to promise and you must not invent one: a seat returns to them when someone they invited settles in, which is worth saying because it explains why inviting people they actually know is the point. Give them the link and code exactly as returned; both are shown only once.",
+      inputSchema: z.object({
+        label: z
+          .string()
+          .max(80)
+          .optional()
+          .describe(
+            "Optional note for the participant's own records, such as who this is for. Never shown to the invited person.",
+          ),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ label }) => {
+      const invitation = await services.createReferralInvitation(participantId, label);
+      return result({
+        invitation: {
+          url: invitation.url,
+          code: invitation.code,
+          expiresAt: invitation.expiresAt,
+          forOnePersonOnly: true,
+        },
+        seats: await services.referralAllowance(participantId),
+        viewAt: viewAt("overview", "Their own control room."),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_set_boundary",
+    {
+      title: "Say no on their behalf, standingly",
+      description:
+        "Put a standing boundary in place, or lift one. Use this the moment someone signals they want less: too much, not now, nothing cold, need a break. Do not talk them out of it and do not ask why. paused turns everything away; mutual_only refuses approaches only one agent arrived at; weekly_limit caps how many reach them in a week. Nobody is told a boundary exists, and nothing is closed permanently, so this is safe to set and easy to undo — say both, briefly.",
+      inputSchema: z.object({
+        kind: z
+          .enum(["paused", "mutual_only", "weekly_limit"])
+          .describe("Which standing refusal to apply."),
+        release: z
+          .boolean()
+          .optional()
+          .describe("True to lift this boundary instead of setting it."),
+        weeklyLimit: z
+          .number()
+          .int()
+          .min(0)
+          .max(50)
+          .optional()
+          .describe("For weekly_limit: how many may reach them per week."),
+        until: z
+          .string()
+          .optional()
+          .describe("For paused: an ISO date when it should lift by itself."),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ kind, release, weeklyLimit, until }) => {
+      const boundaries = release
+        ? await services.releaseBoundary(participantId, kind)
+        : await services.setBoundary(participantId, {
+            kind,
+            ...(weeklyLimit === undefined ? {} : { threshold: weeklyLimit }),
+            ...(until === undefined ? {} : { until: new Date(until) }),
+          });
+      return result({
+        boundaries,
+        nobodyIsToldTheseExist: true,
+        reversible: true,
+        viewAt: viewAt("overview", "Their own control room."),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_review_work_log",
+    {
+      title: "What the agent did, watched or not",
+      description:
+        "Report every run in a window: what it was for, whether the participant was present, what it got done, what it cost, and which model stood in when one did. Use it when they ask what happened, what it has been doing, or what they have been charged for, and after any gap in the conversation. Lead with consequentialWhileAway: false is a real assurance that nothing irreversible happened unattended, so say so plainly rather than leaving it to be inferred from a short list. If an entry is degraded, the provider failed and the summary is canned rather than written — do not present it as the agent's own account.",
+      inputSchema: z.object({
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(365)
+          .optional()
+          .describe("How far back to look. Defaults to 30 days."),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ days }) =>
+      result({
+        ...(await services.reviewWorkLog(participantId, days)),
+        viewAt: viewAt("log", "The full log, with evidence."),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_note_about",
+    {
+      title: "Keep a record on someone",
+      description:
+        "Write what the participant knows about a person or organization into a dossier their agent keeps for them, opening one if none exists. Use it whenever they mention a fact about somebody else worth remembering — who an investor is, what a firm asked for, what was agreed in a meeting. Do not ask permission to remember something they just told you; do say afterwards that it is in the dossier. These records are private to them, never shared with anyone, never used for matching, and never disclosed in an introduction. Say that plainly the first time they use it.",
+      inputSchema: z.object({
+        name: z.string().min(2).max(120).describe("Who or what the record is about."),
+        kind: z
+          .enum(["person", "organization"])
+          .describe("Whether this is a person or a company, fund, or team."),
+        note: z
+          .string()
+          .max(600)
+          .optional()
+          .describe("The fact to record, in the participant's own terms."),
+        relationship: z
+          .string()
+          .max(160)
+          .optional()
+          .describe("How the participant would describe this relationship."),
+        contact: z
+          .boolean()
+          .optional()
+          .describe("True if this note comes from actually speaking to them."),
+        stage: z
+          .enum(["new", "talking", "diligence", "committed", "passed"])
+          .optional()
+          .describe(
+            "Where it has got to. Set it when they describe movement — a first call means talking, sharing numbers means diligence, a term sheet means committed, a no means passed. Do not ask them to pick one.",
+          ),
+        nextAction: z
+          .string()
+          .max(200)
+          .optional()
+          .describe("What they said they would do next, in their own words."),
+        nextActionAt: z
+          .string()
+          .optional()
+          .describe(
+            "ISO date that action is due. Set it whenever they name a time — 'chase them Friday' is a date.",
+          ),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ name, kind, note, relationship, contact, stage, nextAction, nextActionAt }) => {
+      const written = await services.noteAboutSubject({
+        participantId,
+        name,
+        kind,
+        note,
+        relationship,
+        contact,
+        stage,
+        nextAction,
+        ...(nextActionAt === undefined ? {} : { nextActionAt: new Date(nextActionAt) }),
+      });
+      return result({
+        ...written,
+        privateToThem: true,
+        neverSharedOrMatched: true,
+        viewAt: viewAt("dossiers", "The dossier, with every source."),
+      });
+    },
+  );
+
+  server.registerTool(
+    "sylla_read_dossier",
+    {
+      title: "Read what they know about someone",
+      description:
+        "Return one dossier with every recorded claim and where each came from, or, with no id, their whole pipeline including what is waiting on them. Read the pipeline at the start of a conversation and lead with needsYou if anything is there — say plainly who has gone quiet or what is overdue, using the words in each says field, before answering whatever they asked. That is the single most useful thing you do for someone running a raise or a deal flow, and they will not think to ask. Read one dossier before a meeting or before answering any question about a person or firm; what is recorded here outranks anything you infer. Each claim carries how it was learned: told_to_me came from the participant, observed came from an approved source, inferred is your own reasoning and is the weakest. Say which when it matters.",
+      inputSchema: z.object({
+        subjectId: z
+          .string()
+          .uuid()
+          .optional()
+          .describe("Omit to list every dossier they keep."),
+      }),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ subjectId }) =>
+      result({
+        ...(await services.readDossier(participantId, subjectId)),
+        privateToThem: true,
+        viewAt: viewAt("dossiers", "The dossier, with every source."),
+      }),
+  );
+
+  server.registerTool(
+    "sylla_review_shield",
+    {
+      title: "What their agent turned away",
+      description:
+        "Report the boundaries in force and how much they have refused on the participant's behalf. Use it when they ask whether they are missing anything, or whether a boundary is too tight. Counts only: who was turned away is deliberately not recorded, because naming them would hand back the decision the boundary existed to spare them. If a boundary is refusing a lot, say so plainly and offer to loosen it rather than deciding for them.",
+      inputSchema: z.object({}),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () =>
+      result({
+        ...(await services.reviewShield(participantId)),
+        identitiesWithheldByDesign: true,
+        viewAt: viewAt("overview", "Their own control room."),
       }),
   );
 

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Sylla — yours, not theirs</title>
+  <desc id="desc">A social sharing card for Sylla.</desc>
+  <rect width="1200" height="630" fill="#0B0B0A"/>
+  <rect x="70" y="75" width="480" height="480" rx="104" fill="#EAE7E0"/>
+  <g transform="translate(116 119) scale(.48)">
+    <g transform="translate(0 818) scale(.1 -.1)" stroke="none">
+      <path fill="#F4F0E8" d="M7301 7704c487-515 323-1266-330-1504-163-60-167-60-1150-60-953 0-967-1-1147-49-186-51-452-214-684-419-211-187-430-385-428-388 2-1 35 4 73 12 191 37 408-4 586-112 109-66 972-930 1031-1033 98-169 88-417-24-583-28-42-432-430-734-704-373-340-773-599-1070-694-209-67-174-65-1279-65-1000 0-1000 0-1105 23-550 121-954 569-1022 1132-18 144-25-1273-8-1445 94-934 876-1709 1819-1805 180-18 4287-14 4436 5 832 104 1528 722 1734 1541 59 233 56 111 56 2549 0 2250 0 2250-22 2370-84 462-306 864-646 1173-126 114-165 140-86 56Z"/>
+      <path fill="#0B0B0A" d="M1750 8164C970 8051 303 7468 85 6709 1 6416 7 6552 3 4885c-4-1609-4-1612 52-1817 129-476 504-834 985-940 105-23 105-23 1105-23 1114 0 1070-2 1294 70 259 84 660 338 985 625 52 47 96 88 96 91 0 3-24-1-52-9-74-21-275-20-355 2-95 25-220 82-287 131-68 49-904 875-961 950-166 218-150 502 39 700 90 94 710 672 950 886 443 394 664 523 985 575 69 11 266 14 982 14 983 0 987 0 1150 60 742 271 828 1196 152 1651-254 171-576 291-857 318-179 18-4393 13-4516-5Z"/>
+    </g>
+  </g>
+  <text x="660" y="267" fill="#F4F0E8" font-family="serif" font-size="92" font-style="italic" letter-spacing="-4">Sylla</text>
+  <text x="665" y="328" fill="#B8B3AA" font-family="sans-serif" font-size="22" letter-spacing="1">AN AGENT THAT BECOMES YOURS</text>
+  <path d="M665 374h335" stroke="#F4F0E8" stroke-opacity=".22"/>
+  <text x="665" y="425" fill="#F4F0E8" font-family="sans-serif" font-size="28">Private by permission.</text>
+  <text x="665" y="466" fill="#F4F0E8" font-family="sans-serif" font-size="28">Portable by design.</text>
+</svg>

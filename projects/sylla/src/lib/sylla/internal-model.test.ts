@@ -32,6 +32,115 @@ describe("Sylla internal fallback model", () => {
     expect(output.summary).toContain(checkpoint.summary);
   });
 
+  it("asks for no reasoning, because a handoff restates rather than decides", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: JSON.stringify({ summary: "Restated.", nextAction: null }),
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const adapter = createOpenAiInternalModelAdapter({
+      apiKey: "key",
+      model: "gpt-5.6-luna",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await adapter.generateReconnectHandoff({ purpose: "Preserve", checkpoint });
+
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body as string);
+    expect(body.reasoning).toEqual({ effort: "none" });
+    // No deliberation requested, so no deliberation budget is bought.
+    expect(body.max_output_tokens).toBe(220);
+  });
+
+  it("buys headroom when a model is asked to deliberate", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: JSON.stringify({ summary: "Restated.", nextAction: null }),
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const adapter = createOpenAiInternalModelAdapter({
+      apiKey: "key",
+      model: "gpt-5.6-luna",
+      reasoningEffort: "low",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await adapter.generateReconnectHandoff({ purpose: "Preserve", checkpoint });
+
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body as string);
+    expect(body.reasoning).toEqual({ effort: "low" });
+    // Reasoning is billed out of the same budget as the answer, so asking for
+    // it without raising the cap spends the whole allowance before any text.
+    expect(body.max_output_tokens).toBeGreaterThan(220);
+  });
+
+  it("omits the reasoning field for a model that has no such parameter", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        status: "completed",
+        output: [
+          {
+            type: "message",
+            content: [
+              {
+                type: "output_text",
+                text: JSON.stringify({ summary: "Restated.", nextAction: null }),
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const adapter = createOpenAiInternalModelAdapter({
+      apiKey: "key",
+      model: "gpt-4o",
+      reasoningEffort: "default",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await adapter.generateReconnectHandoff({ purpose: "Preserve", checkpoint });
+
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty("reasoning");
+  });
+
+  it("says how to fix a truncation instead of only naming it", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json({
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+        output: [],
+      }),
+    );
+    const adapter = createOpenAiInternalModelAdapter({
+      apiKey: "key",
+      model: "gpt-5.6-luna",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(
+      adapter.generateReconnectHandoff({ purpose: "Preserve", checkpoint }),
+    ).rejects.toThrow(/SYLLA_INTERNAL_MODEL_REASONING_EFFORT/);
+  });
+
   it("sends only bounded explicit state to the live Responses API", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       Response.json({

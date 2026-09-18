@@ -220,20 +220,63 @@ export async function prepareInteractiveBrowserMission(input: {
  * the profile; the credential never passes through the agent, the transcript,
  * or Sylla's database.
  */
+export function requireLoginHandoffCheckpoint(mission: MissionView) {
+  assertInteractiveMission(mission);
+  if (mission.status !== "waiting_for_user") {
+    throw new Error("This web mission is not waiting at a human checkpoint.");
+  }
+  const observation = mission.result?.observation;
+  const humanCheckpoint =
+    observation && typeof observation === "object"
+      ? (observation as Record<string, unknown>).humanCheckpoint
+      : null;
+  if (
+    !humanCheckpoint ||
+    typeof humanCheckpoint !== "object" ||
+    (humanCheckpoint as Record<string, unknown>).required !== true
+  ) {
+    throw new Error(
+      "A login handoff is available only after this mission reaches a password, one-time-code, or payment checkpoint.",
+    );
+  }
+  const observedUrl =
+    observation && typeof observation === "object"
+      ? (observation as Record<string, unknown>).url
+      : null;
+  if (typeof observedUrl !== "string") {
+    throw new Error("The mission has no approved login page to hand off.");
+  }
+  return {
+    observedUrl,
+    reason:
+      typeof (humanCheckpoint as Record<string, unknown>).reason === "string"
+        ? ((humanCheckpoint as Record<string, unknown>).reason as string)
+        : null,
+  };
+}
+
 export async function requestLoginHandoff(input: {
   participantId: string;
   missionId: string;
   adapters?: SolariAdapters;
 }) {
-  const database = getDatabase();
-  const [profile] = await database
-    .select()
-    .from(agentBrowserProfiles)
-    .where(eq(agentBrowserProfiles.participantId, input.participantId))
-    .limit(1);
+  const mission = await getMission(input.participantId, input.missionId);
+  const checkpoint = requireLoginHandoffCheckpoint(mission);
+
+  const profile = await getBrowserProfile(input.participantId);
   if (!profile) {
     throw new Error(
       "This agent has no browser profile yet. Start the web mission first.",
+    );
+  }
+  const approvedOrigins = missionOrigins(mission);
+  if (
+    !approvedOrigins.includes(new URL(checkpoint.observedUrl).origin) ||
+    !profile.currentUrl ||
+    new URL(profile.currentUrl).origin !== new URL(checkpoint.observedUrl).origin
+  ) {
+    throw new Error(
+      "The saved browser is no longer on this mission's approved login page. Continue the mission before requesting a handoff.",
     );
   }
 
@@ -250,7 +293,11 @@ export async function requestLoginHandoff(input: {
     entityId: profile.id,
     // The link itself is deliberately absent: an audit row is not a place to
     // store a live credential.
-    metadata: { missionId: input.missionId, expiresAt: handoff.expiresAt },
+    metadata: {
+      missionId: mission.id,
+      checkpointReason: checkpoint.reason,
+      expiresAt: handoff.expiresAt,
+    },
   });
 
   return {

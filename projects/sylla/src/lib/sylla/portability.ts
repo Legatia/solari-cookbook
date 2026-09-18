@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { getDatabase } from "@/db";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 import { getConversationProfile } from "@/lib/sylla/conversation";
+import { getDossier, listSubjects } from "@/lib/sylla/subjects";
 import { retireAgentBrowserProfile } from "@/lib/sylla/computer-use";
 import {
   requireHumanHostLease,
@@ -73,6 +74,9 @@ export async function buildPortableAgentExport(participantId: string) {
               and(
                 inArray(observations.participantId, participantIds),
                 inArray(observations.status, ["confirmed", "edited"]),
+                // Exported separately below, so a third party's record is never
+                // silently mixed into the participant's own account of themselves.
+                isNull(observations.subjectId),
               ),
             )
             .orderBy(asc(observations.observedAt)),
@@ -119,9 +123,22 @@ export async function buildPortableAgentExport(participantId: string) {
         ])
       : [[], [], [], []];
 
+  // Dossiers are the participant's own property and leave with them, but under
+  // their own key: a record kept on a third party is a different kind of thing
+  // from the participant's account of themselves, and flattening the two would
+  // make an export that reads as if they had claimed it all about themselves.
+  const dossiers =
+    participantIds.length > 0
+      ? await Promise.all(
+          (await listSubjects(participantId)).map((subject) =>
+            getDossier(participantId, subject.id),
+          ),
+        )
+      : [];
+
   return {
     format: "sylla-portable-agent",
-    version: 2,
+    version: 3,
     generatedAt: new Date().toISOString(),
     identity: {
       userId: identity.userId,
@@ -131,6 +148,7 @@ export async function buildPortableAgentExport(participantId: string) {
     },
     participationRefs: participantIds,
     conversationProfile,
+    dossiers,
     approvedSources: sourceRows.map((source) => ({
       ...source,
       approvedAt: source.approvedAt.toISOString(),
@@ -165,12 +183,22 @@ export async function deletePortableAgent(input: {
   if (input.confirmation !== "DELETE MY SYLLA AGENT") {
     throw new Error("Exact deletion confirmation is required.");
   }
-  const database = getDatabase();
-  const { identity, participantIds } = await ownedParticipantIds(
-    input.participantId,
-  );
+  return eraseAgent(input.participantId);
+}
 
-  await retireAgentBrowserProfile({ participantId: input.participantId });
+/**
+ * The erasure itself, with no opinion about who is allowed to ask for it.
+ *
+ * Kept separate so every caller that may delete an agent deletes the same
+ * things. A second implementation would drift, and the way it would drift is by
+ * forgetting to release a Solari machine or a browser profile — leaving the
+ * expensive half of an account behind after the visible half is gone.
+ */
+export async function eraseAgent(participantId: string) {
+  const database = getDatabase();
+  const { identity, participantIds } = await ownedParticipantIds(participantId);
+
+  await retireAgentBrowserProfile({ participantId });
   for (const ownedParticipantId of participantIds) {
     await retireParticipantWorkspace(ownedParticipantId);
   }

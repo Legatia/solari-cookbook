@@ -15,6 +15,7 @@ import type {
   Evidence,
 } from "@/lib/solari/contracts";
 import { createSolariAdapters } from "@/lib/solari/factory";
+import { mapWithConcurrency, sweepConcurrency } from "@/lib/sylla/concurrency";
 import { assertPublicHttpUrl } from "@/lib/solari/url-policy";
 
 /**
@@ -410,6 +411,12 @@ async function researchSource(input: {
       })
       .where(eq(approvedSources.id, source.id));
     await settleBillableOperation(reservation, result.runReference);
+    // Kept on the run so the work log can offer a replay of exactly this piece
+    // of work, rather than of whatever the agent happened to do most recently.
+    await database
+      .update(agentRuns)
+      .set({ replaySessionId: result.runReference })
+      .where(eq(agentRuns.id, input.agentRunId));
     await refreshObservationProposals(
       input.participantId,
       input.agentRunId,
@@ -619,7 +626,12 @@ export async function sweepBrowserResearchRuns(input: {
     failures: [],
   };
   const adapter = input.adapter ?? (await createSolariAdapters()).browser;
-  for (const candidate of candidates.rows) {
+  await mapWithConcurrency(
+    candidates.rows,
+    // Browser research holds a real Solari browser for its whole run, so this
+    // is a slice of the plan's concurrent sessions, not all of them.
+    sweepConcurrency("SYLLA_BROWSER_SWEEP_CONCURRENCY", 4),
+    async (candidate) => {
     try {
       const processed = await processBrowserFallback({
         participantId: candidate.participant_id,
@@ -639,7 +651,8 @@ export async function sweepBrowserResearchRuns(input: {
         });
       }
     }
-  }
+    },
+  );
   return result;
 }
 

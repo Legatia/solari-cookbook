@@ -4,7 +4,23 @@ import type { VisibleRunCheckpoint } from "@/lib/sylla/runs";
 
 const DEFAULT_TIMEOUT_MS = 8_000;
 const MAX_TIMEOUT_MS = 20_000;
+/** The visible handoff is a few sentences; this is the budget for that text. */
 const MAX_OUTPUT_TOKENS = 220;
+/**
+ * Reasoning is billed out of the same budget as the visible answer, so a model
+ * that deliberates spends the whole allowance before writing a word. Asking for
+ * a bigger budget only when reasoning was actually requested keeps the ordinary
+ * case cheap.
+ */
+const REASONING_HEADROOM_TOKENS = 600;
+/**
+ * A reconnect handoff restates checkpoint data the participant can already see.
+ * It must not deliberate, weigh options, or decide anything, so the default asks
+ * for no reasoning at all — that is faster, cheaper, and closer to the task.
+ * Set SYLLA_INTERNAL_MODEL_REASONING_EFFORT to "default" to send nothing, which
+ * is what a model without a reasoning parameter needs.
+ */
+const DEFAULT_REASONING_EFFORT = "none";
 
 export type InternalHandoffInput = {
   purpose: string;
@@ -101,6 +117,7 @@ export function createOpenAiInternalModelAdapter(options: {
   model: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  reasoningEffort?: string;
 }): InternalModelAdapter {
   const apiKey = options.apiKey.trim();
   const model = options.model.trim();
@@ -110,6 +127,9 @@ export function createOpenAiInternalModelAdapter(options: {
     );
   }
   const fetchImpl = options.fetchImpl ?? fetch;
+  const effort = (options.reasoningEffort ?? DEFAULT_REASONING_EFFORT).trim();
+  const sendsReasoning = effort !== "" && effort !== "default";
+  const deliberates = sendsReasoning && effort !== "none";
 
   return {
     provider: "openai",
@@ -147,7 +167,9 @@ export function createOpenAiInternalModelAdapter(options: {
                   }
                 : null,
             }),
-            max_output_tokens: MAX_OUTPUT_TOKENS,
+            ...(sendsReasoning ? { reasoning: { effort } } : {}),
+            max_output_tokens:
+              MAX_OUTPUT_TOKENS + (deliberates ? REASONING_HEADROOM_TOKENS : 0),
             store: false,
             text: {
               format: {
@@ -173,8 +195,11 @@ export function createOpenAiInternalModelAdapter(options: {
       }
 
       if (!response.ok) {
+        // The provider's own message is the only thing that distinguishes a bad
+        // key from an unknown model from an unsupported parameter, and losing it
+        // turns every one of those into the same unhelpful status code.
         throw new InternalModelResponseError(
-          `Internal model returned HTTP ${response.status}.`,
+          `Internal model returned HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`,
         );
       }
 
@@ -187,8 +212,13 @@ export function createOpenAiInternalModelAdapter(options: {
         );
       }
       if (parsedResponse.data.status !== "completed") {
+        const reason =
+          parsedResponse.data.incomplete_details?.reason ??
+          parsedResponse.data.status;
         throw new InternalModelResponseError(
-          `Internal model did not complete (${parsedResponse.data.incomplete_details?.reason ?? parsedResponse.data.status}).`,
+          reason === "max_output_tokens"
+            ? `Internal model did not complete (${reason}). The token budget covers reasoning as well as the answer; set SYLLA_INTERNAL_MODEL_REASONING_EFFORT=none for this model.`
+            : `Internal model did not complete (${reason}).`,
         );
       }
 
@@ -561,13 +591,14 @@ export function createConfiguredInternalModelAdapter(
       model: environment.SYLLA_INTERNAL_MODEL ?? "",
     };
     if (provider === "anthropic") return createAnthropicInternalModelAdapter(options);
+    const reasoningEffort = environment.SYLLA_INTERNAL_MODEL_REASONING_EFFORT;
     if (provider === "openai_compatible") {
       return createOpenAiCompatibleInternalModelAdapter({
         ...options,
         baseUrl: environment.SYLLA_INTERNAL_MODEL_BASE_URL ?? "",
       });
     }
-    return createOpenAiInternalModelAdapter(options);
+    return createOpenAiInternalModelAdapter({ ...options, reasoningEffort });
   }
   throw new InternalModelConfigurationError(
     "SYLLA_INTERNAL_MODEL_MODE must be mock or live.",

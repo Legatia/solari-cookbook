@@ -158,7 +158,7 @@ export function DeviceLoginPanel() {
           <span className="text-stone-100">{name}</span>. Continue only if that is
           your agent.
         </p>
-        <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-stone-600">
+        <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-stone-400">
           Expires in {countdown ?? "0:40"}
         </p>
         <Button
@@ -173,7 +173,7 @@ export function DeviceLoginPanel() {
         <button
           type="button"
           onClick={() => reset("Sign-in cancelled.")}
-          className="mt-3 w-full text-[10px] uppercase tracking-[0.16em] text-stone-600 hover:text-stone-400"
+          className="mt-3 w-full text-[10px] uppercase tracking-[0.16em] text-stone-400 hover:text-stone-400"
         >
           This is not my agent
         </button>
@@ -183,21 +183,21 @@ export function DeviceLoginPanel() {
 
   if (request) {
     return (
-      <div className="rounded-2xl border border-white/[0.09] bg-white/[0.02] p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">
+      <div className="rounded-2xl border border-white/[0.18] bg-white/[0.045] p-5">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
           Say this to your AI
         </p>
         <p className="mt-3 font-mono text-3xl tracking-[0.2em] text-lime-200">
           {request.userCode}
         </p>
-        <p className="mt-4 text-xs leading-6 text-stone-500">
+        <p className="mt-4 text-xs leading-6 text-stone-400">
           In a chat where Sylla is already connected, say{" "}
           <span className="text-stone-300">
             “Approve my Sylla sign-in code {request.userCode}.”
           </span>{" "}
           Your agent will read back this browser and location before approving.
         </p>
-        <p className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-stone-600">
+        <p className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-stone-400">
           <LoaderCircle className="size-3 animate-spin" /> Waiting
           {countdown ? ` · expires in ${countdown}` : ""}
         </p>
@@ -213,7 +213,7 @@ export function DeviceLoginPanel() {
         variant="outline"
         onClick={() => void start()}
         disabled={busy}
-        className="h-12 w-full rounded-full border-white/[0.12] bg-transparent text-xs font-semibold text-stone-300 hover:bg-white/[0.04]"
+        className="h-12 w-full rounded-full border-white/[0.22] bg-transparent text-xs font-semibold text-stone-300 hover:bg-white/[0.04]"
       >
         {busy ? <LoaderCircle className="animate-spin" /> : <MessageSquareLock />}
         {busy ? "Generating a code…" : "Approve from my AI instead"}

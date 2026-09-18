@@ -41,6 +41,31 @@ export const observationStatus = pgEnum("observation_status", [
 
 export const visibility = pgEnum("visibility", ["private", "shareable"]);
 
+/** A dossier is kept on a person or on an organization; nothing else. */
+export const subjectKind = pgEnum("subject_kind", ["person", "organization"]);
+
+/**
+ * Where a relationship has got to.
+ *
+ * One set for both sides of the table, because a founder tracking an investor
+ * and an investor tracking a founder are walking the same funnel from opposite
+ * ends: a term sheet is the same event whoever writes it. Deliberately short —
+ * a stage nobody can place a relationship into confidently is a stage that gets
+ * filled in wrongly.
+ */
+export const subjectStage = pgEnum("subject_stage", [
+  // On the list, not yet spoken to.
+  "new",
+  // A conversation is happening.
+  "talking",
+  // Real work is being done on both sides.
+  "diligence",
+  // Yes.
+  "committed",
+  // No, and worth keeping the record of why.
+  "passed",
+]);
+
 export const workspaceStatus = pgEnum("workspace_status", [
   "unprovisioned",
   "starting",
@@ -69,9 +94,8 @@ export const sourceKind = pgEnum("source_kind", ["url", "import"]);
 export const modelProvider = pgEnum("model_provider", [
   "anthropic",
   "openai",
-  // Anything speaking the OpenAI /chat/completions dialect at a base URL the
-  // participant supplies: DeepSeek, Qwen, Moonshot, GLM, a gateway, or a
-  // self-hosted server.
+  // A reviewed preset speaking the OpenAI /chat/completions dialect. Arbitrary
+  // participant-supplied base URLs are rejected at the service boundary.
   "openai_compatible",
 ]);
 
@@ -159,6 +183,22 @@ export const introductionDecision = pgEnum("introduction_decision", [
 
 export const outcomeAnswer = pgEnum("outcome_answer", ["yes", "no", "unsure"]);
 
+/**
+ * Standing refusals a member's agent applies for them.
+ *
+ * Deliberately a closed set rather than free text: a boundary decides what
+ * reaches a person, so it has to be evaluable the same way every time and
+ * legible when they read it back. Nothing here needs a model to interpret it.
+ */
+export const boundaryKind = pgEnum("boundary_kind", [
+  // Nothing reaches me, optionally until a date I choose.
+  "paused",
+  // Only where both agents independently arrived at it; no cold approaches.
+  "mutual_only",
+  // At most N in a rolling week.
+  "weekly_limit",
+]);
+
 export const debriefDisposition = pgEnum("debrief_disposition", [
   "skipped",
   "quick",
@@ -198,7 +238,7 @@ export const participantModelKeys = pgTable(
       .references(() => syllaUsers.id, { onDelete: "cascade" }),
     provider: modelProvider("provider").notNull(),
     model: text("model").notNull(),
-    /** Only for openai_compatible. Validated as a public HTTPS origin. */
+    /** Only for openai_compatible. Must exactly match a reviewed preset. */
     baseUrl: text("base_url"),
     ciphertext: text("ciphertext").notNull(),
     iv: text("iv").notNull(),
@@ -212,6 +252,54 @@ export const participantModelKeys = pgTable(
       .notNull(),
   },
   (table) => [uniqueIndex("participant_model_keys_user_unique").on(table.userId)],
+);
+
+/**
+ * Emergency credentials for the case every passkey and connected AI is gone.
+ *
+ * Hashed like a password, single use, and shown exactly once. Without these,
+ * losing a laptop means losing an agent — and an agent someone cannot recover
+ * is not portable, whatever the export endpoint says.
+ */
+export const recoveryCodes = pgTable(
+  "recovery_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("recovery_codes_user_idx").on(table.userId),
+    uniqueIndex("recovery_codes_hash_unique").on(table.codeHash),
+  ],
+);
+
+/**
+ * One row per scheduled sweep, so a cron that quietly stopped firing is
+ * visible instead of merely absent.
+ */
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    job: text("job").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    ok: boolean("ok").default(false).notNull(),
+    executed: integer("executed").default(0).notNull(),
+    skipped: integer("skipped").default(0).notNull(),
+    failed: integer("failed").default(0).notNull(),
+    detail: text("detail"),
+  },
+  (table) => [index("cron_runs_job_idx").on(table.job, table.startedAt)],
 );
 
 export const passkeyCredentials = pgTable(
@@ -328,6 +416,15 @@ export const entitlements = pgTable(
       .notNull()
       .references(() => syllaUsers.id, { onDelete: "cascade" }),
     planKey: text("plan_key").default("starter-trial").notNull(),
+    /**
+     * The standing tier. "resident" is the free floor everyone keeps forever:
+     * the agent, memory, boundaries, invitations and introductions cost Sylla
+     * almost nothing to run, so they are never withheld for non-payment. Paid
+     * tiers buy Solari compute, which is the only thing with a real unit cost.
+     */
+    tierKey: text("tier_key").default("resident").notNull(),
+    /** The provider's subscription, so a renewal can find this row again. */
+    providerSubscriptionId: text("provider_subscription_id"),
     status: entitlementStatus("status").default("trialing").notNull(),
     creditLimit: integer("credit_limit").default(500).notNull(),
     creditsUsed: integer("credits_used").default(0).notNull(),
@@ -343,7 +440,12 @@ export const entitlements = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [uniqueIndex("entitlements_user_unique").on(table.userId)],
+  (table) => [
+    uniqueIndex("entitlements_user_unique").on(table.userId),
+    // A renewal must land on exactly one entitlement, so two rows can never
+    // claim the same subscription.
+    uniqueIndex("entitlements_subscription_unique").on(table.providerSubscriptionId),
+  ],
 );
 
 export const usageLedger = pgTable(
@@ -587,6 +689,19 @@ export const eventInvitations = pgTable(
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
     tokenHash: text("token_hash").notNull(),
+    // A short spoken form of the same invitation, for handing over in person
+    // or reading down a phone. Nullable so invitations predating it still work.
+    codeHash: text("code_hash"),
+    // Who vouched. Null for invitations an organizer minted from the command
+    // line; set when one member spends a seat on someone they know.
+    //
+    // Deliberately not a foreign key. participants already points at this
+    // table, and closing the loop makes the two types mutually recursive,
+    // which silently degrades every inferred column on both to
+    // possibly-undefined. It is also the better semantic: an invitation should
+    // outlive the account of whoever handed it out, and a member withdrawing
+    // must not drag their invitees' provenance with them.
+    createdByParticipantId: uuid("created_by_participant_id"),
     label: text("label"),
     maxUses: integer("max_uses").default(1).notNull(),
     useCount: integer("use_count").default(0).notNull(),
@@ -598,7 +713,9 @@ export const eventInvitations = pgTable(
   },
   (table) => [
     index("event_invitations_event_idx").on(table.eventId),
+    index("event_invitations_creator_idx").on(table.createdByParticipantId),
     uniqueIndex("event_invitations_token_unique").on(table.tokenHash),
+    uniqueIndex("event_invitations_code_unique").on(table.codeHash),
   ],
 );
 
@@ -983,6 +1100,14 @@ export const agentRuns = pgTable(
     fallbackClaimedAt: timestamp("fallback_claimed_at", {
       withTimezone: true,
     }),
+    /**
+     * The recorded Solari session this run produced, if any.
+     *
+     * The session id rather than a replay link: replay URLs are presigned and
+     * expire, so one stored here would rot into a dead link exactly when
+     * somebody finally went looking. A fresh one is minted on demand instead.
+     */
+    replaySessionId: text("replay_session_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1104,6 +1229,87 @@ export const approvedSources = pgTable(
   ],
 );
 
+/**
+ * A person or organization the participant's agent keeps a book on.
+ *
+ * Everything else Sylla remembers is about the participant themselves. This is
+ * the first record that is about someone else, which is why it is fenced:
+ * subjects belong to exactly one participant, are never pooled across accounts,
+ * never enter matching, and never appear in a disclosure envelope. The
+ * participant is the controller of this data and can empty it in one action.
+ */
+/**
+ * Where to reach someone, if they asked to be reachable.
+ *
+ * Sylla holds no email address by default — that is why recovery codes exist
+ * instead of a reset link — so this is strictly opt in, one address per account,
+ * and useless until the address has been proved. Proving it is what stops Sylla
+ * being turned into a way to mail a stranger.
+ */
+export const emailContacts = pgTable(
+  "email_contacts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => syllaUsers.id, { onDelete: "cascade" }),
+    address: text("address").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verificationTokenHash: text("verification_token_hash"),
+    verificationExpiresAt: timestamp("verification_expires_at", {
+      withTimezone: true,
+    }),
+    /** Lets someone stop this without signing in, which is the point of it. */
+    unsubscribeTokenHash: text("unsubscribe_token_hash").notNull(),
+    notifyWorkFinished: boolean("notify_work_finished").default(true).notNull(),
+    notifyNeedsYou: boolean("notify_needs_you").default(true).notNull(),
+    /** Enforces the quiet period, so a busy agent cannot become a mailing list. */
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("email_contacts_user_unique").on(table.userId)],
+);
+
+export const subjects = pgTable(
+  "subjects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    kind: subjectKind("kind").notNull(),
+    name: text("name").notNull(),
+    /** Lowercased name, so the same firm typed twice is one dossier. */
+    normalizedName: text("normalized_name").notNull(),
+    /** How the participant describes the relationship, in their own words. */
+    relationship: text("relationship"),
+    stage: subjectStage("stage").default("new").notNull(),
+    nextAction: text("next_action"),
+    nextActionAt: timestamp("next_action_at", { withTimezone: true }),
+    lastContactAt: timestamp("last_contact_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("subjects_participant_idx").on(table.participantId),
+    index("subjects_stage_idx").on(table.participantId, table.stage),
+    uniqueIndex("subjects_participant_name_unique").on(
+      table.participantId,
+      table.normalizedName,
+    ),
+  ],
+);
+
 export const observations = pgTable(
   "observations",
   {
@@ -1117,6 +1323,16 @@ export const observations = pgTable(
     agentRunId: uuid("agent_run_id").references(() => agentRuns.id, {
       onDelete: "set null",
     }),
+    /**
+     * Who the claim is about.
+     *
+     * Null means the participant themselves, which is every claim written
+     * before dossiers existed and every claim Sylla may ever disclose. A claim
+     * with a subject is about a third party and never leaves this account.
+     */
+    subjectId: uuid("subject_id").references(() => subjects.id, {
+      onDelete: "cascade",
+    }),
     claim: text("claim").notNull(),
     evidenceExcerpt: text("evidence_excerpt"),
     origin: observationOrigin("origin").notNull(),
@@ -1129,6 +1345,7 @@ export const observations = pgTable(
   },
   (table) => [
     index("observations_participant_idx").on(table.participantId),
+    index("observations_subject_idx").on(table.subjectId),
     index("observations_agent_run_idx").on(table.agentRunId),
   ],
 );
@@ -1407,6 +1624,57 @@ export const introductionOutcomes = pgTable(
       table.introductionProposalId,
       table.participantId,
     ),
+  ],
+);
+
+export const participantBoundaries = pgTable(
+  "participant_boundaries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    kind: boundaryKind("kind").notNull(),
+    /** For weekly_limit: how many may reach them in a rolling week. */
+    threshold: integer("threshold"),
+    /** For paused: when it lifts by itself. Null means until they lift it. */
+    until: timestamp("until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("participant_boundaries_participant_idx").on(table.participantId),
+  ],
+);
+
+/**
+ * What the shield turned away.
+ *
+ * A boundary nobody can inspect is not a shield, it is an algorithm quietly
+ * deciding someone's life. This exists so the member can see what was refused
+ * on their behalf and loosen it if it was too tight. It records the boundary
+ * and the pair, never anything about the other person.
+ */
+export const shieldDeclines = pgTable(
+  "shield_declines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantId: uuid("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    candidatePairId: uuid("candidate_pair_id")
+      .notNull()
+      .references(() => candidatePairs.id, { onDelete: "cascade" }),
+    kind: boundaryKind("kind").notNull(),
+    originTier: introductionOriginTier("origin_tier").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("shield_declines_participant_idx").on(table.participantId),
   ],
 );
 
