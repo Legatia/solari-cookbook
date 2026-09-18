@@ -21,7 +21,7 @@ import type { SyllaSessionState } from "@/lib/sylla/contracts";
 import { ensurePortableIdentity } from "@/lib/sylla/identity";
 
 export const SESSION_COOKIE = "sylla_session";
-const DEMO_EVENT_SLUG = "sylla-first-session";
+export const DEMO_EVENT_SLUG = "sylla-first-session";
 /**
  * Absolute, not idle: a session expires one month after it was created no
  * matter how recently it was used, so every browser re-authenticates monthly.

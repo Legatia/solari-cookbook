@@ -38,7 +38,8 @@
     "verify:subscription": "tsx scripts/verify-subscription.ts",
     "verify:dossier": "tsx scripts/verify-dossier.ts",
     "verify:work-log": "tsx scripts/verify-work-log.ts",
-    "verify:notifications": "tsx scripts/verify-notifications.ts"
+    "verify:notifications": "tsx scripts/verify-notifications.ts",
+    "verify:demo-reset": "tsx scripts/verify-demo-reset.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

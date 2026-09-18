@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { PasskeyAccountPanel } from "@/components/passkey-controls";
 import { RecoveryCodesPanel } from "@/components/recovery-codes";
 import { DossierBoard } from "@/components/dossier-board";
+import { DemoResetPanel } from "@/components/demo-reset";
 import { EmailNotificationsPanel } from "@/components/email-notifications";
 import { WorkLog } from "@/components/work-log";
 import { ReferralPanel } from "@/components/referral-panel";
@@ -2317,6 +2318,7 @@ function AccountPrivacyView({ state }: { state: SyllaSessionState }) {
           <PasskeyAccountPanel />
           <RecoveryCodesPanel />
           <EmailNotificationsPanel />
+          <DemoResetPanel />
           <ShieldPanel />
           <ReferralPanel />
           <ConnectedDevicesPanel />
